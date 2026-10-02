@@ -83,6 +83,7 @@ python-docx==1.2.0
 python-dotenv==1.2.2
 python-multipart==0.0.32
 pywin32==312
+pyyaml==6.0.3
 referencing==0.37.0
 reportlab==4.4.9
 requests==2.33.0
@@ -102,6 +103,7 @@ tqdm==4.70.1
 truststore==0.10.4
 typing-extensions==4.15.0
 typing-inspection==0.4.4
+tzdata==2026.4
 uritemplate==4.2.0
 urllib3==2.8.0
 uuid7==0.1.0

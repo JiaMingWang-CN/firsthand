@@ -3,9 +3,10 @@
 name: 产品名称
 url: https://staging.example.com          # 测试入口，建议使用 staging 环境
 allowed_domains:                          # Agent 只能访问这些域名
+  - staging.example.com
   - example.com
   - auth.example.com
-test_accounts:                            # 这里只写角色名；账号和密码放在 .env 中（见下方说明）
+test_accounts:                            # 这里只写角色名；账号和密码放在 config/.env 中（见下方说明）
   - role: free_user
     description: 免费用户，已完成注册
   - role: paid_user
@@ -20,7 +21,7 @@ forbidden_actions:                        # Agent 禁止执行的操作
 填写说明：
 1. 不要修改标题名称和层级，主 Agent 按标题解析内容。
 2. 标注（必填）的章节缺失或为空时，本次运行会被拒绝。
-3. 测试账号的密码不要写在本文件中。在 .env 中按角色配置：
+3. 测试账号的密码不要写在本文件中。在 config/.env 中按角色配置：
      ACCOUNT_FREE_USER_USERNAME=...
      ACCOUNT_FREE_USER_PASSWORD=...
 4. 写实际情况，不要写宣传语。主 Agent 会拿本文档与真实网站核对，不一致之处会作为发现写进报告。
@@ -62,4 +63,3 @@ forbidden_actions:                        # Agent 禁止执行的操作
 
 # 本次关注点
 <!-- （选填）本次测试特别想了解的内容，例如“新改版的定价页是否容易理解” -->
-
