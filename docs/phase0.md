@@ -86,7 +86,7 @@ OASIS 不覆盖已有数据库；重试讨论验证应使用新运行目录和�
 
 ## 实测与边界
 
-当前状态：模型探测和 OASIS 验证已通过；浏览验证受本机到 Steel 的链路带宽限制，暂缓到网络环境改善后重测（见文末“修订”一节）。
+当前状态：2026-10-02 三项全部通过（见文末“2026-10-02 复测”一节）。此前浏览验证受本机到 Steel 的链路带宽限制未通过（见“修订”一节）。
 
 实测网站为 `https://wjm.dpdns.org`，模型为用户配置的 `mimo-v2.6-flash`。基础对话、工具调用、JSON Schema、两张随机图片、三个上下文样本及十并发请求均通过；提示词约束 JSON 未通过，因此该模型只能使用 JSON Schema 路径。OASIS 完成了手动发帖、模型评论和潜水者的不行动。5 项回归测试通过，两个虚拟环境均通过 `uv pip check`。运行产物含私有连接信息，不纳入提交。
 
@@ -130,3 +130,17 @@ Steel 会话寿命显式设为 10 分钟（服务端返回 `timeout=600000`）�
 
 - 手动指定 Steel 区域（`ap-northeast`、`ap-southeast`、`us-west`）都返回 503，当前套餐可能不支持选择区域。
 - 浏览验证的通过标准仍然要求 DOM 构建没有超时。在这个链路问题解决之前，阶段 0 的浏览验证不算通过。
+
+## 2026-10-02 复测
+
+使用模型 `deepseek-flash`，配置为 `LLM_API=responses`、`LLM_THINKING_TYPE=disabled`。运行 `python -m orchestrator.phase0`，三项全部通过，产物在 `runs/phase0-20261002T173330407512Z/`。
+
+- **模型**：用 Responses 时，全部检查通过，包括 JSON Schema。另外在 Chat Completions 上单独测了一次 JSON Schema（`chat_completions_json_schema`），不通过。
+- **浏览**：Browser Use 降级为 Chat Completions。因为 Chat Completions 不支持 JSON Schema，所以把输出 schema 写进系统提示词，不再强制 `response_format`。Agent 在 2 步内点击"项目"导航，进入 `https://wjm.dpdns.org/projects`，平均每步 12.2 秒，总耗时 62 秒。DOM 失败为 0，重复响应为 0，会话已释放，观测时区为 Asia/Shanghai。本次链路带宽足以在 Browser Use 的内部超时内完成 DOM 构建和截图。
+- **OASIS**：降级为 Chat Completions。动作集符合预期，潜水者只读，LLM 动作验证通过。
+
+复测前修复了两个问题：
+
+1. 首次复测时 6 步都失败，报错为 `response_format type is unavailable`。原因是浏览代码按 Responses 上测出的 JSON Schema 结果判断，而 Browser Use 实际走的是 Chat Completions。现在改为按 `chat_completions_json_schema` 判断（`core.runtime.chat_json_schema_supported`）。
+2. Browser Use 0.13.10 只要模型名包含 "deepseek"，就强制把 `use_vision` 设为 False。方案要求模型能力以实测为准，而能力文件就绪的前提是两项识图探测都通过。因此创建 Agent 后把 `use_vision` 恢复为 True，并在 `browser_result.json` 中记录 `use_vision`。日志里 Browser Use 的那条警告仍会出现，属于正常现象。
+

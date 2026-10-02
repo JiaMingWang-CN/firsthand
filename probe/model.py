@@ -62,11 +62,11 @@ async def probe_model(config, run_dir):
     }
     run_dir = Path(run_dir)
     async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=60, max_retries=0) as client:
-        async def check(name, messages, validate, **kwargs):
+        async def check(name, messages, validate, request_config=config, **kwargs):
             started = time.monotonic()
             result = {"supported": False}
             try:
-                message, result["usage"] = await create(client, config, messages, 512, PROBE_DEADLINE, name, **kwargs)
+                message, result["usage"] = await create(client, request_config, messages, 512, PROBE_DEADLINE, name, **kwargs)
                 result["supported"] = bool(validate(message))
             except Exception as error:
                 result["error"] = error_summary(error, run_dir)
@@ -98,6 +98,11 @@ async def probe_model(config, run_dir):
 
         await check("json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
                     valid_json, json_schema={"name": "probe", "strict": True, "schema": schema})
+        if llm_api(config) == "responses":
+            # Browser Use and OASIS fall back to Chat Completions; measure its structured output separately.
+            await check("chat_completions_json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
+                        valid_json, request_config=dict(config, api="chat_completions"),
+                        json_schema={"name": "probe", "strict": True, "schema": schema})
         # Verify prompt-constrained JSON too, so the fallback has evidence.
         await check("json_prompt", [{"role": "user", "content": f'Return only valid JSON: {{"token":"{token}"}}'}], valid_json)
         for index in range(2):

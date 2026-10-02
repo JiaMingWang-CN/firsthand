@@ -60,6 +60,12 @@ def chat_completions_fallback(config, framework):
     return {"llm_api": "chat_completions"}
 
 
+def chat_json_schema_supported(profile):
+    # Frameworks always use Chat Completions; a Responses profile measures that path separately.
+    checks = profile["checks"]
+    return checks.get("chat_completions_json_schema", checks["json_schema"])["supported"]
+
+
 async def with_deadline(request, seconds, label, attempts=2):
     # The client timeout bounds each socket read, not the whole response, so a stalled
     # provider stream can hang indefinitely. Bound the whole call and retry transport stalls.

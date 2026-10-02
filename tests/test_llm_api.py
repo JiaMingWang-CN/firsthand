@@ -100,3 +100,51 @@ def test_api_setting_is_validated_and_bound_to_capability(tmp_path, capsys):
         require_capabilities(tmp_path, CONFIG)
     assert chat_completions_fallback(CONFIG, "Browser Use") == {"llm_api": "chat_completions", "fallback_from": "responses"}
     assert "Browser Use 不支持 Responses API，降级为 Chat Completions" in capsys.readouterr().out
+
+
+def test_responses_probe_measures_chat_fallback_schema_separately(tmp_path, monkeypatch):
+    import re
+    from types import SimpleNamespace
+    from probe import model
+
+    def token_of(text):
+        return re.search(r"[a-f0-9]{16}", text).group()
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.chat_create))
+            self.responses = SimpleNamespace(create=self.responses_create)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def chat_create(self, **kwargs):
+            # DeepSeek's Chat Completions rejects json_schema; this request comes from the fallback check.
+            assert "response_format" in kwargs
+            raise ValueError("This response_format type is unavailable now")
+
+        async def responses_create(self, **kwargs):
+            assert kwargs["reasoning"] == {"effort": "none"}
+            content = kwargs["input"][0]["content"]
+            if isinstance(content, list):
+                return SimpleNamespace(output_text="123 456 789", output=[], usage=None)
+            token = token_of(content)
+            if "tools" in kwargs:
+                calls = [SimpleNamespace(type="function_call", name=tool["name"], arguments=json.dumps({"token": token}))
+                         for tool in kwargs["tools"]]
+                return SimpleNamespace(output_text="", output=calls, usage=None)
+            text = json.dumps({"token": token}) if "JSON" in content else token
+            return SimpleNamespace(output_text=text, output=[], usage=None)
+
+    monkeypatch.setattr(model, "AsyncOpenAI", FakeClient)
+    monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"test-image"))
+    profile = asyncio.run(model.probe_model(CONFIG, tmp_path))
+    assert profile["ready"] and profile["api"] == "responses"
+    assert profile["checks"]["json_schema"]["supported"] is True
+    assert profile["checks"]["chat_completions_json_schema"]["supported"] is False
+    from core.runtime import chat_json_schema_supported
+    assert chat_json_schema_supported(profile) is False
+    assert chat_json_schema_supported({"checks": {"json_schema": {"supported": True}}}) is True

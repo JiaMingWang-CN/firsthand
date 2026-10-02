@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 from browser_use import Agent, BrowserSession
 from steel import AsyncSteel
 
-from core.runtime import chat_completions_fallback, error_summary, require, require_capabilities, settings, write_json
+from core.runtime import chat_completions_fallback, chat_json_schema_supported, error_summary, require, require_capabilities, settings, write_json
 from browsing.model import ProviderChatOpenAI
 
 # Browser Use degrades silently to a minimal page state when CDP DOM requests fail;
@@ -127,8 +127,8 @@ async def probe_browser(config, run_dir, profile):
                 llm = ProviderChatOpenAI(
                     model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
                     thinking_type=config.get("thinking_type"),
-                    timeout=60, max_retries=0, dont_force_structured_output=not profile["checks"]["json_schema"]["supported"],
-                    add_schema_to_system_prompt=not profile["checks"]["json_schema"]["supported"],
+                    timeout=60, max_retries=0, dont_force_structured_output=not chat_json_schema_supported(profile),
+                    add_schema_to_system_prompt=not chat_json_schema_supported(profile),
                 )
                 # A real DOM interaction: the agent must use an indexed element, which only
                 # works when Browser Use built the page's DOM tree.
@@ -141,6 +141,10 @@ async def probe_browser(config, run_dir, profile):
                     max_actions_per_step=1, use_judge=False, enable_planning=False,
                     directly_open_url=False,
                 )
+                # Browser Use turns vision off for any model named "deepseek"; capabilities come from
+                # our measured vision probes (required for a ready profile), not from model names.
+                agent.settings.use_vision = True
+                result["use_vision"] = agent.settings.use_vision
                 history = await asyncio.wait_for(agent.run(max_steps=6, on_step_end=capture), timeout=360)
                 # Agent.run resets the browser session when it finishes, so read the URL from history.
                 final_url = next((url for url in reversed(history.urls()) if url), None)
