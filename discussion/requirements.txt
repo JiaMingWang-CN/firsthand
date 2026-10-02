@@ -1,0 +1,4 @@
+camel-oasis==0.2.5
+python-dotenv==1.2.4
+mcp==1.29.0
+numpy==1.26.4

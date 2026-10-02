@@ -1,1 +1,7 @@
 .codegraph/
+.venv*/
+__pycache__/
+.pytest_cache/
+config/.env
+.env
+runs/
