@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections import Counter
 from datetime import datetime, timezone
 
 import httpx
@@ -9,7 +10,7 @@ from pydantic import ValidationError
 
 from core.persona import Draft, PersonaDetails, ProductSummary, RunConfig
 from core.runtime import ROOT, write_json
-from orchestrator import phase1
+from orchestrator import personas, phase1
 from orchestrator.manual import read_manual
 from orchestrator.personas import build_persona, dimension_matrix, distribution_issues, request_json, schedule_rows, validate_draft
 
@@ -36,7 +37,8 @@ def draft():
             "state_at_browse": "有明确评估目的", "motivation": "评估作品", "candor": "中", "withhold_reasons": ["怕显得自己不懂技术"],
         })
         people.append(build_persona(details, seed))
-    return Draft(product=ProductSummary(positioning="展示开发者作品", target_users="招聘方和合作方", features=["首页介绍", "项目列表"], assumptions=[]),
+    return Draft(product=ProductSummary(positioning="展示开发者作品", target_users="招聘方和合作方", features=["首页介绍", "项目列表"], assumptions=[],
+                                         target_age_min=20, target_age_max=55),
                  personas=people, run_config=RunConfig(start_time=datetime(2026, 10, 2, tzinfo=timezone.utc), duration_days=1,
                                                        time_slice_minutes=60, max_concurrency=1))
 
@@ -129,6 +131,17 @@ def test_approval_required_and_invalidated_by_edits(tmp_path, monkeypatch, draft
         phase1.require_approved(tmp_path)
 
 
+def test_capability_change_invalidates_approval(tmp_path, monkeypatch, draft):
+    (tmp_path / "manual.md").write_text(SAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    write_json(tmp_path / "draft.json", draft.model_dump(mode="json"))
+    write_json(tmp_path / "capability_profile.json", CAPABILITY)
+    monkeypatch.setattr(phase1, "settings", lambda: CONFIG)
+    phase1.review(tmp_path, input_fn=lambda prompt: "approve")
+    write_json(tmp_path / "capability_profile.json", dict(CAPABILITY, recommended_concurrency=5))
+    with pytest.raises(ValueError, match="审批已失效"):
+        phase1.require_approved(tmp_path)
+
+
 def test_distribution_changes_need_explicit_human_override(tmp_path, monkeypatch, draft):
     draft.personas[0].participation = "lurker"
     (tmp_path / "manual.md").write_text(SAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
@@ -166,7 +179,8 @@ def test_json_validation_retry_keeps_schema_and_thinking():
     def respond(request):
         body = json.loads(request.content)
         bodies.append(body)
-        content = '{}' if len(bodies) == 1 else json.dumps({"positioning": "作品展示", "target_users": "招聘方", "features": ["项目列表"], "assumptions": []})
+        content = '{}' if len(bodies) == 1 else json.dumps({"positioning": "作品展示", "target_users": "招聘方", "features": ["项目列表"], "assumptions": [],
+                                                              "target_age_min": None, "target_age_max": None})
         return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0, "model": "custom",
                                        "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content}}]})
 
@@ -184,3 +198,105 @@ def test_failed_prompt_json_capability_cannot_be_used_as_fallback():
     capability = dict(CAPABILITY, checks={"json_schema": {"supported": False}, "json_prompt": {"supported": False}})
     with pytest.raises(ValueError, match="未通过提示词 JSON"):
         asyncio.run(request_json(None, CONFIG, capability, ProductSummary, "Extract product"))
+
+
+def test_activity_while_fully_asleep_rejected(draft):
+    data = draft.model_dump(mode="json")
+    # p01 sleeps 23:50-06:00; 03:00-04:00 lies entirely inside that window.
+    data["personas"][0]["schedule"]["activity_by_hour"]["3"] = 0.1
+    with pytest.raises(ValidationError, match="asleep"):
+        Draft.model_validate(data)
+    # The partially awake boundary hour stays allowed.
+    data["personas"][0]["schedule"]["activity_by_hour"] = {"12": 0.5, "23": 0.2}
+    Draft.model_validate(data)
+
+
+def test_generated_activity_is_cleared_while_asleep(draft):
+    seed = dimension_matrix(read_manual(SAMPLE))[0]
+    details = PersonaDetails.model_validate({**draft.personas[0].model_dump(include=set(PersonaDetails.model_fields)),
+        "wake": "06:00", "sleep": "23:50", "activity": [{"hour": 2, "probability": 0.05}, {"hour": 21, "probability": 0.9}],
+        "state_at_browse": "晚饭后有空", "motivation": "评估作品", "candor": "中", "withhold_reasons": []})
+    assert build_persona(details, seed).schedule.activity_by_hour == {21: 0.9}
+
+
+@pytest.mark.parametrize("state", ["本地时间周六02:10，睡不着", "星期三午休时打开", "周末早上有空", "10月2日晚上"])
+def test_state_at_browse_cannot_name_a_calendar_day(draft, state):
+    data = draft.model_dump(mode="json")
+    data["personas"][0]["schedule"]["state_at_browse"] = state
+    with pytest.raises(ValidationError, match="calendar"):
+        Draft.model_validate(data)
+
+
+def test_ages_follow_target_range_and_spread(draft):
+    manual = read_manual(SAMPLE)
+    draft.personas[0].age = 60
+    assert "年龄超出目标用户范围 20–55" in distribution_issues(draft, manual)
+    for persona in draft.personas:
+        persona.age = 30 + persona.age % 2 * 10
+    assert "年龄至少覆盖 3 个年代" in distribution_issues(draft, manual)
+
+
+def test_schedule_across_timezones_and_dst(draft):
+    for index, (zone, slot) in enumerate([("America/Los_Angeles", "08:00"), ("Europe/London", "12:30"), ("Asia/Kolkata", "07:30")]):
+        draft.personas[index].timezone = zone
+        draft.personas[index].schedule.browse_slot = slot
+    # US daylight saving ends on 2026-11-01: the LA slot falls after the switch to UTC-8.
+    draft.run_config.start_time = datetime(2026, 11, 1, tzinfo=timezone.utc)
+    rows = {row["persona_id"]: (row["local_time"], row["utc_time"], row["slice_index"]) for row in schedule_rows(draft)}
+    assert rows["p01"] == ("2026-11-01T08:00:00-08:00", "2026-11-01T16:00:00+00:00", 16)
+    assert rows["p02"] == ("2026-11-01T12:30:00+00:00", "2026-11-01T12:30:00+00:00", 12)
+    assert rows["p03"] == ("2026-11-01T07:30:00+05:30", "2026-11-01T02:00:00+00:00", 2)
+
+
+def test_parallel_generation_repairs_clashes_and_logs_reasons(monkeypatch, capsys):
+    manual = read_manual(SAMPLE)
+    product = {"positioning": "作品展示", "target_users": "招聘方", "features": ["项目列表"], "assumptions": [],
+               "target_age_min": 20, "target_age_max": 55}
+    in_flight, peak, calls = 0, 0, Counter()
+
+    def details(persona_id, repaired):
+        index = int(persona_id[1:]) - 1
+        night = int(dimension_matrix(manual)[index]["browse_slot"][:2]) < 6
+        # p02 copies p01's name in the parallel round; only the repair sees accepted names.
+        name = "测试用户1" if persona_id == "p02" and not repaired else f"测试用户{index + 1}"
+        return {"realname": name, "username": f"{name}_u", "gender": "女" if index % 2 else "男", "age": 22 + index * 3,
+                "city": "上海", "timezone": "Asia/Shanghai", "profession": "招聘人员", "industry": "软件", "education": "本科",
+                "income_level": "中", "life_context": "在职", "product_history": "未使用过", "bio": "合成测试角色", "persona": "评估作品",
+                "mbti": "INTJ", "big_five": {key: "中" for key in ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"]},
+                "communication_style": "直接", "interested_topics": ["项目交付"], "wake": "10:00" if night else "06:00",
+                "sleep": "03:00" if night else "23:50", "activity": [{"hour": 12, "probability": 0.5}], "state_at_browse": "有空",
+                "motivation": "评估作品", "candor": "中", "withhold_reasons": ["怕显得不懂技术"]}
+
+    async def respond(request):
+        nonlocal in_flight, peak
+        body = json.loads(request.content)
+        prompt = body["messages"][1]["content"]
+        if body["response_format"]["json_schema"]["name"] == "ProductSummary":
+            content = product
+        else:
+            payload = json.loads(prompt[prompt.index("\n") + 1:prompt.index("\n输出 schema")])
+            persona_id = payload["seed"]["persona_id"]
+            calls[persona_id] += 1
+            content = details(persona_id, bool(payload["previous"]))
+            if persona_id == "p03" and len(body["messages"]) == 2:
+                content = dict(content, age=70)
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return httpx.Response(200, json={"id": "t", "object": "chat.completion", "created": 0, "model": "custom", "choices": [
+            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": json.dumps(content, ensure_ascii=False)}}]})
+
+    real_client = AsyncOpenAI
+
+    def client(**kwargs):
+        return real_client(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
+
+    monkeypatch.setattr(personas, "AsyncOpenAI", client)
+    draft = asyncio.run(personas.generate_draft(CONFIG, CAPABILITY, manual))
+    output = capsys.readouterr().out
+    assert len({p.realname for p in draft.personas}) == 10 and draft.personas[1].realname == "测试用户2"
+    assert [p.persona_id for p in draft.personas] == [f"p{i:02d}" for i in range(1, 11)]
+    assert peak == 10 and calls["p02"] == 2 and calls["p03"] == 2
+    assert "Persona p03 第 1 次不合法" in output and "年龄需在目标用户范围 20–55 内" in output
+    assert "Persona p02 需重新生成：realname 与已有角色重复" in output

@@ -18,7 +18,7 @@ from probe.model import probe_model
 
 def draft_hash(run_dir):
     digest = hashlib.sha256()
-    for name in ["manual.md", "draft.json"]:
+    for name in ["manual.md", "draft.json", "capability_profile.json"]:
         content = (Path(run_dir) / name).read_bytes()
         digest.update(len(content).to_bytes(8, "big"))
         digest.update(content)
@@ -71,7 +71,7 @@ def require_approved(run_dir):
         raise ValueError("Persona 和配置尚未通过人工审核")
     approval = json.loads(path.read_text(encoding="utf-8"))
     if approval.get("status") != "approved" or approval.get("draft_sha256") != draft_hash(run_dir):
-        raise ValueError("审批已失效：说明书或草稿有修改，需重新审核")
+        raise ValueError("审批已失效：说明书、草稿或能力文件有修改，需重新审核")
     issues = distribution_issues(draft, manual)
     if issues != approval.get("distribution_overrides", []):
         raise ValueError("审批没有覆盖当前的人群分布变更")

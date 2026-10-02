@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -9,8 +10,11 @@ from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from core.persona import Draft, Identity, LIMITS, Persona, PersonaDetails, ProductSummary, RunConfig, minutes
+from core.persona import Draft, Identity, LIMITS, Persona, PersonaDetails, ProductSummary, RunConfig, asleep_hours, minutes
 from core.runtime import thinking_body
+
+# Persona requests run in parallel up to this limit; with 10 personas at most 10 are in flight.
+GENERATION_CONCURRENCY = 30
 
 
 def dimension_matrix(manual):
@@ -40,6 +44,9 @@ def build_persona(details, seed):
     activity = {item.hour: item.probability for item in details.activity}
     if len(activity) != len(details.activity):
         raise ValueError("activity hours must be unique")
+    # wake/sleep is the authoritative schedule: nobody joins the community while fully asleep.
+    for hour in asleep_hours(details.wake, details.sleep):
+        activity.pop(hour, None)
     max_steps, stall_limit = LIMITS[seed["patience"]]
     identity = details.model_dump(include=set(Identity.model_fields))
     return Persona.model_validate({
@@ -103,16 +110,26 @@ def distribution_issues(draft, manual):
         (sum(p.browsing_profile.assignment.type == "explore" for p in people) == 3, "3 人自由探索"),
         (Counter(p.participation for p in people) == {"poster": 3, "commenter": 3, "reactor": 2, "lurker": 2}, "参与方式分布为 3/3/2/2"),
         (len({p.gender for p in people}) >= 2, "性别分散"),
-        (len({p.age // 15 for p in people}) >= 2, "年龄段分散"),
+        (len({p.age // 10 for p in people}) >= required_decades(draft.product), f"年龄至少覆盖 {required_decades(draft.product)} 个年代"),
         ({period(p.schedule.browse_slot) for p in people} == {"早", "午", "晚", "深夜"}, "体验时段覆盖早、午、晚、深夜"),
     ]
     for valid, message in constraints:
         if not valid:
             issues.append(message)
+    low, high = draft.product.target_age_min, draft.product.target_age_max
+    if low is not None and any(not low <= p.age <= high for p in people):
+        issues.append(f"年龄超出目标用户范围 {low}–{high}")
     for flow in manual["flows"]:
         if sum(p.browsing_profile.assignment.flow == flow.name for p in people) < 2:
             issues.append(f"流程「{flow.name}」至少分给 2 人")
     return issues
+
+
+def required_decades(product):
+    # A narrow target range (e.g. 20–29) cannot span three decades.
+    if product.target_age_min is None:
+        return 3
+    return min(3, product.target_age_max // 10 - product.target_age_min // 10 + 1)
 
 
 def period(clock):
@@ -126,7 +143,7 @@ def validation_message(error):
     return str(error)
 
 
-async def request_json(client, config, capability, schema, prompt, validate=None):
+async def request_json(client, config, capability, schema, prompt, validate=None, label=None):
     checks = capability["checks"]
     use_schema = checks["json_schema"]["supported"]
     if not use_schema and not checks["json_prompt"]["supported"]:
@@ -138,56 +155,102 @@ async def request_json(client, config, capability, schema, prompt, validate=None
     options = {"response_format": {"type": "json_schema", "json_schema": {
         "name": schema.__name__, "strict": True, "schema": json_schema,
     }}} if use_schema else {}
+    label = label or schema.__name__
     for attempt in range(3):
+        started = time.monotonic()
         response = await client.chat.completions.create(
             model=config["model"], messages=messages, max_tokens=4096,
             extra_body=thinking_body(config), **options,
         )
+        elapsed = time.monotonic() - started
         content = response.choices[0].message.content or ""
         try:
             result = schema.model_validate_json(content)
             if validate:
                 validate(result)
+            print(f"{label} 第 {attempt + 1} 次通过（{elapsed:.0f}s）", flush=True)
             return result
         except (ValueError, ValidationError) as error:
+            print(f"{label} 第 {attempt + 1} 次不合法（{elapsed:.0f}s）：{validation_message(error)}", flush=True)
             if attempt == 2:
-                raise ValueError("生成结果在 3 次尝试后仍不合法：" + validation_message(error)) from error
+                raise ValueError(f"{label} 生成结果在 3 次尝试后仍不合法：" + validation_message(error)) from error
             messages.extend([{"role": "assistant", "content": content},
                              {"role": "user", "content": "修正下列校验错误并返回完整 JSON：" + validation_message(error)}])
+
+
+def identity_clash(candidate, personas):
+    for key in ["realname", "username"]:
+        if getattr(candidate, key).casefold() in {getattr(p, key).casefold() for p in personas}:
+            return f"{key} 与已有角色重复"
+    return None
+
+
+def spread_issue(product, personas):
+    if len({p.gender for p in personas}) < 2:
+        return "需要不同性别以满足分散约束"
+    decades = required_decades(product)
+    if len({p.age // 10 for p in personas}) < decades:
+        return f"需要新的年代，使年龄至少覆盖 {decades} 个年代"
+    return None
+
+
+async def generate_persona(client, config, capability, manual, product, seed, accepted, semaphore):
+    previous = [{"name": p.realname, "username": p.username, "age": p.age, "gender": p.gender,
+                 "profession": p.profession, "life_context": p.life_context} for p in accepted]
+    prompt = ("为维度矩阵中的这个槽位补全一个完整、独特、自洽的测试人设。使用中文；名字、用户名、职业经历应区别于已有角色，名字避免常见组合。"
+              "总体性别和年龄分散，年龄在目标用户范围内（整体至少跨三个年代）。背景要解释使用动机、技术水平和耐心；"
+              "persona 叙述要包含设备、参与方式、作息和表达意愿，与矩阵一致。尚未使用待测产品，不能编造亲身体验。"
+              "wake/sleep 必须覆盖 browse_slot；凌晨体验允许跨午夜作息，每人一个连续睡眠窗口，时长 4–12 小时。"
+              "背景、persona 和 state_at_browse 要与指定时段一致，不能把这次体验写成别的时段。activity 的小时不能重复，完整睡眠的小时活跃概率为 0。"
+              "模拟时间线不区分日期和星期：state_at_browse 不能写星期几、周末、工作日或具体日期，persona 也不要把作息绑定到某个星期。"
+              "隐瞒倾向高时说明原因。\n"
+              + json.dumps({"product": product.model_dump(), "manual": manual["source"], "seed": seed, "previous": previous}, ensure_ascii=False))
+    last = len(accepted) == 9
+
+    def validate_candidate(result):
+        candidate = build_persona(result, seed)
+        low, high = product.target_age_min, product.target_age_max
+        if low is not None and not low <= candidate.age <= high:
+            raise ValueError(f"年龄需在目标用户范围 {low}–{high} 内")
+        # Clashes with accepted personas are known only during repair; parallel peers are checked afterwards.
+        issue = identity_clash(candidate, accepted) or (spread_issue(product, accepted + [candidate]) if last else None)
+        if issue:
+            raise ValueError("最后一个角色" + issue if last else issue)
+
+    async with semaphore:
+        details = await request_json(client, config, capability, PersonaDetails, prompt,
+                                     validate=validate_candidate, label=f"Persona {seed['persona_id']}")
+    return build_persona(details, seed)
 
 
 async def generate_draft(config, capability, manual):
     async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
         product = await request_json(client, config, capability, ProductSummary,
             "根据下列说明书提取定位、目标用户和核心功能。只能使用说明书事实；缺失的人群比例等假设必须在 assumptions 说明。"
-            "不要把阶段 0 的基础设施问题当作产品缺陷。\n" + manual["source"])
+            "说明书写明目标用户年龄范围时填 target_age_min/target_age_max，没写时两者都填 null。"
+            "不要把阶段 0 的基础设施问题当作产品缺陷。\n" + manual["source"], label="产品模型")
         seeds = dimension_matrix(manual)
-        personas = []
-        # Sequential generation lets later personas avoid earlier backgrounds and names.
-        for seed in seeds:
-            previous = [{"name": p.realname, "username": p.username, "age": p.age, "gender": p.gender,
-                         "profession": p.profession, "life_context": p.life_context} for p in personas]
-            prompt = ("为维度矩阵中的这个槽位补全一个完整、独特、自洽的测试人设。使用中文；名字、用户名、职业经历应区别于已有角色。"
-                      "总体性别和年龄分散，并尽量匹配目标用户（至少跨两个年龄段）。背景要解释使用动机、技术水平和耐心；"
-                      "persona 叙述要包含设备、参与方式、作息和表达意愿，与矩阵一致。尚未使用待测产品，不能编造亲身体验。"
-                      "wake/sleep 必须覆盖 browse_slot；凌晨体验允许跨午夜作息，每人一个连续睡眠窗口，时长 4–12 小时。"
-                      "背景、persona 和 state_at_browse 要与指定时段一致，不能把这次体验写成别的时段。activity 的小时不能重复。隐瞒倾向高时说明原因。\n"
-                      + json.dumps({"product": product.model_dump(), "manual": manual["source"], "seed": seed, "previous": previous}, ensure_ascii=False))
-            def validate_candidate(result):
-                candidate = build_persona(result, seed)
-                for key in ["realname", "username"]:
-                    if getattr(candidate, key).casefold() in {getattr(p, key).casefold() for p in personas}:
-                        raise ValueError(f"{key} 与已有角色重复")
-                if len(personas) == 9:
-                    if len({p.gender for p in personas} | {candidate.gender}) < 2:
-                        raise ValueError("最后一个角色需要不同性别以满足分散约束")
-                    if len({p.age // 15 for p in personas} | {candidate.age // 15}) < 2:
-                        raise ValueError("最后一个角色需要另一个年龄段以满足分散约束")
-
-            details = await request_json(client, config, capability, PersonaDetails, prompt,
-                                         validate=validate_candidate)
-            personas.append(build_persona(details, seed))
-            print(f"Persona {seed['persona_id']} 已生成并校验", flush=True)
+        semaphore = asyncio.Semaphore(GENERATION_CONCURRENCY)
+        # Generate all slots in parallel, then repair name clashes and missing spread sequentially,
+        # where each repaired persona sees every accepted one.
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(generate_persona(client, config, capability, manual, product, seed, [], semaphore))
+                     for seed in seeds]
+        accepted, repair = [], []
+        for seed, task in zip(seeds, tasks):
+            issue = identity_clash(task.result(), accepted)
+            if issue:
+                print(f"Persona {seed['persona_id']} 需重新生成：{issue}", flush=True)
+                repair.append(seed)
+            else:
+                accepted.append(task.result())
+        if not repair and (issue := spread_issue(product, accepted)):
+            print(f"Persona {seeds[-1]['persona_id']} 需重新生成：{issue}", flush=True)
+            accepted.pop()
+            repair.append(seeds[-1])
+        for seed in repair:
+            accepted.append(await generate_persona(client, config, capability, manual, product, seed, accepted, semaphore))
+        personas = sorted(accepted, key=lambda persona: persona.persona_id)
         start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
         draft = Draft(product=product, personas=personas,
                       run_config=RunConfig(start_time=start, duration_days=1, time_slice_minutes=60, max_concurrency=1))

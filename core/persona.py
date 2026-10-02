@@ -1,5 +1,6 @@
 """Validated phase-one product, persona and run configuration data."""
 
+import re
 from datetime import datetime
 from typing import Annotated, Literal
 from zoneinfo import ZoneInfo
@@ -43,6 +44,16 @@ class ProductSummary(Data):
     target_users: Text
     features: list[Text] = Field(min_length=1)
     assumptions: list[Text]
+    target_age_min: int | None = Field(ge=1, le=110, strict=True)
+    target_age_max: int | None = Field(ge=1, le=110, strict=True)
+
+    @model_validator(mode="after")
+    def valid_age_range(self):
+        if (self.target_age_min is None) != (self.target_age_max is None):
+            raise ValueError("Give both target ages or neither")
+        if self.target_age_min is not None and self.target_age_min > self.target_age_max:
+            raise ValueError("target_age_min must not exceed target_age_max")
+        return self
 
 
 class BigFive(Data):
@@ -136,12 +147,29 @@ def minutes(clock):
     return hour * 60 + minute
 
 
+def asleep_hours(wake, sleep):
+    """Hours whose whole 60 minutes fall inside the single sleep window."""
+    start, length = minutes(sleep), (minutes(wake) - minutes(sleep)) % 1440
+    return {hour for hour in range(24) if (hour * 60 - start) % 1440 + 60 <= length}
+
+
+# The timeline does not model weekdays or dates, so the browse state must not name one.
+CALENDAR_WORDS = re.compile(r"星期|礼拜|周[一二三四五六日天末]|工作日|双休|节假日|\d+\s*月\s*\d+\s*[日号]")
+
+
 class Schedule(Data):
     wake: Clock
     sleep: Clock
     activity_by_hour: dict[int, float]
     browse_slot: Clock
     state_at_browse: Text
+
+    @field_validator("state_at_browse")
+    @classmethod
+    def no_calendar_day(cls, value):
+        if CALENDAR_WORDS.search(value):
+            raise ValueError("state_at_browse must not name a calendar day, weekday or weekend")
+        return value
 
     @model_validator(mode="after")
     def coherent_schedule(self):
@@ -154,6 +182,9 @@ class Schedule(Data):
         if not self.activity_by_hour or any(not 0 <= hour <= 23 or not 0 <= value <= 1
                                            for hour, value in self.activity_by_hour.items()):
             raise ValueError("Activity needs hours 0..23 and probabilities 0..1")
+        asleep = sorted(hour for hour in asleep_hours(self.wake, self.sleep) if self.activity_by_hour.get(hour, 0) > 0)
+        if asleep:
+            raise ValueError(f"Activity must be 0 for hours spent fully asleep: {asleep}")
         return self
 
 
