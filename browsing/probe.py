@@ -11,7 +11,7 @@ from urllib.parse import urlencode, urlsplit
 from browser_use import Agent, BrowserSession
 from steel import AsyncSteel
 
-from core.runtime import error_summary, require, require_capabilities, settings, write_json
+from core.runtime import chat_completions_fallback, error_summary, require, require_capabilities, settings, write_json
 from browsing.model import ProviderChatOpenAI
 
 # Browser Use degrades silently to a minimal page state when CDP DOM requests fail;
@@ -37,7 +37,8 @@ async def probe_browser(config, run_dir, profile):
     screenshots = run_dir / "screenshots"
     screenshots.mkdir(parents=True, exist_ok=True)
     host = urlsplit(config["url"]).hostname
-    result = {"passed": False, "url": config["url"], "timezone": config["timezone"]}
+    result = {"passed": False, "url": config["url"], "timezone": config["timezone"],
+              **chat_completions_fallback(config, "Browser Use")}
     started = time.monotonic()
     log_counter = LogCounter()
     for name in ["browser_use", "cdp_use", "bubus"]:

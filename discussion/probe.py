@@ -6,7 +6,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from core.runtime import error_summary, require_capabilities, settings, thinking_body, write_json
+from core.runtime import chat_completions_fallback, error_summary, require_capabilities, settings, thinking_body, write_json
 
 
 async def probe_discussion(config, run_dir):
@@ -20,7 +20,7 @@ async def probe_discussion(config, run_dir):
     import oasis
     from oasis import ActionType, AgentGraph, LLMAction, ManualAction, SocialAgent, UserInfo
 
-    result = {"passed": False, "steps": 0}
+    result = {"passed": False, "steps": 0, **chat_completions_fallback(config, "OASIS/CAMEL")}
     env = None
     try:
         model = ModelFactory.create(

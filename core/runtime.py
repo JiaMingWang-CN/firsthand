@@ -23,6 +23,7 @@ def settings():
         "api_key": os.getenv("LLM_API_KEY", ""),
         "model": os.getenv("LLM_MODEL", ""),
         "thinking_type": os.getenv("LLM_THINKING_TYPE", "").strip().lower() or None,
+        "api": os.getenv("LLM_API", "").strip().lower() or "chat_completions",
         "steel_api_key": os.getenv("STEEL_API_KEY", ""),
         "url": os.getenv("PROBE_URL", "https://example.com"),
         "timezone": os.getenv("PROBE_TIMEZONE", "Asia/Shanghai"),
@@ -42,6 +43,21 @@ def thinking_body(config):
     if thinking_type not in {"enabled", "disabled"}:
         raise ValueError("LLM_THINKING_TYPE must be enabled, disabled or empty")
     return {"thinking": {"type": thinking_type}}
+
+
+def llm_api(config):
+    api = config.get("api", "chat_completions")
+    if api not in {"chat_completions", "responses"}:
+        raise ValueError("LLM_API must be chat_completions or responses")
+    return api
+
+
+def chat_completions_fallback(config, framework):
+    # Browser Use and CAMEL/OASIS only call Chat Completions; record the downgrade instead of hiding it.
+    if llm_api(config) == "responses":
+        print(f"{framework} 不支持 Responses API，降级为 Chat Completions", flush=True)
+        return {"llm_api": "chat_completions", "fallback_from": "responses"}
+    return {"llm_api": "chat_completions"}
 
 
 async def with_deadline(request, seconds, label, attempts=2):
@@ -86,4 +102,6 @@ def require_capabilities(run_dir, config):
         raise ValueError("Capability profile belongs to a different model endpoint")
     if profile.get("thinking_type") != config.get("thinking_type"):
         raise ValueError("Thinking mode changed; rerun the model capability probe")
+    if profile.get("api", "chat_completions") != llm_api(config):
+        raise ValueError("LLM_API changed; rerun the model capability probe")
     return profile

@@ -26,6 +26,23 @@ LLM_THINKING_TYPE=disabled
 
 模型探测、Browser Use 和 OASIS 都发送同一配置。Browser Use 0.13.10 没有暴露 `extra_body`，由项目的 `ProviderChatOpenAI` 在新建的 SDK 客户端上绑定参数，保留原有消息序列化和结构化响应校验；配置此参数时也关闭按模型名称自动添加 OpenAI `reasoning_effort`。此开关控制模型服务端思考，不改变 Browser Use 的 Agent 提示词思考字段。
 
+接口类型同样配置在 `config/.env`：
+
+```dotenv
+LLM_API=chat_completions
+```
+
+可选值有两个：`chat_completions`（默认，留空也是它）和 `responses`。能力探测和阶段 1 生成（`core/llm.py`）会按这个设置调用对应接口：图片、工具、`tool_choice`、JSON Schema（Responses 下改用 `text.format`）都会转换为 Responses 的请求格式，返回结果统一整理成同一种消息结构。
+
+Browser Use 0.13.10 的 `ChatOpenAI` 和 OASIS 依赖的 CAMEL 0.2.78 只支持 Chat Completions，因此选 `responses` 时这两部分降级为 Chat Completions，终端会打印降级提示，`browser_result.json`、`oasis_result.json` 会记录 `llm_api` 和 `fallback_from`。能力文件记录 `api`，切换接口后必须重新探测。
+
+Responses 下的思考开关不发送 `thinking.type`。`LLM_THINKING_TYPE=disabled` 时发送 `"reasoning": {"effort": "none"}`；`enabled` 或留空时不发送，采用服务端默认（实测默认开启思考）。
+
+2026-10-02 用 `deepseek-flash` 测试 Responses：
+
+- 最初仍发送 `thinking.type`，`forced_tool` 不通过，服务端报"Thinking mode does not support this tool_choice"。
+- 改为 `reasoning.effort=none` 后，全部检查通过，包括 `forced_tool`、识图和 JSON Schema（Chat Completions 下 JSON Schema 不通过）。
+
 能力文件记录 `thinking_type`。切换模式后，应重新运行模型能力探测；浏览和讨论会拒绝使用另一模式的能力文件。当前厂商的最小真实调用已验证：关闭时未返回 `reasoning_content`，开启时返回该字段，两个模式均正确回答；三处请求传参和模式切换校验已通过测试。
 
 当前 Windows 环境的完整依赖版本保存在两个 `requirements.lock.txt`；直接依赖列在 `requirements.txt`。OASIS 环境固定 MCP 1.29.0，避免 MCP 2.x 移除 `mcp.server.FastMCP` 的导入冲突，并固定 NumPy 1.26.4 配合 OASIS 的 Pandas 2.2.2。

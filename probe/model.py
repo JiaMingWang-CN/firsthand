@@ -12,7 +12,8 @@ from pathlib import Path
 from openai import AsyncOpenAI
 from PIL import Image, ImageDraw, ImageFont
 
-from core.runtime import error_summary, require, settings, thinking_body, with_deadline, write_json
+from core.llm import create
+from core.runtime import error_summary, llm_api, require, settings, write_json
 
 # Whole-request limit per probe; a normal vision check takes up to about 50s.
 PROBE_DEADLINE = 90
@@ -53,10 +54,9 @@ def valid_calls(message, expected, token):
 
 async def probe_model(config, run_dir):
     require(config, "base_url", "api_key", "model")
-    extra_body = thinking_body(config)
     profile = {
         "model": config["model"], "base_url": config["base_url"], "ready": False,
-        "thinking_type": config.get("thinking_type"),
+        "thinking_type": config.get("thinking_type"), "api": llm_api(config),
         "checks": {}, "video": {"status": "not_tested", "fallback": "screenshot_sequence"},
         "audio": {"status": "not_tested", "reason": "No audio product supplied for phase zero"},
     }
@@ -66,11 +66,8 @@ async def probe_model(config, run_dir):
             started = time.monotonic()
             result = {"supported": False}
             try:
-                response = await with_deadline(lambda: client.chat.completions.create(
-                    model=config["model"], messages=messages, max_tokens=512, extra_body=extra_body, **kwargs
-                ), PROBE_DEADLINE, name)
-                result["supported"] = bool(validate(response.choices[0].message))
-                result["usage"] = response.usage.model_dump() if response.usage else None
+                message, result["usage"] = await create(client, config, messages, 512, PROBE_DEADLINE, name, **kwargs)
+                result["supported"] = bool(validate(message))
             except Exception as error:
                 result["error"] = error_summary(error, run_dir)
             result["latency_seconds"] = round(time.monotonic() - started, 3)
@@ -100,7 +97,7 @@ async def probe_model(config, run_dir):
                 return False
 
         await check("json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
-                    valid_json, response_format={"type": "json_schema", "json_schema": {"name": "probe", "strict": True, "schema": schema}})
+                    valid_json, json_schema={"name": "probe", "strict": True, "schema": schema})
         # Verify prompt-constrained JSON too, so the fallback has evidence.
         await check("json_prompt", [{"role": "user", "content": f'Return only valid JSON: {{"token":"{token}"}}'}], valid_json)
         for index in range(2):
