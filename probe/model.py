@@ -12,7 +12,7 @@ from pathlib import Path
 from openai import AsyncOpenAI
 from PIL import Image, ImageDraw, ImageFont
 
-from core.runtime import error_summary, require, settings, write_json
+from core.runtime import error_summary, require, settings, thinking_body, write_json
 
 
 def image_challenge():
@@ -50,8 +50,10 @@ def valid_calls(message, expected, token):
 
 async def probe_model(config, run_dir):
     require(config, "base_url", "api_key", "model")
+    extra_body = thinking_body(config)
     profile = {
         "model": config["model"], "base_url": config["base_url"], "ready": False,
+        "thinking_type": config.get("thinking_type"),
         "checks": {}, "video": {"status": "not_tested", "fallback": "screenshot_sequence"},
         "audio": {"status": "not_tested", "reason": "No audio product supplied for phase zero"},
     }
@@ -62,7 +64,7 @@ async def probe_model(config, run_dir):
             result = {"supported": False}
             try:
                 response = await client.chat.completions.create(
-                    model=config["model"], messages=messages, max_tokens=512, **kwargs
+                    model=config["model"], messages=messages, max_tokens=512, extra_body=extra_body, **kwargs
                 )
                 result["supported"] = bool(validate(response.choices[0].message))
                 result["usage"] = response.usage.model_dump() if response.usage else None

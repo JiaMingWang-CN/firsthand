@@ -6,7 +6,7 @@ import os
 import sqlite3
 from pathlib import Path
 
-from core.runtime import error_summary, require_capabilities, settings, write_json
+from core.runtime import error_summary, require_capabilities, settings, thinking_body, write_json
 
 
 async def probe_discussion(config, run_dir):
@@ -26,7 +26,8 @@ async def probe_discussion(config, run_dir):
         model = ModelFactory.create(
             model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
             model_type=config["model"], url=config["base_url"], api_key=config["api_key"],
-            model_config_dict={"temperature": 0, "max_tokens": 512}, timeout=60, max_retries=0,
+            model_config_dict={"temperature": 0, "max_tokens": 512, "extra_body": thinking_body(config)},
+            timeout=60, max_retries=0,
         )
         graph = AgentGraph()
         allowed = {

@@ -16,6 +16,18 @@ Copy-Item config/.env.example config/.env
 
 最后一条仅用于首次配置；已有配置时不要覆盖。填入 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`、`STEEL_API_KEY`，并设置允许测试的 `PROBE_URL`。
 
+模型思考开关配置在 `config/.env`：
+
+```dotenv
+LLM_THINKING_TYPE=disabled
+```
+
+`enabled` 开启，`disabled` 关闭，留空不发送该参数并采用服务端默认。当前厂商使用请求体 `{"thinking":{"type":"enabled"}}` / `{"thinking":{"type":"disabled"}}`；这不是跨厂商通用协议。换用不支持 `thinking.type` 的厂商时应先留空，不会自动转换为其他厂商的开关。
+
+模型探测、Browser Use 和 OASIS 都发送同一配置。Browser Use 0.13.10 没有暴露 `extra_body`，由项目的 `ProviderChatOpenAI` 在新建的 SDK 客户端上绑定参数，保留原有消息序列化和结构化响应校验；配置此参数时也关闭按模型名称自动添加 OpenAI `reasoning_effort`。此开关控制模型服务端思考，不改变 Browser Use 的 Agent 提示词思考字段。
+
+能力文件记录 `thinking_type`。切换模式后，应重新运行模型能力探测；浏览和讨论会拒绝使用另一模式的能力文件。当前厂商的最小真实调用已验证：关闭时未返回 `reasoning_content`，开启时返回该字段，两个模式均正确回答；三处请求传参和模式切换校验已通过测试。
+
 当前 Windows 环境的完整依赖版本保存在两个 `requirements.lock.txt`；直接依赖列在 `requirements.txt`。OASIS 环境固定 MCP 1.29.0，避免 MCP 2.x 移除 `mcp.server.FastMCP` 的导入冲突，并固定 NumPy 1.26.4 配合 OASIS 的 Pandas 2.2.2。
 
 `.env`、虚拟环境和 `runs/` 不进入 Git。运行日志可能包含浏览器连接地址，属于私有运行产物。

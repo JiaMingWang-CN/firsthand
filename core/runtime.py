@@ -20,6 +20,7 @@ def settings():
         "base_url": os.getenv("LLM_BASE_URL", ""),
         "api_key": os.getenv("LLM_API_KEY", ""),
         "model": os.getenv("LLM_MODEL", ""),
+        "thinking_type": os.getenv("LLM_THINKING_TYPE", "").strip().lower() or None,
         "steel_api_key": os.getenv("STEEL_API_KEY", ""),
         "url": os.getenv("PROBE_URL", "https://example.com"),
         "timezone": os.getenv("PROBE_TIMEZONE", "Asia/Shanghai"),
@@ -30,6 +31,15 @@ def require(config, *names):
     missing = [name for name in names if not config[name]]
     if missing:
         raise ValueError("Missing configuration: " + ", ".join(missing))
+
+
+def thinking_body(config):
+    thinking_type = config.get("thinking_type")
+    if thinking_type is None:
+        return {}
+    if thinking_type not in {"enabled", "disabled"}:
+        raise ValueError("LLM_THINKING_TYPE must be enabled, disabled or empty")
+    return {"thinking": {"type": thinking_type}}
 
 
 def write_json(path, value):
@@ -59,4 +69,6 @@ def require_capabilities(run_dir, config):
         raise ValueError("Model must pass conversation, tool calling and vision probes first")
     if profile["model"] != config["model"] or profile["base_url"] != config["base_url"]:
         raise ValueError("Capability profile belongs to a different model endpoint")
+    if profile.get("thinking_type") != config.get("thinking_type"):
+        raise ValueError("Thinking mode changed; rerun the model capability probe")
     return profile

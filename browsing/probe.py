@@ -8,10 +8,11 @@ import time
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 
-from browser_use import Agent, BrowserSession, ChatOpenAI
+from browser_use import Agent, BrowserSession
 from steel import AsyncSteel
 
 from core.runtime import error_summary, require, require_capabilities, settings, write_json
+from browsing.model import ProviderChatOpenAI
 
 # Browser Use degrades silently to a minimal page state when CDP DOM requests fail;
 # count these so the probe fails instead of passing on a page the agent cannot operate.
@@ -122,8 +123,9 @@ async def probe_browser(config, run_dir, profile):
                 result["observed_timezone"] = observed["result"].get("value")
                 start_url = await browser_session.get_current_page_url()
                 await capture()
-                llm = ChatOpenAI(
+                llm = ProviderChatOpenAI(
                     model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
+                    thinking_type=config.get("thinking_type"),
                     timeout=60, max_retries=0, dont_force_structured_output=not profile["checks"]["json_schema"]["supported"],
                     add_schema_to_system_prompt=not profile["checks"]["json_schema"]["supported"],
                 )

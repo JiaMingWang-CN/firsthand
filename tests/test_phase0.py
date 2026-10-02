@@ -25,6 +25,7 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
             pass
 
         async def create(self, **kwargs):
+            assert kwargs["extra_body"] == {"thinking": {"type": "disabled"}}
             content = kwargs["messages"][0]["content"]
             calls = None
             if isinstance(content, list):
@@ -44,10 +45,11 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
 
     monkeypatch.setattr(model, "AsyncOpenAI", FakeClient)
     monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"test-image"))
-    config = {"model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret"}
+    config = {"model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret", "thinking_type": "disabled"}
     profile = asyncio.run(model.probe_model(config, tmp_path))
     assert profile["ready"] is (unsupported is None)
     assert profile["structured_output"] == "prompt_with_validation"
+    assert profile["thinking_type"] == "disabled"
     assert "test-secret" not in (tmp_path / "capability_profile.json").read_text()
     if unsupported:
         with pytest.raises(ValueError):
