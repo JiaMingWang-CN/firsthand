@@ -75,3 +75,12 @@ def test_orchestrator_stops_before_browsing_on_failed_model(tmp_path, monkeypatc
     assert len(calls) == 1 and calls[0][2] == "probe.model"
     result = json.loads((run_dir / "phase0_result.json").read_text())
     assert not result["passed"] and set(result["checks"]) == {"model"}
+
+
+def test_error_log_redacts_credentials(tmp_path):
+    from core.runtime import error_summary
+
+    summary = error_summary(ConnectionError("wss://connect.example?sessionId=1&apiKey=sk-live-123 closed"), tmp_path)
+    log = (tmp_path / "errors.log").read_text(encoding="utf-8")
+    assert summary == {"type": "ConnectionError", "status_code": None}
+    assert "sk-live-123" not in log and "apiKey=REDACTED" in log and "Traceback" not in summary

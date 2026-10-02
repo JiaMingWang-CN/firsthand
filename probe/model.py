@@ -67,7 +67,7 @@ async def probe_model(config, run_dir):
                 result["supported"] = bool(validate(response.choices[0].message))
                 result["usage"] = response.usage.model_dump() if response.usage else None
             except Exception as error:
-                result["error"] = error_summary(error)
+                result["error"] = error_summary(error, run_dir)
             result["latency_seconds"] = round(time.monotonic() - started, 3)
             profile["checks"][name] = result
             print(f"{name}: {'PASS' if result['supported'] else 'FAIL'}", flush=True)
@@ -128,7 +128,7 @@ def main():
     try:
         profile = asyncio.run(probe_model(settings(), args.run_dir))
     except Exception as error:
-        write_json(args.run_dir / "model_error.json", error_summary(error))
+        write_json(args.run_dir / "model_error.json", error_summary(error, args.run_dir))
         raise SystemExit(1)
     raise SystemExit(0 if profile["ready"] else 1)
 

@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>muchhuman 设计语言</title>
+<style>
+/* =========================================================
+   设计令牌（Design Tokens）
+   其他 Agent 实现界面时，直接复制本 :root 块作为唯一来源
+   ========================================================= */
+:root {
+  /* —— 中性色：暖纸色系，像研究笔记 —— */
+  --bg:            #F6F5F1;
+  --surface:       #FFFFFF;
+  --surface-2:     #EFEDE7;
+  --border:        #DEDBD2;
+  --border-strong: #C4C0B4;
+  --text:          #1D1C1A;
+  --text-2:        #55524B;
+  --text-3:        #8A867C;
+
+  /* —— 主色：只用于“可操作” —— */
+  --accent:        #2F55D4;
+  --accent-hover:  #2445B5;
+  --accent-soft:   #E6ECFC;
+  --on-accent:     #FFFFFF;
+
+  /* —— 模拟时间：专用色，与真实时间严格区分 —— */
+  --sim:           #7A4FC9;
+  --sim-soft:      #F0EAFB;
+
+  /* —— 严重度 —— */
+  --sev-1: #B42318;  /* 致命：阻断任务 */
+  --sev-2: #D4570F;  /* 严重：明显受挫 */
+  --sev-3: #A87A12;  /* 一般：有摩擦 */
+  --sev-4: #6F6C64;  /* 轻微：瑕疵 */
+
+  /* —— 情绪 —— */
+  --pos:      #2E7D4F;
+  --pos-soft: #E3F2E8;
+  --neg:      #C2362F;
+  --neg-soft: #FBE7E5;
+  --confused: #A86A12;
+  --confused-soft: #FBF0DC;
+
+  /* —— 可见性：公开 / 未说出 / 私下 —— */
+  --vis-public:   #1D1C1A;
+  --vis-withheld: #A0562A;
+  --vis-withheld-soft: #F7E9DF;
+  --vis-private:  #4C6A8A;
+  --vis-private-soft: #E5EDF5;
+
+  /* —— 人物分类色（10 色，仅用于区分人物，不承载语义） —— */
+  --p1:  #3B6FD8; --p2:  #D0663A; --p3:  #2E9479; --p4:  #B4458C; --p5:  #8A7A2A;
+  --p6:  #6A5ACD; --p7:  #C24D5C; --p8:  #2B8BA8; --p9:  #7E8C38; --p10: #9A5B34;
+
+  /* —— 字体 —— */
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SF Mono", monospace;
+
+  /* —— 字号（1.2 比例，正文 14） —— */
+  --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px;
+  --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 32px;
+
+  /* —— 间距（4px 栅格） —— */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
+
+  /* —— 圆角 / 阴影 / 动效 —— */
+  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-full: 999px;
+  --shadow-1: 0 1px 2px rgba(29,28,26,.06), 0 1px 1px rgba(29,28,26,.04);
+  --shadow-2: 0 8px 24px rgba(29,28,26,.12), 0 2px 6px rgba(29,28,26,.06);
+  --ease: cubic-bezier(.2,.7,.2,1);
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 320ms;
+
+  /* —— 未说出的纹理 —— */
+  --hatch: repeating-linear-gradient(135deg, var(--vis-withheld-soft) 0 6px, transparent 6px 12px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#151513; --surface:#1E1E1B; --surface-2:#272723; --border:#34332E; --border-strong:#4A4840;
+    --text:#ECEAE4; --text-2:#B4B0A6; --text-3:#7F7B72;
+    --accent:#6F8FF0; --accent-hover:#8AA3F4; --accent-soft:#232C47; --on-accent:#0E1220;
+    --sim:#A98BEA; --sim-soft:#2A2340;
+    --sev-1:#F0675C; --sev-2:#F08A4B; --sev-3:#D9AE45; --sev-4:#9C988E;
+    --pos:#5DBB85; --pos-soft:#1C3326; --neg:#EE6A62; --neg-soft:#3A1F1D; --confused:#D9A54A; --confused-soft:#3A2E18;
+    --vis-public:#ECEAE4; --vis-withheld:#E09A6A; --vis-withheld-soft:#3A2A1F; --vis-private:#8FB0D2; --vis-private-soft:#1F2A36;
+    --p1:#6F98F0; --p2:#EE8D62; --p3:#5DC4A6; --p4:#E07AB8; --p5:#C9B65A;
+    --p6:#9C8EF0; --p7:#EE7D8B; --p8:#5BB8D4; --p9:#AEBD62; --p10:#D08E62;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#151513; --surface:#1E1E1B; --surface-2:#272723; --border:#34332E; --border-strong:#4A4840;
+  --text:#ECEAE4; --text-2:#B4B0A6; --text-3:#7F7B72;
+  --accent:#6F8FF0; --accent-hover:#8AA3F4; --accent-soft:#232C47; --on-accent:#0E1220;
+  --sim:#A98BEA; --sim-soft:#2A2340;
+  --sev-1:#F0675C; --sev-2:#F08A4B; --sev-3:#D9AE45; --sev-4:#9C988E;
+  --pos:#5DBB85; --pos-soft:#1C3326; --neg:#EE6A62; --neg-soft:#3A1F1D; --confused:#D9A54A; --confused-soft:#3A2E18;
+  --vis-public:#ECEAE4; --vis-withheld:#E09A6A; --vis-withheld-soft:#3A2A1F; --vis-private:#8FB0D2; --vis-private-soft:#1F2A36;
+  --p1:#6F98F0; --p2:#EE8D62; --p3:#5DC4A6; --p4:#E07AB8; --p5:#C9B65A;
+  --p6:#9C8EF0; --p7:#EE7D8B; --p8:#5BB8D4; --p9:#AEBD62; --p10:#D08E62;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+}
+
+/* =========================================================
+   本文档自身的排版
+   ========================================================= */
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: var(--fs-md)/1.7 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, .mono { font-family: var(--font-mono); font-size: .92em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: var(--r-sm); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+
+.layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); max-width: 1280px; margin: 0 auto; }
+nav.toc {
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  padding: var(--sp-6) var(--sp-4) var(--sp-6) var(--sp-5);
+  border-right: 1px solid var(--border);
+}
+nav.toc .brand { font-weight: 700; font-size: var(--fs-lg); margin-bottom: var(--sp-1); }
+nav.toc .ver { color: var(--text-3); font-size: var(--fs-xs); margin-bottom: var(--sp-5); }
+nav.toc ol { list-style: none; padding: 0; margin: 0; counter-reset: s; }
+nav.toc li { counter-increment: s; }
+nav.toc li a { display: block; padding: 4px 8px; margin: 0 -8px; border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-sm); }
+nav.toc li a::before { content: counter(s, decimal-leading-zero) "  "; color: var(--text-3); font-family: var(--font-mono); font-size: var(--fs-xs); }
+nav.toc li a:hover { background: var(--surface-2); text-decoration: none; color: var(--text); }
+.theme-btn {
+  margin-top: var(--sp-5); font: inherit; font-size: var(--fs-xs); color: var(--text-2);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 6px 10px; cursor: pointer;
+}
+
+main { padding: var(--sp-7) var(--sp-7) var(--sp-8); min-width: 0; }
+header.hero { margin-bottom: var(--sp-7); max-width: 760px; }
+header.hero .eyebrow { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); letter-spacing: .08em; text-transform: uppercase; }
+header.hero h1 { font-size: var(--fs-3xl); line-height: 1.25; margin: var(--sp-2) 0 var(--sp-4); letter-spacing: -.01em; }
+header.hero p { color: var(--text-2); font-size: var(--fs-lg); margin: 0 0 var(--sp-3); }
+
+section { margin-bottom: var(--sp-8); scroll-margin-top: var(--sp-5); }
+section > h2 {
+  font-size: var(--fs-2xl); margin: 0 0 var(--sp-2); letter-spacing: -.005em;
+  display: flex; align-items: baseline; gap: var(--sp-3);
+}
+section > h2 .n { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--text-3); font-weight: 400; }
+section > .lead { color: var(--text-2); margin: 0 0 var(--sp-5); max-width: 760px; }
+h3 { font-size: var(--fs-lg); margin: var(--sp-6) 0 var(--sp-3); }
+p, li { max-width: 760px; }
+ul.rules { padding-left: 1.2em; margin: var(--sp-2) 0; }
+ul.rules li { margin: 4px 0; }
+
+.grid { display: grid; gap: var(--sp-4); }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g5 { grid-template-columns: repeat(5, minmax(0,1fr)); }
+
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-5); }
+.panel.tight { padding: var(--sp-4); }
+.label { font-size: var(--fs-xs); color: var(--text-3); letter-spacing: .02em; }
+
+table.spec { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+table.spec th, table.spec td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.spec th { background: var(--surface-2); color: var(--text-2); font-weight: 600; font-size: var(--fs-xs); }
+table.spec tr:last-child td { border-bottom: none; }
+.table-wrap { overflow-x: auto; }
+
+.principle { display: grid; grid-template-columns: 40px 1fr; gap: var(--sp-3); }
+.principle .num { font-family: var(--font-mono); color: var(--accent); font-size: var(--fs-xl); line-height: 1.2; }
+.principle h4 { margin: 0 0 4px; font-size: var(--fs-lg); }
+.principle p { margin: 0; color: var(--text-2); font-size: var(--fs-sm); }
+
+.swatch { border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--surface); }
+.swatch .chip { height: 56px; }
+.swatch .meta { padding: 8px 10px; font-size: var(--fs-xs); }
+.swatch .meta b { display: block; font-size: var(--fs-sm); }
+.swatch .meta span { color: var(--text-3); font-family: var(--font-mono); }
+
+.dodont { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.do, .dont { border-radius: var(--r-lg); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border); background: var(--surface); }
+.do { border-top: 3px solid var(--pos); }
+.dont { border-top: 3px solid var(--neg); }
+.do h4, .dont h4 { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); }
+.do h4 { color: var(--pos); } .dont h4 { color: var(--neg); }
+.do ul, .dont ul { margin: 0; padding-left: 1.1em; font-size: var(--fs-sm); color: var(--text-2); }
+
+pre.tokens {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5); overflow-x: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; color: var(--text-2);
+}
+
+/* =========================================================
+   组件样例（规范的一部分：其他 Agent 应照此实现）
+   ========================================================= */
+.btn {
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+  height: 32px; padding: 0 14px; border-radius: var(--r-md); border: 1px solid transparent;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+.btn-secondary:hover { background: var(--surface-2); }
+.btn-ghost { background: transparent; color: var(--text-2); }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); }
+.btn-danger { background: var(--surface); color: var(--neg); border-color: var(--neg); }
+.btn .cost { font-family: var(--font-mono); font-weight: 400; opacity: .85; font-size: var(--fs-xs); }
+
+.tag { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 600; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); white-space: nowrap; }
+.tag .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.sev1 { color: var(--sev-1); border-color: color-mix(in srgb, var(--sev-1) 35%, transparent); }
+.sev2 { color: var(--sev-2); border-color: color-mix(in srgb, var(--sev-2) 35%, transparent); }
+.sev3 { color: var(--sev-3); border-color: color-mix(in srgb, var(--sev-3) 35%, transparent); }
+.sev4 { color: var(--sev-4); }
+
+.simtime { display: inline-flex; align-items: center; gap: 4px; font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--sim); background: var(--sim-soft); padding: 1px 7px; border-radius: var(--r-sm); white-space: nowrap; }
+.realtime { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); }
+
+.ev { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: var(--r-sm); font-family: var(--font-mono); font-size: 11px; color: var(--accent); background: var(--accent-soft); border: none; cursor: pointer; white-space: nowrap; }
+.ev:hover { text-decoration: underline; }
+
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-weight: 700; font-size: 13px; flex: none; position: relative; }
+.avatar.sm { width: 22px; height: 22px; font-size: 10px; }
+.avatar.lg { width: 44px; height: 44px; font-size: 16px; }
+.avatar.lurker { background: transparent !important; border: 1.5px dashed currentColor; }
+.pchip { display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px 2px 2px; border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-xs); font-weight: 600; color: var(--text); white-space: nowrap; }
+
+.part { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-2); }
+.part i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1.5px solid var(--text-2); }
+.part.poster i { background: var(--text-2); }
+.part.commenter i { background: linear-gradient(90deg, var(--text-2) 50%, transparent 50%); }
+.part.reactor i { background: radial-gradient(circle, var(--text-2) 2px, transparent 2.5px); }
+.part.lurker i { border-style: dashed; }
+
+.persona-card { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); }
+.persona-card .name { font-weight: 700; font-size: var(--fs-lg); line-height: 1.3; }
+.persona-card .sub { color: var(--text-2); font-size: var(--fs-sm); }
+.persona-card .attrs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: var(--sp-2); }
+.sim-badge { font-size: 10px; font-weight: 700; letter-spacing: .06em; color: var(--sim); border: 1px solid color-mix(in srgb, var(--sim) 40%, transparent); padding: 0 5px; border-radius: var(--r-sm); }
+
+.finding { border-left: 3px solid var(--sev-1); }
+.finding .head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.finding h4 { margin: var(--sp-2) 0 var(--sp-1); font-size: var(--fs-lg); }
+.finding .why { color: var(--text-2); font-size: var(--fs-sm); margin: 0 0 var(--sp-3); }
+.finding .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-3); }
+.finding .row + .row { margin-top: var(--sp-2); }
+
+.voice { border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); font-size: var(--fs-sm); }
+.voice .who { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 6px; font-size: var(--fs-xs); color: var(--text-3); }
+.voice.public { background: var(--surface); border: 1px solid var(--border); }
+.voice.withheld { background: var(--hatch), var(--surface); border: 1px dashed var(--vis-withheld); }
+.voice.withheld .kind { color: var(--vis-withheld); font-weight: 700; }
+.voice.private { background: var(--vis-private-soft); border: 1px dotted var(--vis-private); }
+.voice.private .kind { color: var(--vis-private); font-weight: 700; }
+.voice .reason { margin-top: 6px; font-size: var(--fs-xs); color: var(--text-3); }
+
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-2); }
+.status i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.st-wait i { border: 1.5px solid var(--text-3); }
+.st-browse i { background: var(--accent); animation: pulse 1.4s var(--ease) infinite; }
+.st-social i { background: var(--sim); animation: pulse 1.4s var(--ease) infinite; }
+.st-done i { background: var(--pos); }
+.st-quit i { background: var(--confused); }
+.st-err i { background: var(--neg); }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .35 } }
+@media (prefers-reduced-motion: reduce) { .st-browse i, .st-social i { animation: none; } }
+
+.timeline { position: relative; height: 92px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 12px 16px; }
+.timeline .axis { position: absolute; left: 16px; right: 16px; bottom: 22px; height: 1px; background: var(--border-strong); }
+.timeline .tick { position: absolute; bottom: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--text-3); transform: translateX(-50%); }
+.timeline .night { position: absolute; top: 12px; bottom: 23px; background: var(--surface-2); border-radius: var(--r-sm); }
+.timeline .mark { position: absolute; bottom: 30px; transform: translateX(-50%); }
+.timeline .playhead { position: absolute; top: 8px; bottom: 22px; width: 2px; background: var(--sim); }
+.timeline .playhead::after { content: "D1 21:10"; position: absolute; top: -2px; right: 6px; font-family: var(--font-mono); font-size: 10px; color: var(--sim); background: var(--sim-soft); padding: 0 4px; border-radius: 3px; white-space: nowrap; }
+
+.gate { border: 1px solid var(--border-strong); }
+.gate .bar { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-4); flex-wrap: wrap; border-top: 1px solid var(--border); margin-top: var(--sp-4); padding-top: var(--sp-4); }
+.gate .est { display: flex; gap: var(--sp-5); font-size: var(--fs-sm); }
+.gate .est b { font-family: var(--font-mono); font-size: var(--fs-lg); display: block; }
+.warn { display: flex; gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-md); background: var(--confused-soft); color: var(--text); font-size: var(--fs-sm); border: 1px solid color-mix(in srgb, var(--confused) 30%, transparent); }
+
+.layers { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 0; }
+.layers > div { padding: var(--sp-4); border: 1px solid var(--border); background: var(--surface); position: relative; }
+.layers > div:not(:last-child)::after { content: "→"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--text-3); background: var(--bg); font-size: 12px; z-index: 1; }
+.layers > div:first-child { border-radius: var(--r-lg) 0 0 var(--r-lg); }
+.layers > div:last-child { border-radius: 0 var(--r-lg) var(--r-lg) 0; }
+.layers .k { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--accent); }
+.layers b { display: block; margin: 2px 0 4px; }
+.layers p { margin: 0; font-size: var(--fs-xs); color: var(--text-2); }
+
+.checklist { list-style: none; padding: 0; margin: 0; }
+.checklist li { padding: 8px 0 8px 28px; border-bottom: 1px solid var(--border); position: relative; font-size: var(--fs-sm); }
+.checklist li::before { content: ""; position: absolute; left: 2px; top: 12px; width: 14px; height: 14px; border: 1.5px solid var(--border-strong); border-radius: 3px; }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: 1fr; }
+  nav.toc { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); padding: var(--sp-4); }
+  nav.toc ol { display: none; }
+  main { padding: var(--sp-5) var(--sp-4) var(--sp-7); }
+  .g2, .g3, .dodont, .layers { grid-template-columns: 1fr; }
+  .g5 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .layers > div { border-radius: 0 !important; }
+  .layers > div::after { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc" aria-label="目录">
+  <div class="brand">muchhuman</div>
+  <div class="ver">设计语言 · v1 · 2026-10-02</div>
+  <ol>
+    <li><a href="#about">如何使用本文档</a></li>
+    <li><a href="#principles">设计原则</a></li>
+    <li><a href="#voice">语气与文案</a></li>
+    <li><a href="#color">色彩</a></li>
+    <li><a href="#type">字体与排版</a></li>
+    <li><a href="#space">间距、圆角、层级</a></li>
+    <li><a href="#icon">图标与头像</a></li>
+    <li><a href="#concepts">核心概念的视觉表达</a></li>
+    <li><a href="#components">基础组件</a></li>
+    <li><a href="#interaction">交互原则</a></li>
+    <li><a href="#patterns">关键交互模式</a></li>
+    <li><a href="#states">状态与反馈</a></li>
+    <li><a href="#dataviz">数据可视化</a></li>
+    <li><a href="#motion">动效</a></li>
+    <li><a href="#a11y">可访问性与响应式</a></li>
+    <li><a href="#tokens">设计令牌</a></li>
+    <li><a href="#checklist">交付前自检清单</a></li>
+  </ol>
+  <button class="theme-btn" id="themeBtn" type="button">切换明暗主题</button>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="eyebrow">Design Language · for builders &amp; agents</div>
+  <h1>像观察室一样冷静，<br>像研究笔记一样可追溯。</h1>
+  <p>muchhuman 让模拟人物真实使用产品、在社区里讨论，最后给出附带证据的结论。界面的任务是：<b>让人信任结论，并且随时能核对结论</b>。</p>
+  <p>本文档只规定“怎么设计、怎么交互”，不规定具体页面。任何 Agent 在设计或实现 muchhuman 的界面前，都必须先读完本文档。</p>
+</header>
+
+<!-- 01 -->
+<section id="about">
+  <h2><span class="n">01</span>如何使用本文档</h2>
+  <p class="lead">本文档面向设计和实现界面的 Agent 与开发者。规则按强度分为三级：</p>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th style="width:120px">措辞</th><th>含义</th></tr>
+    <tr><td><b>必须 / 禁止</b></td><td>硬性规则，违反就视为缺陷。</td></tr>
+    <tr><td><b>应该 / 不应</b></td><td>默认做法。偏离时要在交付说明中写明理由。</td></tr>
+    <tr><td><b>可以</b></td><td>允许的做法，由设计者自行判断。</td></tr>
+  </table>
+  </div>
+  <ul class="rules">
+    <li>颜色、字号、间距、圆角、阴影<b>必须</b>使用第 16 节的设计令牌（CSS 变量），<b>禁止</b>在组件里写死色值。</li>
+    <li>本文档中的组件样例就是规范本身：实现时应在视觉上与样例保持一致。</li>
+    <li>遇到本文档没有覆盖的情况，按第 02 节的设计原则推导；仍然无法确定时，选更简单、更克制的方案。</li>
+  </ul>
+</section>
+
+<!-- 02 -->
+<section id="principles">
+  <h2><span class="n">02</span>设计原则</h2>
+  <p class="lead">以下六条原则按优先级排列。原则之间冲突时，排在前面的优先。</p>
+  <div class="grid g2">
+    <div class="panel principle"><div class="num">1</div><div><h4>证据优先</h4><p>每条结论都必须能在三次点击内追到原始证据：步骤、截图、报错、录像时间点。没有证据的结论不展示，或者明确标注为“无证据”。</p></div></div>
+    <div class="panel principle"><div class="num">2</div><div><h4>区分说出来的与没说出来的</h4><p>公开发言、体验了但没说出来的、私下问卷，是三种不同的信息。它们在视觉上必须始终可以区分，不能混在一起展示。</p></div></div>
+    <div class="panel principle"><div class="num">3</div><div><h4>人物是人，但必须标明是模拟</h4><p>人物要有名字、性格和作息，让人有代入感。但任何地方都不能让人误以为他们是真实用户：使用抽象头像，并带上“模拟”标识。</p></div></div>
+    <div class="panel principle"><div class="num">4</div><div><h4>时间是一个维度</h4><p>模拟时间和真实时间必须一眼就能分清。凡是和“什么时候发生”有关的内容，都应该能在时间轴上定位。</p></div></div>
+    <div class="panel principle"><div class="num">5</div><div><h4>冷静的仪器</h4><p>界面像一台仪器，而不是营销页。少用装饰，克制用色，颜色只用来表达含义。数据是主角。</p></div></div>
+    <div class="panel principle"><div class="num">6</div><div><h4>花钱的操作必须透明</h4><p>每次运行都会消耗模型调用和云端浏览器费用。触发开销的操作必须先告诉用户预估的花费和耗时，运行过程中可以随时暂停或取消。</p></div></div>
+  </div>
+</section>
+
+<!-- 03 -->
+<section id="voice">
+  <h2><span class="n">03</span>语气与文案</h2>
+  <p class="lead">界面使用简体中文，语气像一位严谨的研究员：陈述事实，标明来源，不夸张，也不卖萌。</p>
+
+  <h3>文案规则</h3>
+  <ul class="rules">
+    <li><b>先说结论，再给依据</b>。例如：“7 人中有 4 人没能完成注册 · 证据 12 条”。</li>
+    <li><b>数字要具体</b>。写“4/7 人”，不要写“多数用户”。百分比必须同时给出分母。</li>
+    <li><b>引用人物的话时，必须标注是谁、在什么模拟时间说的</b>，并保留原话语气，不要润色。</li>
+    <li><b>不要把模拟结果写成事实</b>。写“模拟中 4 人受阻”，不要写“用户无法注册”。</li>
+    <li><b>错误提示要说清三件事</b>：发生了什么、影响范围、下一步怎么办。</li>
+    <li>中文与英文、数字之间加一个空格。中文语境使用全角标点。</li>
+    <li>按钮用“动词 + 名词”，例如“开始运行”“查看证据”，不要用“确定”“好的”。</li>
+  </ul>
+
+  <h3>术语表（界面中必须统一使用）</h3>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th>内部概念</th><th>界面用语</th><th>说明</th></tr>
+    <tr><td>Persona</td><td><b>人物</b></td><td>不要使用“用户”，以免和真实用户混淆</td></tr>
+    <tr><td>Run</td><td><b>运行</b></td><td>一次完整的模拟</td></tr>
+    <tr><td>Product manual</td><td><b>使用说明</b></td><td></td></tr>
+    <tr><td>Scout</td><td><b>侦察</b></td><td></td></tr>
+    <tr><td>Review gate</td><td><b>运行前审核</b></td><td></td></tr>
+    <tr><td>Experience Memory</td><td><b>体验记录</b></td><td></td></tr>
+    <tr><td>Finding</td><td><b>发现</b></td><td>细分为“问题”和“亮点”</td></tr>
+    <tr><td>Evidence</td><td><b>证据</b></td><td></td></tr>
+    <tr><td>Shared / Withheld</td><td><b>说出的 / 未说出的</b></td><td>不要用“隐瞒”，这个词带有道德评判</td></tr>
+    <tr><td>Exit survey</td><td><b>离场问卷</b></td><td></td></tr>
+    <tr><td>poster / commenter / reactor / lurker</td><td><b>发帖者 / 评论者 / 点赞者 / 潜水者</b></td><td></td></tr>
+    <tr><td>Sim time</td><td><b>模拟时间</b></td><td>格式为 <span class="simtime">◷ D1 21:10</span></td></tr>
+    <tr><td>Trace</td><td><b>轨迹</b></td><td>包括 Console、Network 等技术数据</td></tr>
+    <tr><td>Interview</td><td><b>采访</b></td><td></td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- 04 -->
+<section id="color">
+  <h2><span class="n">04</span>色彩</h2>
+  <p class="lead">底色是暖中性的纸色，主色只有一个蓝色。其余颜色都是语义色，每种颜色只对应一种含义。<b>禁止</b>把语义色用作装饰。</p>
+
+  <h3>中性色与主色</h3>
+  <div class="grid g5">
+    <div class="swatch"><div class="chip" style="background:var(--bg)"></div><div class="meta"><b>背景</b><span>--bg</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--surface)"></div><div class="meta"><b>表面</b><span>--surface</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--surface-2)"></div><div class="meta"><b>次级表面</b><span>--surface-2</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--text)"></div><div class="meta"><b>正文</b><span>--text</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="meta"><b>主色 · 可操作</b><span>--accent</span></div></div>
+  </div>
+  <ul class="rules">
+    <li><b>主色 <code>--accent</code> 只用于可以点击或操作的元素</b>：主按钮、链接、证据标签、焦点框、选中状态。不可点击的元素不得使用主色。</li>
+    <li>文字分为三级：<code>--text</code> 用于正文，<code>--text-2</code> 用于说明，<code>--text-3</code> 用于辅助信息。不要再引入第四级灰色。</li>
+  </ul>
+
+  <h3>语义色</h3>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th>类别</th><th>取值</th><th>使用规则</th></tr>
+    <tr><td><b>模拟时间</b></td><td><span class="simtime">◷ D1 21:10</span> <code>--sim</code></td><td>只用于模拟时间、模拟时钟，以及人物正在社区中活动的状态。真实时间一律用灰色。</td></tr>
+    <tr><td><b>严重度</b></td><td>
+      <span class="tag sev1"><span class="dot"></span>S1 致命</span>
+      <span class="tag sev2"><span class="dot"></span>S2 严重</span>
+      <span class="tag sev3"><span class="dot"></span>S3 一般</span>
+      <span class="tag sev4"><span class="dot"></span>S4 轻微</span></td>
+      <td>只用于“问题”。<b>必须</b>同时显示文字，例如“S1 致命”，不能只靠颜色区分。</td></tr>
+    <tr><td><b>情绪</b></td><td>
+      <span class="tag" style="color:var(--pos)"><span class="dot"></span>满意</span>
+      <span class="tag" style="color:var(--neg)"><span class="dot"></span>受挫</span>
+      <span class="tag" style="color:var(--confused)"><span class="dot"></span>困惑</span></td>
+      <td>只用于人物的情绪曲线和单步情绪。“亮点”用满意色。</td></tr>
+    <tr><td><b>可见性</b></td><td>
+      <span class="tag" style="color:var(--vis-public)">说出的</span>
+      <span class="tag" style="color:var(--vis-withheld);background:var(--hatch),var(--surface);border-style:dashed">未说出的</span>
+      <span class="tag" style="color:var(--vis-private);background:var(--vis-private-soft);border-style:dotted">私下 · 问卷</span></td>
+      <td>三者<b>必须</b>同时用颜色、边框样式和文字标签来区分：说出的用实线，未说出的用虚线加斜纹，私下的用点线。</td></tr>
+  </table>
+  </div>
+
+  <h3>人物分类色</h3>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--sp-3)">
+    <span class="avatar" style="background:var(--p1)">林</span><span class="avatar" style="background:var(--p2)">周</span><span class="avatar" style="background:var(--p3)">陈</span><span class="avatar" style="background:var(--p4)">赵</span><span class="avatar" style="background:var(--p5)">吴</span><span class="avatar" style="background:var(--p6)">郑</span><span class="avatar" style="background:var(--p7)">王</span><span class="avatar" style="background:var(--p8)">何</span><span class="avatar" style="background:var(--p9)">孙</span><span class="avatar" style="background:var(--p10)">冯</span>
+  </div>
+  <ul class="rules">
+    <li>每个人物在一次运行中固定分配一种颜色（<code>--p1</code> 到 <code>--p10</code>），所有视图中都保持一致。</li>
+    <li>人物色<b>只用于区分人物</b>：头像、图表中的系列、时间轴上的标记。<b>禁止</b>用人物色表达好坏。</li>
+    <li>人物超过 10 个时，颜色循环使用，并依靠名字和头像文字区分。</li>
+  </ul>
+</section>
+
+<!-- 05 -->
+<section id="type">
+  <h2><span class="n">05</span>字体与排版</h2>
+  <p class="lead">正文用系统中文无衬线字体，所有机器数据用等宽字体。用字号和字重建立层级，不用颜色。</p>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th>令牌</th><th>字号 / 行高</th><th>用途</th></tr>
+    <tr><td><code>--fs-3xl</code></td><td>32 / 1.25 · 700</td><td>页面标题，每页最多一个</td></tr>
+    <tr><td><code>--fs-2xl</code></td><td>24 / 1.3 · 700</td><td>区块标题</td></tr>
+    <tr><td><code>--fs-xl</code></td><td>20 / 1.4 · 600</td><td>关键数字、卡片组标题</td></tr>
+    <tr><td><code>--fs-lg</code></td><td>16 / 1.5 · 600–700</td><td>卡片标题、人物名</td></tr>
+    <tr><td><code>--fs-md</code></td><td>14 / 1.7 · 400</td><td>正文，默认字号</td></tr>
+    <tr><td><code>--fs-sm</code></td><td>13 / 1.6</td><td>说明、表格</td></tr>
+    <tr><td><code>--fs-xs</code></td><td>12 / 1.5</td><td>标签、元信息。界面最小字号，<b>禁止</b>小于 12px</td></tr>
+  </table>
+  </div>
+  <ul class="rules">
+    <li><b>等宽字体</b>（<code>--font-mono</code>）用于：模拟时间、真实时间戳、URL、步骤编号、证据编号、Console 或 Network 内容、费用、Token 数。</li>
+    <li>数字列<b>必须</b>右对齐，并使用 <code>font-variant-numeric: tabular-nums</code>。</li>
+    <li>正文每行最长约 40 个汉字（约 760px）。</li>
+    <li>人物的发言引用保留原文，用 <code>--text</code> 显示；系统的转述用 <code>--text-2</code> 显示，两者要能区分开。</li>
+  </ul>
+</section>
+
+<!-- 06 -->
+<section id="space">
+  <h2><span class="n">06</span>间距、圆角、层级</h2>
+  <div class="grid g3">
+    <div class="panel tight"><div class="label">间距 · 4px 栅格</div>
+      <p style="font-size:var(--fs-sm);color:var(--text-2);margin:8px 0 0">组件内部用 4、8、12；组件之间用 16、24；区块之间用 48、64。<b>禁止</b>使用栅格以外的数值。</p></div>
+    <div class="panel tight"><div class="label">圆角</div>
+      <p style="font-size:var(--fs-sm);color:var(--text-2);margin:8px 0 0">标签和小控件用 4，按钮和输入框用 8，卡片和面板用 12，头像和胶囊标签用全圆。</p></div>
+    <div class="panel tight"><div class="label">层级</div>
+      <p style="font-size:var(--fs-sm);color:var(--text-2);margin:8px 0 0">层级优先用边框区分，阴影只给浮层使用：<code>--shadow-1</code> 用于悬停卡片，<code>--shadow-2</code> 用于抽屉、弹窗和下拉菜单。</p></div>
+  </div>
+  <h3>布局</h3>
+  <ul class="rules">
+    <li>以桌面为主（这是一个分析工具），设计基准宽度为 1440。内容区最大宽度 1280，超出部分两侧留白。</li>
+    <li>三栏结构：左侧导航 240，中间主区域自适应，右侧证据抽屉 480。抽屉从右侧滑入，<b>不遮挡</b>主区域的关键数据。</li>
+    <li>信息密度为中高。表格行高 40，紧凑模式下 32。</li>
+  </ul>
+</section>
+
+<!-- 07 -->
+<section id="icon">
+  <h2><span class="n">07</span>图标与头像</h2>
+  <ul class="rules">
+    <li>图标统一使用线性风格（推荐 Lucide），线宽 1.5，尺寸为 16 或 20。<b>禁止</b>混用面性和线性两种风格。</li>
+    <li>只有通用图标（如设置、关闭、搜索）可以单独出现，不配文字；其余图标都必须配文字或 tooltip。</li>
+    <li><b>人物头像必须是抽象的</b>：人物色圆底加姓名首字。<b>禁止</b>使用写实人像或 AI 生成的人脸照片，避免让人误以为是真实的人。</li>
+    <li>潜水者的头像用虚线描边、空心底，表示“在场但没有发言”。</li>
+  </ul>
+  <div style="display:flex;gap:var(--sp-5);align-items:center;flex-wrap:wrap">
+    <span style="display:flex;gap:8px;align-items:center"><span class="avatar lg" style="background:var(--p1)">林</span><span class="label">普通人物</span></span>
+    <span style="display:flex;gap:8px;align-items:center"><span class="avatar lg lurker" style="color:var(--p8)">何</span><span class="label">潜水者</span></span>
+    <span class="part poster"><i></i>发帖者</span>
+    <span class="part commenter"><i></i>评论者</span>
+    <span class="part reactor"><i></i>点赞者</span>
+    <span class="part lurker"><i></i>潜水者</span>
+  </div>
+</section>
+
+<!-- 08 -->
+<section id="concepts">
+  <h2><span class="n">08</span>核心概念的视觉表达</h2>
+  <p class="lead">muchhuman 中有几个独有的概念，它们在所有页面中都<b>必须</b>使用同一种视觉表达，不能每个页面各做一套。</p>
+
+  <h3>8.1 人物卡</h3>
+  <div class="grid g2">
+    <div class="panel persona-card">
+      <span class="avatar lg" style="background:var(--p1)">林</span>
+      <div>
+        <div style="display:flex;gap:8px;align-items:center"><span class="name">林晓雯</span><span class="sim-badge">模拟</span></div>
+        <div class="sub">34 · 女 · 杭州 · 电商运营主管</div>
+        <div class="sub" style="margin-top:4px">两个孩子的妈妈，晚上才有空；用过竞品 X，嫌贵才转过来。</div>
+        <div class="attrs">
+          <span class="tag">手机</span><span class="tag">普通</span><span class="tag">低耐心</span>
+          <span class="part commenter tag"><i></i>评论者</span>
+          <span class="simtime">◷ 体验 D1 21:10</span>
+        </div>
+      </div>
+    </div>
+    <div>
+      <ul class="rules">
+        <li>阅读顺序固定为：<b>名字 → 一句话身份 → 一句话背景 → 属性标签</b>。</li>
+        <li>“模拟”标识<b>必须</b>出现在人物名旁边。</li>
+        <li>属性标签最多显示 6 个，其余的放进人物档案里。</li>
+        <li>人物在其他位置被提到时，统一使用<b>人物标签</b>：<span class="pchip"><span class="avatar sm" style="background:var(--p1)">林</span>林晓雯</span>。悬停显示人物卡，点击打开人物档案抽屉。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.2 发现卡与证据</h3>
+  <div class="grid g2">
+    <div class="panel finding">
+      <div class="head"><span class="tag sev1"><span class="dot"></span>S1 致命</span><span class="tag">注册并完成新手引导</span></div>
+      <h4>邮箱验证后回到了首页，进度丢失</h4>
+      <p class="why">4/7 名执行该流程的人物在验证邮箱后找不到原来的入口，其中 2 人放弃。</p>
+      <div class="row">受影响：
+        <span class="pchip"><span class="avatar sm" style="background:var(--p1)">林</span>林晓雯</span>
+        <span class="pchip"><span class="avatar sm" style="background:var(--p3)">陈</span>陈默</span>
+        <span>+2</span>
+      </div>
+      <div class="row">证据：
+        <button class="ev" type="button">▸ 步骤 #12</button>
+        <button class="ev" type="button">▸ 录像 03:41</button>
+        <button class="ev" type="button">▸ 截图 ×4</button>
+        <button class="ev" type="button">▸ Console 1</button>
+      </div>
+    </div>
+    <div>
+      <ul class="rules">
+        <li>发现卡的左边框颜色就是它的严重度颜色，亮点用满意色。</li>
+        <li>标题写<b>现象</b>，不写猜测的原因。原因可以写在正文里，并标注“推测”。</li>
+        <li>受影响的人数<b>必须</b>写成“x/y”的形式，分母是执行该流程的人数。</li>
+        <li><b>证据标签</b>：等宽字体，浅主色底，前面带“▸”。点击后在右侧抽屉中打开对应证据并定位到具体位置，<b>不跳转页面</b>。</li>
+        <li>没有证据的发现，要显示灰色的“无证据”标签，并默认折叠。</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.3 说出的、未说出的、私下的</h3>
+  <div class="grid g3">
+    <div class="voice public">
+      <div class="who"><span class="pchip"><span class="avatar sm" style="background:var(--p2)">周</span>周远</span><span class="simtime">◷ D1 12:40</span><span>发帖</span></div>
+      “注册流程还行，就是验证完邮件跳回首页有点懵。”
+    </div>
+    <div class="voice withheld">
+      <div class="who"><span class="pchip"><span class="avatar sm" style="background:var(--p1)">林</span>林晓雯</span><span class="kind">未说出的</span></div>
+      找不到导出按钮，花了 6 分钟。
+      <div class="reason">原因：担心显得自己不会用 · <button class="ev" type="button">▸ 步骤 #18–24</button></div>
+    </div>
+    <div class="voice private">
+      <div class="who"><span class="pchip"><span class="avatar sm lurker" style="color:var(--p8)">何</span>何佳</span><span class="kind">私下 · 问卷</span></div>
+      “不会继续用，价格页看不懂。” NPS 3
+    </div>
+  </div>
+  <ul class="rules" style="margin-top:var(--sp-3)">
+    <li>三种样式<b>只能</b>按上面的方式使用。在社区讨论视图（模拟的社区页面）中，<b>只显示说出的内容</b>；未说出的和私下的内容，只出现在报告和人物档案中。</li>
+    <li>未说出的内容<b>必须</b>同时给出原因和证据。</li>
+    <li>对比“公开结论”和“私下结论”时，两者<b>左右并排</b>放置，并保持同样的结构，方便对照。</li>
+  </ul>
+
+  <h3>8.4 时间轴</h3>
+  <div class="timeline" aria-label="时间轴示例">
+    <div class="night" style="left:16px;width:22%"></div>
+    <div class="night" style="right:16px;width:6%"></div>
+    <div class="axis"></div>
+    <span class="tick" style="left:4%">00:00</span><span class="tick" style="left:27%">06:00</span><span class="tick" style="left:50%">12:00</span><span class="tick" style="left:73%">18:00</span><span class="tick" style="left:96%">24:00</span>
+    <span class="mark" style="left:33%"><span class="avatar sm" style="background:var(--p3)">陈</span></span>
+    <span class="mark" style="left:52%"><span class="avatar sm" style="background:var(--p2)">周</span></span>
+    <span class="mark" style="left:86%"><span class="avatar sm" style="background:var(--p1)">林</span></span>
+    <span class="mark" style="left:94%"><span class="avatar sm lurker" style="color:var(--p8)">何</span></span>
+    <div class="playhead" style="left:88%"></div>
+  </div>
+  <ul class="rules" style="margin-top:var(--sp-3)">
+    <li>全局只有一条时间轴，表示模拟时间。夜间（00–06、23–24）用次级表面色做底，用来暗示作息。</li>
+    <li>人物头像标在他开始体验产品的时间点；社区里的活动用小点标在人物所在的那一行（展开为多行时）。</li>
+    <li>播放头使用模拟时间色。拖动播放头时，所有关联视图<b>同步</b>更新到该时刻（见第 11 节“时间联动”）。</li>
+  </ul>
+
+  <h3>8.5 模拟时间与真实时间</h3>
+  <div class="dodont">
+    <div class="do"><h4>应该</h4><ul>
+      <li>模拟时间：<span class="simtime">◷ D1 21:10</span>，紫色等宽胶囊，带时钟符号</li>
+      <li>真实时间：<span class="realtime">2026-10-02 14:03:22</span>，灰色等宽，不加底色</li>
+      <li>同一处需要同时显示时，模拟时间放在前面</li>
+    </ul></div>
+    <div class="dont"><h4>不应</h4><ul>
+      <li>用同一种样式显示两种时间</li>
+      <li>模拟时间不写“D1”这样的天数前缀</li>
+      <li>用相对时间（如“3 分钟前”）表示模拟时间</li>
+    </ul></div>
+  </div>
+</section>
+
+<!-- 09 -->
+<section id="components">
+  <h2><span class="n">09</span>基础组件</h2>
+
+  <h3>按钮</h3>
+  <div style="display:flex;gap:var(--sp-3);flex-wrap:wrap;align-items:center">
+    <button class="btn btn-primary" type="button">开始运行 <span class="cost">≈ ¥38 · 25 分钟</span></button>
+    <button class="btn btn-secondary" type="button">编辑人物</button>
+    <button class="btn btn-ghost" type="button">取消</button>
+    <button class="btn btn-danger" type="button">终止运行</button>
+  </div>
+  <ul class="rules">
+    <li>每个视图<b>最多一个</b>主按钮。</li>
+    <li>会产生费用的按钮，<b>必须</b>在按钮上直接显示预估的费用和耗时。</li>
+    <li>危险操作（终止运行、删除运行）使用描边红色样式，并且<b>必须</b>二次确认（见第 12 节）。</li>
+    <li>按钮高度为 32，紧凑模式为 28。按钮文字不换行。</li>
+  </ul>
+
+  <h3>标签、状态</h3>
+  <div style="display:flex;gap:var(--sp-4);flex-wrap:wrap;align-items:center">
+    <span class="status st-wait"><i></i>等待中</span>
+    <span class="status st-browse"><i></i>体验中</span>
+    <span class="status st-social"><i></i>在社区</span>
+    <span class="status st-done"><i></i>已完成</span>
+    <span class="status st-quit"><i></i>已放弃</span>
+    <span class="status st-err"><i></i>出错</span>
+  </div>
+  <ul class="rules">
+    <li>人物运行状态<b>只有</b>这六种，必须使用上面的样式。“已放弃”是正常的模拟结果，不是错误，<b>禁止</b>用红色表示。</li>
+  </ul>
+
+  <h3>其他组件约定</h3>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th style="width:140px">组件</th><th>约定</th></tr>
+    <tr><td>卡片 / 面板</td><td>表面色加 1px 边框，圆角 12，内边距 24（紧凑模式 16）。卡片不嵌套卡片。</td></tr>
+    <tr><td>表格</td><td>默认可排序，第一列固定。行悬停时用次级表面色。点击行在抽屉中打开详情。人物列使用人物标签。</td></tr>
+    <tr><td>抽屉</td><td>从右侧滑入，宽 480，可以拉宽到 720。<b>最多叠两层</b>（例如发现 → 证据），再往下就在同一层内替换内容，并提供“返回”按钮。</td></tr>
+    <tr><td>弹窗</td><td>只用于确认操作和阻断性提示。展示内容一律用抽屉，不用弹窗。</td></tr>
+    <tr><td>标签页</td><td>下划线式。最多 6 个，超出的改用侧边导航。</td></tr>
+    <tr><td>表单</td><td>标签在输入框上方。校验在失焦后进行，错误信息显示在字段下方，并说明怎么改。</td></tr>
+    <tr><td>Tooltip</td><td>只放补充说明。<b>禁止</b>把关键信息只放在 tooltip 里。</td></tr>
+    <tr><td>代码 / 轨迹</td><td>等宽字体，次级表面色底，支持一键复制，长内容折叠。Console 的 error 和 warn 分别用受挫色和困惑色标识。</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- 10 -->
+<section id="interaction">
+  <h2><span class="n">10</span>交互原则</h2>
+  <div class="grid g2">
+    <div class="panel principle"><div class="num">A</div><div><h4>逐层展开，不跳页</h4><p>从总览到发现、从发现到证据、再到录像片段，全部在当前页面内通过抽屉逐层展开，用户始终不会丢失上下文。</p></div></div>
+    <div class="panel principle"><div class="num">B</div><div><h4>一切都可以点</h4><p>人物、时间、证据、帖子都是可以点击的对象，点击后打开它的详情。看到一个名字却点不开，视为缺陷。</p></div></div>
+    <div class="panel principle"><div class="num">C</div><div><h4>机器在跑时，人能看到并且能控制</h4><p>运行过程中实时显示每个人物的状态、当前的模拟时间和已经花掉的费用。可以随时暂停、继续或终止。</p></div></div>
+    <div class="panel principle"><div class="num">D</div><div><h4>先确认，再花钱</h4><p>所有会产生费用的操作，都要先经过一个能看到预估费用的确认步骤。之后的结果中，再显示实际花费。</p></div></div>
+    <div class="panel principle"><div class="num">E</div><div><h4>AI 生成的内容可以修改</h4><p>主 Agent 生成的人物、作息和配置都是草稿：用户可以修改、删除、重新生成。修改过的地方要标出来。</p></div></div>
+    <div class="panel principle"><div class="num">F</div><div><h4>键盘可以完成所有操作</h4><p>Esc 关闭抽屉，J / K 切换上一条或下一条，/ 进入搜索，空格播放或暂停时间轴。</p></div></div>
+  </div>
+</section>
+
+<!-- 11 -->
+<section id="patterns">
+  <h2><span class="n">11</span>关键交互模式</h2>
+
+  <h3>11.1 证据链（三次点击到达原始证据）</h3>
+  <div class="layers">
+    <div><span class="k">L0</span><b>总览</b><p>关键数字和排序后的发现列表</p></div>
+    <div><span class="k">L1</span><b>发现</b><p>现象、受影响的人物、证据标签</p></div>
+    <div><span class="k">L2</span><b>证据抽屉</b><p>步骤、截图、轨迹，以及当时的情绪</p></div>
+    <div><span class="k">L3</span><b>录像片段</b><p>自动定位到对应时间点，前后各留 5 秒</p></div>
+  </div>
+  <ul class="rules" style="margin-top:var(--sp-3)">
+    <li>证据抽屉里<b>必须</b>同时显示：人物标签、模拟时间、步骤编号、URL、截图，以及该人物在这一步的观察权限（例如“该人物看不到 Console”）。</li>
+    <li>如果一条证据被多条发现引用，要在抽屉中反向列出所有引用了它的发现。</li>
+  </ul>
+
+  <h3>11.2 运行前审核</h3>
+  <div class="panel gate">
+    <div class="label">审核关卡样例</div>
+    <div style="margin:var(--sp-2) 0 var(--sp-3);font-weight:700;font-size:var(--fs-lg)">10 个人物 · 模拟 1 天 · 6 条关键流程</div>
+    <div class="warn">⚠ 说明书中的“导出报表”入口在侦察时没有找到，已经记为一条发现。</div>
+    <div class="bar">
+      <div class="est">
+        <div><span class="label">预估费用</span><b>¥32–45</b></div>
+        <div><span class="label">预估耗时</span><b>20–30 分钟</b></div>
+        <div><span class="label">模型调用</span><b>≈ 640</b></div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" type="button">返回修改</button>
+        <button class="btn btn-primary" type="button">确认并开始运行</button>
+      </div>
+    </div>
+  </div>
+  <ul class="rules" style="margin-top:var(--sp-3)">
+    <li>审核页面<b>必须</b>依次展示：人物列表（可编辑）、作息时间表（时间轴视图）、覆盖情况检查（每个关键流程由几个人负责、各种参与方式的分布）、侦察时发现的问题、费用和耗时预估。</li>
+    <li>覆盖情况不满足要求时（例如某个流程少于 2 人），在对应位置显示困惑色的提醒，但不阻止运行。</li>
+    <li>用户修改过的人物显示“已修改”标记，可以一键恢复成主 Agent 的原始版本。</li>
+  </ul>
+
+  <h3>11.3 运行中</h3>
+  <ul class="rules">
+    <li>页面顶部固定一条运行状态栏：模拟时钟、整体进度、已花费用、暂停和终止按钮。切换到其他页面后，状态栏依然保持在顶部。</li>
+    <li>人物列表实时更新状态。点击正在体验中的人物，可以看到他的实时画面（Steel 的实时视图），并以只读的“围观”模式观看。</li>
+    <li>社区动态以信息流的形式实时追加。新内容出现时<b>不自动滚动</b>，只显示“有 n 条新动态”的提示。</li>
+  </ul>
+
+  <h3>11.4 时间联动</h3>
+  <ul class="rules">
+    <li>选中一个模拟时刻后：社区视图显示到该时刻为止的帖子，人物状态回到该时刻，证据列表过滤到该时刻之前。</li>
+    <li>当前选中的时刻要同步到 URL 参数中，方便分享和回到同一位置。</li>
+  </ul>
+
+  <h3>11.5 采访</h3>
+  <ul class="rules">
+    <li>采访使用对话界面，顶部固定显示人物卡和“模拟人物”的提示。</li>
+    <li>人物的回答如果引用了自己的体验，要附上证据标签。</li>
+    <li>当人物在回答中回避问题时（属于未说出的行为），界面不做额外提示，保持人物本身的真实表现。可以提供一个按钮，打开该人物的完整体验记录作为对照。</li>
+  </ul>
+</section>
+
+<!-- 12 -->
+<section id="states">
+  <h2><span class="n">12</span>状态与反馈</h2>
+  <div class="table-wrap">
+  <table class="spec">
+    <tr><th style="width:120px">状态</th><th>规则</th></tr>
+    <tr><td>空状态</td><td>说明这里会出现什么内容，并给出产生内容的下一步操作，例如“上传使用说明，开始第一次运行”。不使用插画。</td></tr>
+    <tr><td>加载</td><td>300ms 以内不显示任何加载提示；超过 300ms 显示骨架屏；预计超过 10 秒的任务显示进度和剩余时间。</td></tr>
+    <tr><td>错误</td><td>说明发生了什么、影响了哪些人物或步骤、是否可以重试，同时给出技术详情（可以折叠）。单个人物出错<b>不应</b>中断整个运行。</td></tr>
+    <tr><td>部分完成</td><td>报告中显式列出缺失的部分，例如“2 名人物因为出错没有完成体验，他们的数据不计入统计”。</td></tr>
+    <tr><td>确认</td><td>标题写清后果，例如“终止运行？已经产生的 ¥12.4 费用不会退回”。确认按钮重复具体的动作，例如“终止运行”。</td></tr>
+    <tr><td>成功</td><td>轻量提示，3 秒后自动消失。如果有后续操作，在提示中直接给出入口。</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- 13 -->
+<section id="dataviz">
+  <h2><span class="n">13</span>数据可视化</h2>
+  <ul class="rules">
+    <li><b>人数优先用点阵或分数表示，少用百分比</b>：例如“●●●●○○○ 4/7”。样本只有 10 个人，百分比会显得结论比实际更有把握。</li>
+    <li>情绪曲线：横轴是步骤，纵轴从受挫到满意，零线居中；困惑程度用点的大小表示。点击某一点，打开该步骤的证据。</li>
+    <li>系列颜色：按人物区分时用人物色，按语义区分时用语义色，两者<b>禁止</b>在同一张图中混用。</li>
+    <li>图表必须有标题、坐标轴单位和数据来源（例如“来源：体验记录 · 7 名人物”）。</li>
+    <li>不使用 3D 图、饼图（类别超过 3 个时）和双纵轴图。</li>
+    <li>每张图都要能切换成表格形式，方便核对数据。</li>
+  </ul>
+  <div class="panel tight" style="max-width:520px">
+    <div class="label">情绪曲线样例 · 林晓雯 · 注册并完成新手引导</div>
+    <svg viewBox="0 0 480 120" width="100%" role="img" aria-label="情绪曲线：前 8 步平稳，第 12 步跌到最低，之后略有回升">
+      <line x1="20" y1="60" x2="470" y2="60" stroke="var(--border-strong)" stroke-dasharray="3 3"/>
+      <text x="0" y="22" font-size="10" fill="var(--text-3)">满意</text>
+      <text x="0" y="112" font-size="10" fill="var(--text-3)">受挫</text>
+      <polyline fill="none" stroke="var(--p1)" stroke-width="2" points="30,50 70,45 110,48 150,40 190,44 230,52 270,70 310,92 350,100 390,84 430,76 460,72"/>
+      <circle cx="350" cy="100" r="7" fill="var(--confused)" opacity=".35"/>
+      <circle cx="350" cy="100" r="3.5" fill="var(--p1)"/>
+      <text x="358" y="112" font-size="10" font-family="var(--font-mono)" fill="var(--accent)">▸ 步骤 #12</text>
+    </svg>
+  </div>
+</section>
+
+<!-- 14 -->
+<section id="motion">
+  <h2><span class="n">14</span>动效</h2>
+  <ul class="rules">
+    <li>动效只用来表达<b>状态变化和空间关系</b>（例如抽屉从哪个方向出现），不做装饰性动画。</li>
+    <li>时长：悬停 120ms，展开或切换 200ms，抽屉 320ms。统一使用缓动曲线 <code>--ease</code>。</li>
+    <li>只有“体验中”和“在社区”这两种状态使用呼吸动画，表示人物正在活动。</li>
+    <li><b>必须</b>遵守 <code>prefers-reduced-motion</code>：用户开启“减少动态效果”后，关闭呼吸动画和位移动画。</li>
+  </ul>
+</section>
+
+<!-- 15 -->
+<section id="a11y">
+  <h2><span class="n">15</span>可访问性与响应式</h2>
+  <ul class="rules">
+    <li>正文与背景的对比度不低于 4.5:1，大字和图形不低于 3:1，浅色和深色主题都要满足。</li>
+    <li><b>不能只用颜色传达信息</b>：严重度要配文字，可见性要配边框样式和文字，状态要配文字。</li>
+    <li>所有可交互元素都要有可见的焦点框（2px 主色，外偏移 2px）。</li>
+    <li>图表要提供 <code>aria-label</code> 的文字摘要，以及可以切换的表格视图。</li>
+    <li>必须同时支持浅色和深色主题，默认跟随系统设置，用户也可以手动切换。</li>
+    <li>响应式规则：
+      <ul>
+        <li>≥1280：完整的三栏布局。</li>
+        <li>960–1279：左侧导航收起为图标。</li>
+        <li>&lt;960：单栏布局，抽屉改为全屏打开。</li>
+        <li>手机端只需要支持<b>查看报告和运行状态</b>，不需要支持配置和审核。</li>
+        <li>页面左右边距 16，任何宽度下都<b>禁止</b>出现横向滚动。</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<!-- 16 -->
+<section id="tokens">
+  <h2><span class="n">16</span>设计令牌</h2>
+  <p class="lead">下面是本文档 <code>&lt;style&gt;</code> 中 <code>:root</code> 块的摘要，完整内容（包括深色主题）以源码为准。实现时直接复制源码中的这一块。</p>
+<pre class="tokens">:root {
+  /* 中性 */  --bg --surface --surface-2 --border --border-strong --text --text-2 --text-3
+  /* 主色 */  --accent --accent-hover --accent-soft --on-accent
+  /* 模拟时间 */ --sim --sim-soft
+  /* 严重度 */ --sev-1 --sev-2 --sev-3 --sev-4
+  /* 情绪 */  --pos --pos-soft --neg --neg-soft --confused --confused-soft
+  /* 可见性 */ --vis-public --vis-withheld --vis-withheld-soft --vis-private --vis-private-soft --hatch
+  /* 人物 */  --p1 … --p10
+  /* 字体 */  --font-sans --font-mono
+  /* 字号 */  --fs-xs 12 · --fs-sm 13 · --fs-md 14 · --fs-lg 16 · --fs-xl 20 · --fs-2xl 24 · --fs-3xl 32
+  /* 间距 */  --sp-1 4 · --sp-2 8 · --sp-3 12 · --sp-4 16 · --sp-5 24 · --sp-6 32 · --sp-7 48 · --sp-8 64
+  /* 圆角 */  --r-sm 4 · --r-md 8 · --r-lg 12 · --r-full
+  /* 阴影 */  --shadow-1 --shadow-2
+  /* 动效 */  --ease · --dur-fast 120ms · --dur 200ms · --dur-slow 320ms
+}
+深色主题：@media (prefers-color-scheme: dark) 配合 :root:not([data-theme="light"])，以及 :root[data-theme="dark"]，两处使用同一组值。</pre>
+</section>
+
+<!-- 17 -->
+<section id="checklist">
+  <h2><span class="n">17</span>交付前自检清单</h2>
+  <p class="lead">任何 Agent 交付界面之前，都要逐条检查以下各项，并在交付说明中列出不满足的项及理由。</p>
+  <ul class="checklist">
+    <li>所有颜色、字号、间距、圆角都来自设计令牌，没有写死的数值。</li>
+    <li>每条结论都能在三次点击内到达原始证据；没有证据的结论有明确标注。</li>
+    <li>说出的、未说出的、私下的三种内容，在颜色、边框和文字上都能区分；社区视图中没有出现未说出的内容。</li>
+    <li>每个人物都显示了“模拟”标识，头像是抽象的，人物色在各个视图中保持一致。</li>
+    <li>模拟时间和真实时间使用了各自的样式。</li>
+    <li>会产生费用的操作显示了预估费用，并经过确认。</li>
+    <li>“已放弃”状态没有用红色表示，单个人物出错不会中断整个运行。</li>
+    <li>人数使用“x/y”的形式，没有单独出现的百分比。</li>
+    <li>不只靠颜色传达信息；对比度达标；焦点框可见；键盘可以完成所有操作。</li>
+    <li>浅色和深色主题都检查过，在 375px 宽度下没有横向滚动。</li>
+    <li>文案符合第 03 节：术语统一，先说结论，数字具体，没有把模拟结果写成事实。</li>
+  </ul>
+</section>
+
+</main>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('themeBtn');
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem('mh-theme'); if (saved) root.setAttribute('data-theme', saved); } catch (e) {}
+  btn.addEventListener('click', function () {
+    var cur = root.getAttribute('data-theme') ||
+      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = cur === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('mh-theme', next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

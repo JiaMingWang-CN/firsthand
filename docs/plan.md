@@ -1,6 +1,6 @@
 # muchhuman 开发方案（v1：单模型、识图模型）
 
-> 状态：阶段 0 已完成并通过真实调用验证，待进入阶段 1（验证说明见 `phase0.md`）
+> 状态：阶段 0 的模型探测和 OASIS 已通过；浏览验证受限于本机到 Steel 的链路带宽，尚未通过（详见 `phase0.md` 的“修订”一节）
 > 更新：2026-10-02
 
 ## 1. 项目定位
@@ -265,6 +265,9 @@ Steel 和旁路 CDP 采集全部数据，但只有被授权的 Agent 才能通�
 ## 5. 工程结构
 
 - 全部用 Python。
+- **浏览器只通过 Browser Use 操作和采集，不使用 Playwright**。旁路采集（Console、Network、截图、性能、时区）复用 Browser Use 自己的 CDP 连接。原因：多个 CDP 客户端同时连接同一个 Steel 会话时会互相干扰（实测出现重复响应）。注意两点：
+  - cdp_use 对每个事件只保留一个处理函数，不能注册 Browser Use 已经占用的事件（例如 `Network.responseReceived`），否则会悄悄覆盖它的处理逻辑。
+  - 不使用 Browser Use 内置的 HAR 记录：它会对每个请求都去拉取响应正文，导致 Steel 连接因心跳超时而断开。
 - **两个进程、两个 venv**：OASIS（camel-oasis）与 browser-use 的依赖可能冲突，所以分开。由 Orchestrator 推进时钟，进程之间通过 SQLite 交换数据。
 - 编码前用 Context7 或探针脚本核对以下几点：
   - browser-use、steel-sdk 的当前 API

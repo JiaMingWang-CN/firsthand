@@ -2,6 +2,8 @@
 
 import json
 import os
+import re
+import traceback
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -10,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def settings():
-    load_dotenv(ROOT / "config" / ".env", override=False)
+    # config/.env is the single source of truth. Libraries such as browser-use call
+    # load_dotenv() on import, so a stray .env could otherwise win (Windows env names
+    # are case-insensitive, e.g. Steel_API_Key would shadow STEEL_API_KEY).
+    load_dotenv(ROOT / "config" / ".env", override=True)
     return {
         "base_url": os.getenv("LLM_BASE_URL", ""),
         "api_key": os.getenv("LLM_API_KEY", ""),
@@ -33,8 +38,18 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def error_summary(error):
-    # Provider errors can contain request URLs and credentials. Keep only type/status.
+def error_summary(error, run_dir):
+    # Provider errors can contain request URLs and credentials. Result files keep only
+    # type/status; the redacted traceback goes to the private run directory for diagnosis.
+    text = "".join(traceback.format_exception(error))
+    config = settings()
+    for secret in [config["api_key"], config["steel_api_key"]]:
+        if secret:
+            text = text.replace(secret, "REDACTED")
+    text = re.sub(r"(apiKey=|token=|Bearer )[^&\s'\"]+", r"\1REDACTED", text)
+    Path(run_dir).mkdir(parents=True, exist_ok=True)
+    with (Path(run_dir) / "errors.log").open("a", encoding="utf-8") as log:
+        log.write(text + "\n")
     return {"type": type(error).__name__, "status_code": getattr(error, "status_code", None)}
 
 

@@ -79,14 +79,14 @@ async def probe_discussion(config, run_dir):
         )
         result["passed"] = result["manual_post_count"] == 1 and result["lurker_read_only"] and result["llm_actions_verified"]
     except Exception as error:
-        result["error"] = error_summary(error)
+        result["error"] = error_summary(error, run_dir)
     finally:
         if env and hasattr(env, "platform_task"):
             try:
                 await asyncio.wait_for(env.close(), timeout=15)
                 result["closed"] = True
             except Exception as error:
-                result["close_error"] = error_summary(error)
+                result["close_error"] = error_summary(error, run_dir)
                 result["passed"] = False
                 env.platform_task.cancel()
         os.chdir(original_cwd)
@@ -103,7 +103,7 @@ def main():
         require_capabilities(args.run_dir, config)
         result = asyncio.run(probe_discussion(config, args.run_dir))
     except Exception as error:
-        result = {"passed": False, "error": error_summary(error)}
+        result = {"passed": False, "error": error_summary(error, args.run_dir)}
         write_json(args.run_dir / "oasis_result.json", result)
     print("OASIS: " + ("PASS" if result["passed"] else "FAIL"))
     raise SystemExit(0 if result["passed"] else 1)
