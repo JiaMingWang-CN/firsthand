@@ -156,6 +156,8 @@ async def probe_browser(config, run_dir, profile):
                 result["start_url"] = start_url
                 result["final_url"] = final_url
                 result["collector_counts"] = counts
+                result["model_requests"] = llm.requests_sent
+                result["model_requests_with_screenshots"] = llm.requests_with_images
         except Exception as error:
             result["error"] = error_summary(error, run_dir)
         finally:
@@ -182,6 +184,8 @@ async def probe_browser(config, run_dir, profile):
                 result.get("final_url") and result["final_url"] != result["start_url"]
                 and urlsplit(result["final_url"]).hostname == host,
                 result["dom_failures"] == 0,
+                # Every agent step must have sent its screenshot to the model, not only enabled vision.
+                result.get("model_requests_with_screenshots", 0) >= result.get("steps", 0) > 0,
                 result.get("observed_timezone") == config["timezone"],
                 result["http_status"] is not None and result["http_status"] < 400,
                 # The console count proves the capture pipeline (the collector logs one line itself),

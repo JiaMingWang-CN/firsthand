@@ -144,3 +144,7 @@ Steel 会话寿命显式设为 10 分钟（服务端返回 `timeout=600000`）�
 1. 首次复测时 6 步都失败，报错为 `response_format type is unavailable`。原因是浏览代码按 Responses 上测出的 JSON Schema 结果判断，而 Browser Use 实际走的是 Chat Completions。现在改为按 `chat_completions_json_schema` 判断（`core.runtime.chat_json_schema_supported`）。
 2. Browser Use 0.13.10 只要模型名包含 "deepseek"，就强制把 `use_vision` 设为 False。方案要求模型能力以实测为准，而能力文件就绪的前提是两项识图探测都通过。因此创建 Agent 后把 `use_vision` 恢复为 True，并在 `browser_result.json` 中记录 `use_vision`。日志里 Browser Use 的那条警告仍会出现，属于正常现象。
 
+开启 `use_vision` 只是改了一个设置，不能证明截图真的发给了模型。因此在 `ProviderChatOpenAI` 发出 SDK 请求时，统计请求总数和其中带 `image_url` 的请求数，结果记为 `browser_result.json` 中的 `model_requests` 和 `model_requests_with_screenshots`。浏览验证通过的条件新增一条：带截图的请求数不少于 Agent 步数。Browser Use 自带的 `save_conversation_path` 只保存文字、会丢掉图片，不能用来做这项证明。
+
+复测（`runs/phase0-20261002T173330407512Z-vision/`，沿用同一份能力文件）：通过。共 2 步、2 次模型请求，2 次都带截图；到达 `/projects`，耗时 58 秒。
+

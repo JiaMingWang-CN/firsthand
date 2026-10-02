@@ -60,3 +60,22 @@ def test_capability_profile_rejected_after_thinking_change(tmp_path):
     assert runtime.require_capabilities(tmp_path, config)["ready"]
     with pytest.raises(ValueError, match="Thinking mode changed"):
         runtime.require_capabilities(tmp_path, dict(config, thinking_type="disabled"))
+
+
+def test_browser_requests_record_attached_screenshots():
+    from browser_use.llm.messages import ContentPartImageParam, ContentPartTextParam, ImageURL
+
+    def respond(request):
+        return httpx.Response(200, json={"id": "test", "object": "chat.completion", "created": 0, "model": "custom", "choices": [
+            {"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "ok"}}]})
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            llm = ProviderChatOpenAI(model="deepseek-flash", api_key="test", base_url="https://test.invalid/v1", http_client=client)
+            await llm.ainvoke([UserMessage(content="Text only")])
+            await llm.ainvoke([UserMessage(content=[ContentPartTextParam(text="Page"),
+                                                    ContentPartImageParam(image_url=ImageURL(url="data:image/png;base64,AA=="))])])
+            return llm
+
+    llm = asyncio.run(run())
+    assert (llm.requests_sent, llm.requests_with_images) == (2, 1)
