@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 Text = Annotated[str, Field(min_length=1)]
 Clock = Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 Level = Literal["低", "中", "高"]
+Motivation = Literal["随便看看", "有明确任务", "对比竞品", "付费决策"]
 LIMITS = {"low": (15, 4), "normal": (40, 8), "high": (80, 12)}
 
 
@@ -126,7 +127,8 @@ class BrowsingProfile(Data):
     patience: Literal["low", "normal", "high"]
     max_steps: int = Field(ge=1, le=80, strict=True)
     stall_limit: int = Field(ge=1, le=12, strict=True)
-    motivation: Text
+    motivation: Motivation
+    motivation_detail: Text
     account_role: Text
     tools: list[Literal["read_console", "list_failed_requests"]]
     assignment: Assignment
@@ -223,7 +225,32 @@ class RunConfig(Data):
         return self
 
 
+class CohortSlot(Data):
+    """One row of the main agent's dimension matrix; personas are filled in to match it."""
+    persona_id: Annotated[str, Field(pattern=r"^p\d{2}$")]
+    realname: Text
+    profession: Text
+    gender: Text
+    age: int = Field(ge=1, le=110, strict=True)
+    tech_level: Literal["novice", "normal", "developer"]
+    device: Literal["mobile", "desktop"]
+    patience: Literal["low", "normal", "high"]
+    motivation: Motivation
+    participation: Literal["poster", "commenter", "reactor", "lurker"]
+    withhold_tendency: Level
+    browse_slot: Clock
+    account_role: Text
+    assignment: Assignment
+    reason: Text
+
+
+class CohortPlan(Data):
+    rationale: Text
+    slots: list[CohortSlot] = Field(min_length=10, max_length=10)
+
+
 class Draft(Data):
     product: ProductSummary
+    cohort_rationale: Text
     personas: list[Persona] = Field(min_length=10, max_length=10)
     run_config: RunConfig

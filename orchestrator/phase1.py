@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from openai import APIError
 from core.persona import Draft
 from core.runtime import ROOT, error_summary, require, require_capabilities, settings, write_json
 from orchestrator.manual import read_manual
-from orchestrator.personas import distribution_issues, generate_draft, schedule_rows, validate_draft, validation_message
+from orchestrator.personas import distribution_issues, generate_draft, period, schedule_rows, validate_draft, validation_message
 from probe.model import probe_model
 
 
@@ -47,20 +48,35 @@ def save_review(run_dir, draft, manual):
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
              "## 模拟配置", "", "```json", draft.run_config.model_dump_json(indent=2), "```", "",
              "默认并发为 1；Steel 套餐并发上限尚未验证。", "",
-             "## Persona 与时间表", "", "| ID | 姓名 | 年龄/性别 | 设备/技术/耐心 | 参与 | 本地体验时间 | UTC时间片 | 任务 |",
-             "|---|---|---|---|---|---|---|---|"]
+             "## 主 Agent 的分布方案", "", draft.cohort_rationale, "",
+             "按当前草稿统计：", "", *distribution_summary(draft), "",
+             "## Persona 与时间表", "", "| ID | 姓名 | 年龄/性别 | 设备/技术/耐心 | 动机 | 参与 | 本地体验时间 | UTC时间片 | 任务 |",
+             "|---|---|---|---|---|---|---|---|---|"]
     people = {persona.persona_id: persona for persona in draft.personas}
     for row in rows:
         p = people[row["persona_id"]]
         profile = p.browsing_profile
         values = [p.persona_id, p.realname, f"{p.age}/{p.gender}", f"{profile.device}/{profile.tech_level}/{profile.patience}",
-                  p.participation, row["local_time"], str(row["slice_index"]), profile.assignment.flow or "自由探索"]
+                  profile.motivation, p.participation, row["local_time"], str(row["slice_index"]), profile.assignment.flow or "自由探索"]
         lines.append("| " + " | ".join(value.replace("|", "\\|").replace("\n", " ") for value in values) + " |")
     issues = distribution_issues(draft, manual)
     lines.extend(["", "分布校验：" + ("；".join(issues) if issues else "全部通过"), ""])
     for p in draft.personas:
         lines.extend([f"## {p.persona_id} · {p.realname}", "", "```json", p.model_dump_json(indent=2), "```", ""])
     (run_dir / "review.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def distribution_summary(draft):
+    # Counts come from the slots themselves, never from the model's own description of them.
+    dimensions = {
+        "性别": lambda p: p.gender, "年代": lambda p: f"{p.age // 10 * 10}s",
+        "技术": lambda p: p.browsing_profile.tech_level, "设备": lambda p: p.browsing_profile.device,
+        "耐心": lambda p: p.browsing_profile.patience, "动机": lambda p: p.browsing_profile.motivation,
+        "参与": lambda p: p.participation, "隐瞒倾向": lambda p: p.disclosure.withhold_tendency,
+        "时段": lambda p: period(p.schedule.browse_slot), "任务": lambda p: p.browsing_profile.assignment.flow or "自由探索",
+    }
+    return [f"- {name}：" + "，".join(f"{value} {count}" for value, count in sorted(Counter(map(key, draft.personas)).items()))
+            for name, key in dimensions.items()]
 
 
 def require_approved(run_dir):
@@ -91,7 +107,7 @@ def review(run_dir, input_fn=input):
             for p in draft.personas:
                 print(f"{p.persona_id} {p.realname} {p.age}/{p.gender} {p.profession} "
                       f"{p.browsing_profile.device}/{p.browsing_profile.tech_level}/{p.browsing_profile.patience} "
-                      f"{p.participation} {p.timezone} {p.schedule.browse_slot}")
+                      f"{p.browsing_profile.motivation} {p.participation} {p.timezone} {p.schedule.browse_slot}")
             print("分布校验：" + ("；".join(issues) if issues else "通过"))
             if draft_hash(run_dir) != displayed_hash:
                 raise ValueError("展示过程中草稿有修改，请重新加载")

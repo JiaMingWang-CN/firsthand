@@ -86,3 +86,22 @@ def test_error_log_redacts_credentials(tmp_path):
     log = (tmp_path / "errors.log").read_text(encoding="utf-8")
     assert summary == {"type": "ConnectionError", "status_code": None}
     assert "sk-live-123" not in log and "apiKey=REDACTED" in log and "Traceback" not in summary
+
+
+def test_stalled_request_hits_deadline_and_retries(capsys):
+    from core.runtime import with_deadline
+    calls = []
+
+    async def stalls_once():
+        calls.append(1)
+        if len(calls) == 1:
+            await asyncio.sleep(10)
+        return "ok"
+
+    async def always_stalls():
+        await asyncio.sleep(10)
+
+    assert asyncio.run(with_deadline(stalls_once, 0.05, "vision_0")) == "ok" and len(calls) == 2
+    assert "vision_0 超过 0.05s 未完成，重试（第 2 次）" in capsys.readouterr().out
+    with pytest.raises(TimeoutError, match="已尝试 2 次"):
+        asyncio.run(with_deadline(always_stalls, 0.05, "vision_1"))

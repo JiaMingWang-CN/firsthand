@@ -1,5 +1,6 @@
 """Shared configuration and run artifacts for the phase-zero probes."""
 
+import asyncio
 import json
 import os
 import re
@@ -7,6 +8,7 @@ import traceback
 from pathlib import Path
 
 from dotenv import load_dotenv
+from openai import APIConnectionError, APITimeoutError
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -40,6 +42,19 @@ def thinking_body(config):
     if thinking_type not in {"enabled", "disabled"}:
         raise ValueError("LLM_THINKING_TYPE must be enabled, disabled or empty")
     return {"thinking": {"type": thinking_type}}
+
+
+async def with_deadline(request, seconds, label, attempts=2):
+    # The client timeout bounds each socket read, not the whole response, so a stalled
+    # provider stream can hang indefinitely. Bound the whole call and retry transport stalls.
+    for attempt in range(1, attempts + 1):
+        try:
+            return await asyncio.wait_for(request(), seconds)
+        except (TimeoutError, APITimeoutError, APIConnectionError) as error:
+            reason = f"超过 {seconds}s 未完成" if isinstance(error, TimeoutError) else type(error).__name__
+            if attempt == attempts:
+                raise TimeoutError(f"{label} {reason}，已尝试 {attempts} 次") from error
+            print(f"{label} {reason}，重试（第 {attempt + 1} 次）", flush=True)
 
 
 def write_json(path, value):

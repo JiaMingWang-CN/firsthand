@@ -12,7 +12,10 @@ from pathlib import Path
 from openai import AsyncOpenAI
 from PIL import Image, ImageDraw, ImageFont
 
-from core.runtime import error_summary, require, settings, thinking_body, write_json
+from core.runtime import error_summary, require, settings, thinking_body, with_deadline, write_json
+
+# Whole-request limit per probe; a normal vision check takes up to about 50s.
+PROBE_DEADLINE = 90
 
 
 def image_challenge():
@@ -63,9 +66,9 @@ async def probe_model(config, run_dir):
             started = time.monotonic()
             result = {"supported": False}
             try:
-                response = await client.chat.completions.create(
+                response = await with_deadline(lambda: client.chat.completions.create(
                     model=config["model"], messages=messages, max_tokens=512, extra_body=extra_body, **kwargs
-                )
+                ), PROBE_DEADLINE, name)
                 result["supported"] = bool(validate(response.choices[0].message))
                 result["usage"] = response.usage.model_dump() if response.usage else None
             except Exception as error:

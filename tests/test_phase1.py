@@ -8,27 +8,55 @@ import pytest
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from core.persona import Draft, PersonaDetails, ProductSummary, RunConfig
+from core.persona import CohortSlot, Draft, PersonaDetails, ProductSummary, RunConfig
 from core.runtime import ROOT, write_json
 from orchestrator import personas, phase1
 from orchestrator.manual import read_manual
-from orchestrator.personas import build_persona, dimension_matrix, distribution_issues, request_json, schedule_rows, validate_draft
+from orchestrator.personas import (assignment_errors, build_persona, cohort_issues, distribution_issues, request_json,
+                                   schedule_rows, validate_draft)
 
 SAMPLE = ROOT / "docs/examples/wjm_product_manual.md"
 CONFIG = {"model": "custom", "base_url": "https://test.invalid/v1", "api_key": "test", "thinking_type": "disabled"}
 CAPABILITY = {"model": "custom", "base_url": CONFIG["base_url"], "thinking_type": "disabled", "ready": True,
               "recommended_concurrency": 10, "checks": {"json_schema": {"supported": True}, "json_prompt": {"supported": False}}}
+PRODUCT = {"positioning": "展示开发者作品", "target_users": "招聘方和合作方", "features": ["首页介绍", "项目列表"], "assumptions": [],
+           "target_age_min": 20, "target_age_max": 55}
+ROWS = [
+    ("developer", "desktop", "normal", "poster", "中", "21:10"),
+    ("developer", "desktop", "high", "commenter", "低", "12:30"),
+    ("novice", "mobile", "low", "poster", "高", "07:30"),
+    ("normal", "mobile", "low", "commenter", "中", "21:40"),
+    ("novice", "mobile", "low", "reactor", "中", "00:30"),
+    ("normal", "desktop", "normal", "poster", "低", "13:10"),
+    ("normal", "desktop", "high", "commenter", "中", "09:30"),
+    ("novice", "mobile", "normal", "reactor", "中", "23:10"),
+    ("normal", "desktop", "normal", "lurker", "高", "08:10"),
+    ("normal", "desktop", "high", "lurker", "中", "02:10"),
+]
+
+
+def plan_slots(manual):
+    """A cohort plan satisfying every constraint, standing in for the main agent's output."""
+    slots = []
+    for index, (tech, device, patience, participation, withholding, slot) in enumerate(ROWS):
+        flow = manual["flows"][index % len(manual["flows"])] if index < 7 else None
+        slots.append(CohortSlot(persona_id=f"p{index + 1:02d}", realname=f"测试用户{index + 1}", profession=f"职业{index + 1}", gender="女" if index % 2 else "男", age=22 + index * 3,
+                                tech_level=tech, device=device, patience=patience, motivation="有明确任务" if flow else "随便看看",
+                                participation=participation, withhold_tendency=withholding, browse_slot=slot,
+                                account_role="new_visitor", assignment={"type": "task" if flow else "explore", "flow": flow.name if flow else None},
+                                reason="测试槽位"))
+    return slots
 
 
 @pytest.fixture
 def draft():
     manual = read_manual(SAMPLE)
     people = []
-    for index, seed in enumerate(dimension_matrix(manual)):
-        night = int(seed["browse_slot"][:2]) < 6
+    for index, slot in enumerate(plan_slots(manual)):
+        night = int(slot.browse_slot[:2]) < 6
         details = PersonaDetails.model_validate({
-            "realname": f"测试用户{index}", "username": f"test_{index}", "gender": "女" if index % 2 else "男",
-            "age": 22 + index * 3, "city": "上海", "timezone": "Asia/Shanghai", "profession": "开发者" if index < 2 else "招聘人员",
+            "realname": slot.realname, "username": f"test_{index}", "gender": slot.gender,
+            "age": slot.age, "city": "上海", "timezone": "Asia/Shanghai", "profession": slot.profession,
             "industry": "软件", "education": "本科", "income_level": "中", "life_context": "在职，利用休息时间评估作品",
             "product_history": "未使用过待测网站，有阅读其他作品的经历", "bio": "合成测试角色", "persona": "根据既有经历评估开发者作品",
             "mbti": "INTJ", "big_five": {key: "中" for key in ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"]},
@@ -36,10 +64,8 @@ def draft():
             "sleep": "03:00" if night else "23:50", "activity": [{"hour": 12, "probability": 0.5}],
             "state_at_browse": "有明确评估目的", "motivation": "评估作品", "candor": "中", "withhold_reasons": ["怕显得自己不懂技术"],
         })
-        people.append(build_persona(details, seed))
-    return Draft(product=ProductSummary(positioning="展示开发者作品", target_users="招聘方和合作方", features=["首页介绍", "项目列表"], assumptions=[],
-                                         target_age_min=20, target_age_max=55),
-                 personas=people, run_config=RunConfig(start_time=datetime(2026, 10, 2, tzinfo=timezone.utc), duration_days=1,
+        people.append(build_persona(details, slot.model_dump()))
+    return Draft(product=ProductSummary(**PRODUCT), cohort_rationale="测试分布", personas=people, run_config=RunConfig(start_time=datetime(2026, 10, 2, tzinfo=timezone.utc), duration_days=1,
                                                        time_slice_minutes=60, max_concurrency=1))
 
 
@@ -119,7 +145,7 @@ def test_approval_required_and_invalidated_by_edits(tmp_path, monkeypatch, draft
     with pytest.raises(ValueError, match="尚未通过人工审核"):
         phase1.require_approved(tmp_path)
     phase1.review(tmp_path, input_fn=lambda prompt: "approve")
-    assert phase1.require_approved(tmp_path)[0].personas[0].realname == "测试用户0"
+    assert phase1.require_approved(tmp_path)[0].personas[0].realname == "测试用户1"
     if edit_manual:
         path = tmp_path / "manual.md"
         path.write_text(path.read_text(encoding="utf-8") + "\n调整关注点\n", encoding="utf-8")
@@ -212,7 +238,7 @@ def test_activity_while_fully_asleep_rejected(draft):
 
 
 def test_generated_activity_is_cleared_while_asleep(draft):
-    seed = dimension_matrix(read_manual(SAMPLE))[0]
+    seed = plan_slots(read_manual(SAMPLE))[0].model_dump()
     details = PersonaDetails.model_validate({**draft.personas[0].model_dump(include=set(PersonaDetails.model_fields)),
         "wake": "06:00", "sleep": "23:50", "activity": [{"hour": 2, "probability": 0.05}, {"hour": 21, "probability": 0.9}],
         "state_at_browse": "晚饭后有空", "motivation": "评估作品", "candor": "中", "withhold_reasons": []})
@@ -248,19 +274,41 @@ def test_schedule_across_timezones_and_dst(draft):
     assert rows["p03"] == ("2026-11-01T07:30:00+05:30", "2026-11-01T02:00:00+00:00", 2)
 
 
-def test_parallel_generation_repairs_clashes_and_logs_reasons(monkeypatch, capsys):
+def test_cohort_plan_hard_errors_and_distribution(draft):
     manual = read_manual(SAMPLE)
-    product = {"positioning": "作品展示", "target_users": "招聘方", "features": ["项目列表"], "assumptions": [],
-               "target_age_min": 20, "target_age_max": 55}
+    slots = plan_slots(manual)
+    assert assignment_errors(slots, manual) == [] and cohort_issues(slots, draft.product, manual) == []
+    slots[0].account_role = "paid_user"
+    slots[1].tech_level = "normal"
+    assert assignment_errors(slots, manual) == ["p01 使用了未知账号角色"]
+    assert cohort_issues(slots, draft.product, manual) == ["至少 2 名开发者"]
+
+
+def test_reviewer_cannot_override_assignment_errors(draft):
+    draft.personas[0].browsing_profile.account_role = "paid_user"
+    with pytest.raises(ValueError, match="未知账号角色"):
+        validate_draft(draft, read_manual(SAMPLE), CAPABILITY)
+
+
+def test_main_agent_plans_cohort_then_slots_fill_in_parallel(monkeypatch, capsys):
+    manual = read_manual(SAMPLE)
+    slots = {slot.persona_id: slot for slot in plan_slots(manual)}
     in_flight, peak, calls = 0, 0, Counter()
 
-    def details(persona_id, repaired):
-        index = int(persona_id[1:]) - 1
-        night = int(dimension_matrix(manual)[index]["browse_slot"][:2]) < 6
-        # p02 copies p01's name in the parallel round; only the repair sees accepted names.
-        name = "测试用户1" if persona_id == "p02" and not repaired else f"测试用户{index + 1}"
-        return {"realname": name, "username": f"{name}_u", "gender": "女" if index % 2 else "男", "age": 22 + index * 3,
-                "city": "上海", "timezone": "Asia/Shanghai", "profession": "招聘人员", "industry": "软件", "education": "本科",
+    def plan(attempt):
+        rows = [slot.model_dump() for slot in slots.values()]
+        if attempt == 1:
+            rows[1]["tech_level"] = "normal"  # first draft of the matrix misses the developer minimum
+            rows[2]["realname"] = rows[0]["realname"]
+        return {"rationale": "按目标用户分布", "slots": rows}
+
+    def details(slot, repaired):
+        index = int(slot.persona_id[1:])
+        # p02 copies p01's username in the parallel round; only the repair sees accepted names.
+        username = "user_1" if slot.persona_id == "p02" and not repaired else f"user_{index}"
+        night = int(slot.browse_slot[:2]) < 6
+        return {"realname": slot.realname, "username": username, "gender": slot.gender, "age": slot.age,
+                "city": "上海", "timezone": "Asia/Shanghai", "profession": slot.profession, "industry": "软件", "education": "本科",
                 "income_level": "中", "life_context": "在职", "product_history": "未使用过", "bio": "合成测试角色", "persona": "评估作品",
                 "mbti": "INTJ", "big_five": {key: "中" for key in ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"]},
                 "communication_style": "直接", "interested_topics": ["项目交付"], "wake": "10:00" if night else "06:00",
@@ -270,16 +318,20 @@ def test_parallel_generation_repairs_clashes_and_logs_reasons(monkeypatch, capsy
     async def respond(request):
         nonlocal in_flight, peak
         body = json.loads(request.content)
-        prompt = body["messages"][1]["content"]
-        if body["response_format"]["json_schema"]["name"] == "ProductSummary":
-            content = product
+        name = body["response_format"]["json_schema"]["name"]
+        attempt = (len(body["messages"]) - 2) // 2 + 1
+        if name == "ProductSummary":
+            content = PRODUCT
+        elif name == "CohortPlan":
+            content = plan(attempt)
         else:
+            prompt = body["messages"][1]["content"]
             payload = json.loads(prompt[prompt.index("\n") + 1:prompt.index("\n输出 schema")])
-            persona_id = payload["seed"]["persona_id"]
-            calls[persona_id] += 1
-            content = details(persona_id, bool(payload["previous"]))
-            if persona_id == "p03" and len(body["messages"]) == 2:
-                content = dict(content, age=70)
+            slot = slots[payload["seed"]["persona_id"]]
+            calls[slot.persona_id] += 1
+            content = details(slot, bool(payload["previous"]))
+            if slot.persona_id == "p03" and attempt == 1:
+                content = dict(content, age=slot.age + 1)
         in_flight += 1
         peak = max(peak, in_flight)
         await asyncio.sleep(0.01)
@@ -295,8 +347,20 @@ def test_parallel_generation_repairs_clashes_and_logs_reasons(monkeypatch, capsy
     monkeypatch.setattr(personas, "AsyncOpenAI", client)
     draft = asyncio.run(personas.generate_draft(CONFIG, CAPABILITY, manual))
     output = capsys.readouterr().out
-    assert len({p.realname for p in draft.personas}) == 10 and draft.personas[1].realname == "测试用户2"
-    assert [p.persona_id for p in draft.personas] == [f"p{i:02d}" for i in range(1, 11)]
+    assert draft.cohort_rationale == "按目标用户分布"
+    assert [(p.gender, p.age, p.browsing_profile.motivation) for p in draft.personas] == [
+        (s.gender, s.age, s.motivation) for s in slots.values()]
+    assert len({p.username for p in draft.personas}) == 10 and draft.personas[1].username == "user_2"
     assert peak == 10 and calls["p02"] == 2 and calls["p03"] == 2
-    assert "Persona p03 第 1 次不合法" in output and "年龄需在目标用户范围 20–55 内" in output
-    assert "Persona p02 需重新生成：realname 与已有角色重复" in output
+    assert "维度矩阵 第 1 次不合法" in output and "至少 2 名开发者" in output and "姓名不能重复" in output and "维度矩阵 第 2 次通过" in output
+    assert "Persona p03 第 1 次不合法" in output and "realname/profession/gender/age 必须与维度矩阵一致" in output
+    assert "Persona p02 需重新生成：username 与已有角色重复" in output
+
+
+def test_review_counts_distribution_from_draft(tmp_path, monkeypatch, draft):
+    (tmp_path / "manual.md").write_text(SAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    write_json(tmp_path / "draft.json", draft.model_dump(mode="json"))
+    write_json(tmp_path / "capability_profile.json", CAPABILITY)
+    phase1.review(tmp_path, input_fn=lambda prompt: "quit")
+    text = (tmp_path / "review.md").read_text(encoding="utf-8")
+    assert "测试分布" in text and "- 性别：女 5，男 5" in text and "- 时段：午 2，早 3，晚 3，深夜 2" in text
