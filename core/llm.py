@@ -1,8 +1,11 @@
 """Send one request over Chat Completions or the Responses API, chosen by LLM_API."""
 
+import json
 from types import SimpleNamespace
 
-from core.runtime import llm_api, thinking_body, with_deadline
+from core.limits import async_slot
+from core.providers import get_adapter, llm_api
+from core.runtime import with_deadline
 
 
 def response_content(content):
@@ -26,33 +29,37 @@ def response_tool(tool):
 
 
 async def create(client, config, messages, max_tokens, deadline, label, *, tools=None, tool_choice=None,
-                 parallel_tool_calls=None, json_schema=None):
+                 parallel_tool_calls=None, json_schema=None, json_object=False):
     """Return (message, usage); message exposes .content and .tool_calls[].function.name/.arguments on both APIs.
 
     json_schema is {"name", "schema", "strict"}; tool definitions and tool_choice use the Chat Completions shape.
     """
     options = {key: value for key, value in [("tools", tools), ("tool_choice", tool_choice),
                                              ("parallel_tool_calls", parallel_tool_calls)] if value is not None}
+    api = llm_api(config)
+    adapter = get_adapter(config)
+    options.update(adapter.thinking_options(api, config.get("thinking_type")))
+    options.update(adapter.output_options(api, json_schema, json_object))
+    if json_schema and not adapter.supports_json_schema(api):
+        messages = [{"role": "system", "content": "Return only JSON satisfying this schema: "
+                     + json.dumps(json_schema["schema"], ensure_ascii=False)}, *messages]
+    async def send(request):
+        # Queue time does not consume the provider request's deadline.
+        async with async_slot(config):
+            return await with_deadline(request, deadline, label)
     if llm_api(config) == "chat_completions":
-        if json_schema:
-            options["response_format"] = {"type": "json_schema", "json_schema": json_schema}
-        response = await with_deadline(lambda: client.chat.completions.create(
-            model=config["model"], messages=messages, max_tokens=max_tokens, extra_body=thinking_body(config), **options,
-        ), deadline, label)
+        response = await send(lambda: client.chat.completions.create(
+            model=config["model"], messages=messages, max_tokens=max_tokens, **options,
+        ))
         return response.choices[0].message, response.usage.model_dump() if response.usage else None
     if tools:
         options["tools"] = [response_tool(tool) for tool in tools]
     if tool_choice:
         options["tool_choice"] = {"type": "function", "name": tool_choice["function"]["name"]}
-    if json_schema:
-        options["text"] = {"format": {"type": "json_schema", **json_schema}}
-    # The Responses API switches thinking with reasoning.effort rather than the provider's thinking.type body.
-    if thinking_body(config).get("thinking") == {"type": "disabled"}:
-        options["reasoning"] = {"effort": "none"}
-    response = await with_deadline(lambda: client.responses.create(
+    response = await send(lambda: client.responses.create(
         model=config["model"], input=[{"role": message["role"], "content": response_content(message["content"])} for message in messages],
         max_output_tokens=max_tokens, **options,
-    ), deadline, label)
+    ))
     calls = [SimpleNamespace(function=SimpleNamespace(name=item.name, arguments=item.arguments))
              for item in response.output if item.type == "function_call"]
     message = SimpleNamespace(content=response.output_text, tool_calls=calls or None)

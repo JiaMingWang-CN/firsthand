@@ -217,7 +217,7 @@ def test_json_validation_retry_keeps_schema_and_thinking():
 
     assert asyncio.run(run()).positioning == "作品展示"
     assert len(bodies) == 2
-    assert all(body["thinking"] == {"type": "disabled"} and body["response_format"]["type"] == "json_schema" for body in bodies)
+    assert all(body["reasoning_effort"] == "none" and body["response_format"]["type"] == "json_schema" for body in bodies)
 
 
 def test_failed_prompt_json_capability_cannot_be_used_as_fallback():

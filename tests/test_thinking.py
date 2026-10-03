@@ -30,7 +30,7 @@ def test_browser_thinking_on_wire(mode, structured):
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             llm = ProviderChatOpenAI(model="gpt-5", api_key="test", base_url="https://test.invalid/v1",
-                                    thinking_type=mode, http_client=client)
+                                    provider="deepseek", thinking_type=mode, http_client=client)
             result = await llm.ainvoke([UserMessage(content="Reply ok")], Answer if structured else None)
             assert (result.completion.answer if structured else result.completion) == "ok"
 
@@ -51,7 +51,7 @@ def test_settings_reads_thinking_switch(monkeypatch):
     monkeypatch.setenv("LLM_THINKING_TYPE", "")
     assert runtime.settings()["thinking_type"] is None
     with pytest.raises(ValueError, match="LLM_THINKING_TYPE"):
-        runtime.thinking_body({"thinking_type": "wrong"})
+        runtime.get_adapter({"thinking_type": "wrong"})
 
 
 def test_capability_profile_rejected_after_thinking_change(tmp_path):

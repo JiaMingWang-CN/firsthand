@@ -13,6 +13,8 @@ from openai import AsyncOpenAI
 from PIL import Image, ImageDraw, ImageFont
 
 from core.llm import create
+from core.limits import concurrency_limits
+from core.providers import get_adapter
 from core.runtime import error_summary, llm_api, require, settings, write_json
 
 # Whole-request limit per probe; a normal vision check takes up to about 50s.
@@ -54,7 +56,11 @@ def valid_calls(message, expected, token):
 
 async def probe_model(config, run_dir):
     require(config, "base_url", "api_key", "model")
+    adapter = get_adapter(config)
+    model_limit, browser_limit = concurrency_limits(config)
     profile = {
+        "provider": adapter.name, "max_model_concurrency": model_limit, "max_browser_concurrency": config.get("max_browser_concurrency", 1),
+        "effective_browser_concurrency": browser_limit,
         "model": config["model"], "base_url": config["base_url"], "ready": False,
         "thinking_type": config.get("thinking_type"), "api": llm_api(config),
         "checks": {}, "video": {"status": "not_tested", "fallback": "screenshot_sequence"},
@@ -65,6 +71,11 @@ async def probe_model(config, run_dir):
         async def check(name, messages, validate, request_config=config, **kwargs):
             started = time.monotonic()
             result = {"supported": False}
+            if kwargs.get("json_schema") and not adapter.supports_json_schema(llm_api(request_config)):
+                result.update(status="unsupported", reason=adapter.json_schema_limitation)
+                profile["checks"][name] = result
+                print(f"{name}: UNSUPPORTED — {result['reason']}", flush=True)
+                return False
             try:
                 message, result["usage"] = await create(client, request_config, messages, 512, PROBE_DEADLINE, name, **kwargs)
                 result["supported"] = bool(validate(message))
@@ -98,11 +109,15 @@ async def probe_model(config, run_dir):
 
         await check("json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
                     valid_json, json_schema={"name": "probe", "strict": True, "schema": schema})
+        await check("json_object", [{"role": "user", "content": f'Return only JSON: {{"token":"{token}"}}'}],
+                    valid_json, json_object=True)
         if llm_api(config) == "responses":
             # Browser Use and OASIS fall back to Chat Completions; measure its structured output separately.
             await check("chat_completions_json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
                         valid_json, request_config=dict(config, api="chat_completions"),
                         json_schema={"name": "probe", "strict": True, "schema": schema})
+            await check("chat_completions_json_object", [{"role": "user", "content": f'Return only JSON: {{"token":"{token}"}}'}],
+                        valid_json, request_config=dict(config, api="chat_completions"), json_object=True)
         # Verify prompt-constrained JSON too, so the fallback has evidence.
         await check("json_prompt", [{"role": "user", "content": f'Return only valid JSON: {{"token":"{token}"}}'}], valid_json)
         for index in range(2):
@@ -122,8 +137,10 @@ async def probe_model(config, run_dir):
                               lambda message: (message.content or "").strip() == token) for index in range(10)))
     required = ["conversation", "tool_call", "vision_0", "vision_1"]
     profile["ready"] = all(profile["checks"][name]["supported"] for name in required)
-    profile["structured_output"] = "json_schema" if profile["checks"]["json_schema"]["supported"] else "prompt_with_validation"
-    profile["recommended_concurrency"] = 10 if all(profile["checks"][f"concurrent_{i}"]["supported"] for i in range(10)) else 1
+    profile["structured_output"] = ("json_schema" if profile["checks"]["json_schema"]["supported"] else
+                                    "json_object_with_validation" if profile["checks"]["json_object"]["supported"] else "prompt_with_validation")
+    # Ten queued requests do not prove ten simultaneous requests when the configured limit is lower.
+    profile["recommended_concurrency"] = min(10, model_limit) if all(profile["checks"][f"concurrent_{i}"]["supported"] for i in range(10)) else 1
     write_json(run_dir / "capability_profile.json", profile)
     return profile
 

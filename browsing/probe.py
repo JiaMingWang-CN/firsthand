@@ -11,6 +11,7 @@ from urllib.parse import urlencode, urlsplit
 from browser_use import Agent, BrowserSession
 from steel import AsyncSteel
 
+from core.limits import async_slot
 from core.runtime import chat_completions_fallback, chat_json_schema_supported, error_summary, require, require_capabilities, settings, write_json
 from browsing.model import ProviderChatOpenAI
 
@@ -45,7 +46,7 @@ async def probe_browser(config, run_dir, profile):
         logging.getLogger(name).addHandler(log_counter)
     session = None
     browser_session = None
-    async with AsyncSteel(steel_api_key=config["steel_api_key"], timeout=60, max_retries=0) as steel:
+    async with async_slot(config, "browser"), AsyncSteel(steel_api_key=config["steel_api_key"], timeout=60, max_retries=0) as steel:
         try:
             session = await steel.sessions.create(
                 dimensions={"width": 1440, "height": 900}, solve_captcha=False,
@@ -127,6 +128,9 @@ async def probe_browser(config, run_dir, profile):
                 llm = ProviderChatOpenAI(
                     model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
                     thinking_type=config.get("thinking_type"),
+                    provider=config.get("provider", "openai_compatible"),
+                    max_model_concurrency=config.get("max_model_concurrency", 10),
+                    max_browser_concurrency=config.get("max_browser_concurrency", 1),
                     timeout=60, max_retries=0, dont_force_structured_output=not chat_json_schema_supported(profile),
                     add_schema_to_system_prompt=not chat_json_schema_supported(profile),
                 )

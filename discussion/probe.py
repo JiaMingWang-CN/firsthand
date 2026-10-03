@@ -6,7 +6,8 @@ import os
 import sqlite3
 from pathlib import Path
 
-from core.runtime import chat_completions_fallback, error_summary, require_capabilities, settings, thinking_body, write_json
+from core.providers import module_route
+from core.runtime import error_summary, require_capabilities, settings, write_json
 
 
 async def probe_discussion(config, run_dir):
@@ -15,20 +16,15 @@ async def probe_discussion(config, run_dir):
     run_dir.mkdir(parents=True, exist_ok=True)
     original_cwd = Path.cwd()
     os.chdir(run_dir)
-    from camel.models import ModelFactory
-    from camel.types import ModelPlatformType
+    from discussion.model import ProviderModel
     import oasis
     from oasis import ActionType, AgentGraph, LLMAction, ManualAction, SocialAgent, UserInfo
 
-    result = {"passed": False, "steps": 0, **chat_completions_fallback(config, "OASIS/CAMEL")}
+    route = module_route(config, "OASIS/CAMEL", supports_responses=False)
+    result = {"passed": False, "steps": 0, **route.metadata}
     env = None
     try:
-        model = ModelFactory.create(
-            model_platform=ModelPlatformType.OPENAI_COMPATIBLE_MODEL,
-            model_type=config["model"], url=config["base_url"], api_key=config["api_key"],
-            model_config_dict={"temperature": 0, "max_tokens": 512, "extra_body": thinking_body(config)},
-            timeout=60, max_retries=0,
-        )
+        model = ProviderModel(route.config)
         graph = AgentGraph()
         allowed = {
             "poster": [ActionType.CREATE_POST, ActionType.CREATE_COMMENT, ActionType.REFRESH, ActionType.DO_NOTHING],

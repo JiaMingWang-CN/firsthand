@@ -34,7 +34,7 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
                 token = re.search(r"[a-f0-9]{16}", content).group()
                 answer = token
                 if "response_format" in kwargs:
-                    raise ValueError("Endpoint does not support JSON Schema")
+                    assert kwargs["response_format"] == {"type": "json_object"}
                 if "tools" in kwargs and unsupported != "tools":
                     calls = [SimpleNamespace(function=SimpleNamespace(
                         name=tool["function"]["name"], arguments=json.dumps({"token": token})
@@ -45,12 +45,13 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
 
     monkeypatch.setattr(model, "AsyncOpenAI", FakeClient)
     monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"test-image"))
-    config = {"model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret", "thinking_type": "disabled"}
+    config = {"provider": "deepseek", "model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret", "thinking_type": "disabled"}
     profile = asyncio.run(model.probe_model(config, tmp_path))
     assert profile["ready"] is (unsupported is None)
-    assert profile["structured_output"] == "prompt_with_validation"
+    assert profile["structured_output"] == "json_object_with_validation"
+    assert profile["checks"]["json_schema"]["status"] == "unsupported"
     assert profile["thinking_type"] == "disabled"
-    assert "test-secret" not in (tmp_path / "capability_profile.json").read_text()
+    assert "test-secret" not in (tmp_path / "capability_profile.json").read_text(encoding="utf-8")
     if unsupported:
         with pytest.raises(ValueError):
             require_capabilities(tmp_path, config)

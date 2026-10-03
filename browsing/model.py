@@ -1,10 +1,15 @@
 """Pass the configured provider thinking parameter through Browser Use's SDK client."""
 
+import json
 from dataclasses import dataclass, field
 
 from browser_use import ChatOpenAI
+from browser_use.llm.exceptions import ModelProviderError
+from browser_use.llm.messages import UserMessage
+from pydantic import ValidationError
 
-from core.runtime import thinking_body
+from core.limits import async_slot
+from core.providers import get_adapter
 
 
 def has_image(messages):
@@ -14,27 +19,56 @@ def has_image(messages):
 
 @dataclass
 class ProviderChatOpenAI(ChatOpenAI):
+    provider: str = "openai_compatible"
     thinking_type: str | None = None
+    max_model_concurrency: int = 10
+    max_browser_concurrency: int = 1
     # Counted at the SDK boundary: proof that screenshots actually reach the model.
     requests_sent: int = field(default=0, init=False)
     requests_with_images: int = field(default=0, init=False)
 
     def __post_init__(self):
-        if thinking_body({"thinking_type": self.thinking_type}):
-            # Do not infer OpenAI reasoning_effort from a custom provider's model name.
-            self.reasoning_models = []
+        adapter = get_adapter(self.provider_config())
+        # The adapter owns thinking, including the empty setting (provider default).
+        self.reasoning_models = []
+        if not adapter.supports_json_schema("chat_completions"):
+            self.dont_force_structured_output = False
+            self.add_schema_to_system_prompt = True
+
+    def provider_config(self):
+        return {"provider": self.provider, "thinking_type": self.thinking_type,
+                "max_model_concurrency": self.max_model_concurrency, "max_browser_concurrency": self.max_browser_concurrency}
+
+    async def ainvoke(self, messages, output_format=None, **kwargs):
+        if output_format is None or get_adapter(self.provider_config()).supports_json_schema("chat_completions"):
+            return await super().ainvoke(messages, output_format, **kwargs)
+        # Upstream validates with Pydantic; invalid JSON Object output gets explicit repair feedback.
+        messages = list(messages) + [UserMessage(content="只返回满足 schema 的完整 JSON，不要 Markdown。schema："
+                                               + json.dumps(output_format.model_json_schema(), ensure_ascii=False))]
+        for attempt in range(3):
+            try:
+                return await super().ainvoke(messages, output_format, **kwargs)
+            except ModelProviderError as error:
+                if not isinstance(error.__cause__, ValidationError) or attempt == 2:
+                    raise
+                print(f"Browser Use JSON 本地校验失败，修正重试（第 {attempt + 2} 次）", flush=True)
+                messages.append(UserMessage(content="修正以下校验错误并返回完整 JSON：" + str(error.__cause__)))
 
     def get_client(self):
         client = super().get_client()
-        body = thinking_body({"thinking_type": self.thinking_type})
+        config = self.provider_config()
+        adapter = get_adapter(config)
         create = client.chat.completions.create
 
         async def counted_create(*args, **kwargs):
-            self.requests_sent += 1
-            self.requests_with_images += has_image(kwargs.get("messages", []))
-            # Browser Use 0.13.10 omits extra_body from ainvoke. Bind it only on
-            # this new client; keep upstream serialization and response validation.
-            return await create(*args, **({"extra_body": body} if body else {}), **kwargs)
+            kwargs.update(adapter.thinking_options("chat_completions", self.thinking_type))
+            schema = kwargs.get("response_format", {}).get("json_schema")
+            if schema:
+                kwargs.update(adapter.output_options("chat_completions", schema))
+            async with async_slot(config):
+                self.requests_sent += 1
+                self.requests_with_images += has_image(kwargs.get("messages", []))
+                return await create(*args, **kwargs)
 
         client.chat.completions.create = counted_create
         return client

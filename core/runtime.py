@@ -10,6 +10,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import APIConnectionError, APITimeoutError
 
+from core.limits import concurrency_limits
+from core.providers import get_adapter, llm_api, module_route
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -18,16 +21,23 @@ def settings():
     # load_dotenv() on import, so a stray .env could otherwise win (Windows env names
     # are case-insensitive, e.g. Steel_API_Key would shadow STEEL_API_KEY).
     load_dotenv(ROOT / "config" / ".env", override=True)
-    return {
+    config = {
+        "provider": os.getenv("LLM_PROVIDER", "").strip().lower() or "openai_compatible",
         "base_url": os.getenv("LLM_BASE_URL", ""),
         "api_key": os.getenv("LLM_API_KEY", ""),
         "model": os.getenv("LLM_MODEL", ""),
         "thinking_type": os.getenv("LLM_THINKING_TYPE", "").strip().lower() or None,
         "api": os.getenv("LLM_API", "").strip().lower() or "chat_completions",
+        "max_model_concurrency": int(os.getenv("LLM_MAX_CONCURRENCY", "10")),
+        "max_browser_concurrency": int(os.getenv("BROWSER_MAX_CONCURRENCY", "1")),
         "steel_api_key": os.getenv("STEEL_API_KEY", ""),
         "url": os.getenv("PROBE_URL", "https://example.com"),
         "timezone": os.getenv("PROBE_TIMEZONE", "Asia/Shanghai"),
     }
+    get_adapter(config)
+    llm_api(config)
+    concurrency_limits(config)
+    return config
 
 
 def require(config, *names):
@@ -36,34 +46,15 @@ def require(config, *names):
         raise ValueError("Missing configuration: " + ", ".join(missing))
 
 
-def thinking_body(config):
-    thinking_type = config.get("thinking_type")
-    if thinking_type is None:
-        return {}
-    if thinking_type not in {"enabled", "disabled"}:
-        raise ValueError("LLM_THINKING_TYPE must be enabled, disabled or empty")
-    return {"thinking": {"type": thinking_type}}
-
-
-def llm_api(config):
-    api = config.get("api", "chat_completions")
-    if api not in {"chat_completions", "responses"}:
-        raise ValueError("LLM_API must be chat_completions or responses")
-    return api
-
-
 def chat_completions_fallback(config, framework):
-    # Browser Use and CAMEL/OASIS only call Chat Completions; record the downgrade instead of hiding it.
-    if llm_api(config) == "responses":
-        print(f"{framework} 不支持 Responses API，降级为 Chat Completions", flush=True)
-        return {"llm_api": "chat_completions", "fallback_from": "responses"}
-    return {"llm_api": "chat_completions"}
+    return module_route(config, framework, supports_responses=False).metadata
 
 
 def chat_json_schema_supported(profile):
     # Frameworks always use Chat Completions; a Responses profile measures that path separately.
     checks = profile["checks"]
-    return checks.get("chat_completions_json_schema", checks["json_schema"])["supported"]
+    return (get_adapter(profile).supports_json_schema("chat_completions")
+            and checks.get("chat_completions_json_schema", checks["json_schema"])["supported"])
 
 
 async def with_deadline(request, seconds, label, attempts=2):
@@ -104,6 +95,8 @@ def require_capabilities(run_dir, config):
     profile = json.loads((Path(run_dir) / "capability_profile.json").read_text(encoding="utf-8"))
     if not profile["ready"]:
         raise ValueError("Model must pass conversation, tool calling and vision probes first")
+    if profile.get("provider", "openai_compatible") != get_adapter(config).name:
+        raise ValueError("LLM_PROVIDER changed; rerun the model capability probe")
     if profile["model"] != config["model"] or profile["base_url"] != config["base_url"]:
         raise ValueError("Capability profile belongs to a different model endpoint")
     if profile.get("thinking_type") != config.get("thinking_type"):

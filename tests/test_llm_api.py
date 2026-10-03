@@ -98,7 +98,9 @@ def test_api_setting_is_validated_and_bound_to_capability(tmp_path, capsys):
                                                       "thinking_type": "disabled", "api": "chat_completions"})
     with pytest.raises(ValueError, match="LLM_API changed"):
         require_capabilities(tmp_path, CONFIG)
-    assert chat_completions_fallback(CONFIG, "Browser Use") == {"llm_api": "chat_completions", "fallback_from": "responses"}
+    fallback = chat_completions_fallback(CONFIG, "Browser Use")
+    assert fallback["llm_api"] == "chat_completions" and fallback["fallback_from"] == "responses"
+    assert fallback["fallback_reason"] == "Browser Use 不支持 Responses API，降级为 Chat Completions"
     assert "Browser Use 不支持 Responses API，降级为 Chat Completions" in capsys.readouterr().out
 
 

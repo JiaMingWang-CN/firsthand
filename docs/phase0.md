@@ -148,3 +148,16 @@ Steel 会话寿命显式设为 10 分钟（服务端返回 `timeout=600000`）�
 
 复测（`runs/phase0-20261002T173330407512Z-vision/`，沿用同一份能力文件）：通过。共 2 步、2 次模型请求，2 次都带截图；到达 `/projects`，耗时 58 秒。
 
+
+## 2026-10-02：提供商适配器与共享并发复测
+
+本次补齐阶段 0 的模型接入层：保留通用 OpenAI 兼容适配器，增加 DeepSeek 适配器，统一环境配置，并在公共请求层、Browser Use 与 CAMEL 模型入口使用跨进程模型额度。Steel 会话另受 min(模型上限, 浏览器上限) 限制。模块级 Responses → Chat 降级保存原因及原提供商、模型、思考与并发设置；厂商参数集中转换。
+
+真实运行目录：`runs/phase0-provider-adapters-20261002/`。使用已有环境：DeepSeek / deepseek-flash / Responses / thinking disabled / 模型并发 10 / 浏览器并发 1。
+
+- 能力探测通过；Responses 的 JSON Schema 与 JSON Object 均通过。Chat 的 JSON Schema 明确记为 unsupported，Chat JSON Object 通过，不能将其视为严格结构化输出。
+- Browser Use 单独降级为 Chat，使用 JSON Object、schema 提示词、本地 Pydantic 校验与最多 3 次修正尝试。实际 2 步、2 次模型请求，均带截图；DOM 失败和重复响应均为 0，56.3 秒，会话已释放。
+- OASIS/CAMEL 单独降级为 Chat，讨论动作和潜水者只读约束通过，正常关闭。
+- 回归验证：浏览环境 73 项通过（包含阶段 1 的既有兼容性检查）；OASIS 环境验证两种适配器的 enabled、disabled 和默认思考参数。共享限流测试覆盖混合模型入口、浏览额度独立、跨进程争用、取消和进程退出释放。
+
+新增配置见 `config/.env.example`。修改提供商后需重新探测，旧能力文件缺少 provider 时不作为 DeepSeek 能力依据。阶段 1 的人设调度与 JSON Object 能力选择随后按阶段提交补齐。
