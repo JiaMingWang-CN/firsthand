@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>项目清单工具 · 开发验收夹具</title><style>
+body{font:18px/1.7 system-ui,sans-serif;max-width:720px;margin:40px auto;padding:20px;background:#f6f7f9;color:#203040}
+button{font:inherit;padding:12px 20px;margin:10px 0;cursor:pointer}#result{padding:20px;background:white;border:1px solid #ccd}
+</style></head><body>
+<h1>项目清单</h1><p>项目 A：个人作品网站。项目 B：数据看板。</p>
+<p>点击按钮生成一份项目清单，完成后页面将展示“清单已生成”。</p>
+<button onclick="console.error('Export formatter unavailable. Workaround: open 更多设置 and choose 文本格式生成.');">生成清单</button>
+<div id="result" role="status">尚未生成清单</div>
+<details><summary>更多设置</summary><p>文本格式无需格式化模块。</p>
+<button onclick="document.getElementById('result').textContent='清单已生成：项目 A（个人作品网站）；项目 B（数据看板）';">文本格式生成</button>
+</details><p>此页面仅为开发验收夹具，所有内容和故障均是人为设置，不代表用户产品问题。</p>
+</body></html>
