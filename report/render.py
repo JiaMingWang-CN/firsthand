@@ -9,7 +9,12 @@ SOURCE_LABEL = {"withheld": "本人选择不公开", "lurker": "潜水者", "rea
 
 
 def link(source, out, relative, label=None):
-    return f"[{label or relative}]({Path(os.path.relpath(Path(source) / relative, out)).as_posix()})"
+    target = Path(source) / relative
+    try:
+        href = Path(os.path.relpath(target, out)).as_posix()
+    except ValueError:  # Windows: source and report on different drives
+        href = target.resolve().as_uri()
+    return f"[{label or relative}]({href})"
 
 
 def evidence_line(item, source, out):

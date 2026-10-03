@@ -27,12 +27,15 @@ async def execute(source, root, capability_dir, use_model):
     source, root = Path(source).resolve(), Path(root).resolve()
     if not (source / "phase4_result.json").is_file():
         raise ValueError("Source must be a phase-4 run directory")
+    phase4 = json.loads((source / "phase4_result.json").read_text(encoding="utf-8"))
     if root.exists():
         raise ValueError("Use a fresh phase5 directory")
     before = fingerprint(source)
     store = EvidenceStore(source)
     root.mkdir(parents=True)
     claims, trace, notes = {}, [], []
+    if not phase4.get("passed"):
+        notes.append(f"阶段 4 验收未通过（{phase4.get('status', 'passed=false')}）：模拟本身不完整或不合格，以下所有数字和结论只能作为排查参考。")
     if use_model:
         config = settings()
         capability = require_capabilities(capability_dir, config)
@@ -64,7 +67,7 @@ async def execute(source, root, capability_dir, use_model):
                   (source / "run_context.json").read_bytes()).hexdigest(), "source_files_unchanged": fingerprint(source) == before,
               "issues": len(report["sections"]["issues"]), "highlights": len(report["sections"]["highlights"]),
               "rejected_claims": len(report["rejected_claims"]), "silence_signals": len(report["silence_signals"]),
-              "source_provider": context["configuration"]["provider"]}
+              "source_provider": context["configuration"]["provider"], "source_phase4_passed": bool(phase4.get("passed"))}
     write_json(root / "phase5_result.json", result)
     return result
 

@@ -182,3 +182,51 @@ def test_prose_cannot_name_personas_without_citing_their_evidence(source):
     assert not accepted and "p02" in rejected[0]["reason"]
     overclaim.citations.append(Citation(ref_id="p02:f001", quote="按钮无反馈"))
     assert accept_claims([overclaim], store, "issues")[0]
+
+
+def test_unrelated_records_do_not_count_as_affected_people(source):
+    store = EvidenceStore(source)
+    padded = claim(["p01:f001"])
+    padded.citations.append(Citation(ref_id="p02:outcome", quote="abandoned"))
+    accepted, _ = accept_claims([padded], store, "issues")
+    assert accepted[0]["affected_personas"] == ["p01"]
+
+
+def test_naming_a_persona_requires_their_matching_finding(source):
+    store = EvidenceStore(source)
+    overclaim = claim(["p01:f001"])
+    overclaim.detail = "p01、p02 都遇到按钮无反馈"
+    overclaim.citations.append(Citation(ref_id="p02:outcome", quote="按钮无反馈"))
+    accepted, rejected = accept_claims([overclaim], store, "issues")
+    assert not accepted and "p02" in rejected[0]["reason"]
+
+
+def test_time_slot_without_verified_experience_still_verifies(source):
+    from report.agent import verify_report
+    with sqlite3.connect(source / "run.db") as db:
+        db.execute("DELETE FROM experiences WHERE persona_id='p02'")
+        db.execute("DELETE FROM surveys WHERE persona_id='p02'")
+        db.execute("UPDATE personas SET persona_json=? WHERE persona_id='p02'",
+                   (json.dumps({"persona_id": "p02", "participation": "lurker", "schedule": {"browse_slot": "08:00"}}),))
+    store = EvidenceStore(source)
+    report = build_report(store, {})
+    assert any(row["personas"] == ["p02"] for row in report["time_slots"])
+    assert verify_report(report, store) == []
+
+
+def test_links_fall_back_to_absolute_uri_across_drives(tmp_path, monkeypatch):
+    from report import render
+    def other_drive(*args):
+        raise ValueError("path is on mount 'C:', start on mount 'D:'")
+    monkeypatch.setattr(render.os.path, "relpath", other_drive)
+    assert render.link(tmp_path, tmp_path / "out", "p01/experience.json").endswith((tmp_path / "p01/experience.json").as_uri() + ")")
+
+
+def test_failed_phase4_run_is_called_out(source, tmp_path):
+    from orchestrator.phase5 import execute
+    (source / "phase4_result.json").write_text(json.dumps({"passed": False, "status": "interrupted_or_failed"}), encoding="utf-8")
+    (source / "run_context.json").write_text(json.dumps({"source_run": str(tmp_path), "configuration": {"provider": "x"}}), encoding="utf-8")
+    result = asyncio.run(execute(source, tmp_path / "out", None, False))
+    assert result["source_phase4_passed"] is False
+    report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
+    assert "阶段 4 验收未通过" in report["overview"]["coverage_notes"][0]
