@@ -44,7 +44,7 @@ def save_review(run_dir, draft, manual):
                "sections": manual["sections"]})
     lines = [f"# {manual['metadata'].name}：阶段 1 人工审核", "",
              "此文件是展示副本；修改 draft.json 后，在 CLI 中 reload。审批状态以与当前草稿匹配的 approval.json 为准。",
-             "阶段 0 浏览验证待解决，Scout 尚未执行；本文件不包含真实产品体验结论。", "",
+             "Scout 尚未执行；本文件不包含真实产品体验结论。", "",
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
              "## 模拟配置", "", "```json", draft.run_config.model_dump_json(indent=2), "```", "",
              "浏览并发同时受环境中的模型上限、浏览器上限和能力探测建议值限制；Steel 套餐需匹配该配置。", "",
@@ -166,7 +166,7 @@ async def prepare(manual_path, run_dir, capability_run=None):
     print(f"运行产物：{run_dir}", flush=True)
     (run_dir / "manual.md").write_text(manual["source"], encoding="utf-8")
     write_json(run_dir / "scout.json", {"status": "pending", "findings": [],
-               "reason": "阶段 0 浏览验证尚未通过；阶段 1 继续生成，未运行 Scout，也不推断网站实测结果"})
+               "reason": "阶段 1 尚未运行 Scout 侦察；此处不推断网站实测结果"})
     try:
         if capability_run:
             capability = require_capabilities(capability_run, config)

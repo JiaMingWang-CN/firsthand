@@ -4,9 +4,9 @@
 
 ## 阶段 0 的问题如何处理
 
-已查阅阶段 0 修订说明和实际结果：模型、OASIS 已通过；浏览仍出现连接断开与 DOM 超时。当前只通过 Browser Use 操作和采集，复用它的 CDP 连接，不使用 Playwright 或内置 HAR。
+早期阶段 0 曾出现连接断开与 DOM 超时，后续真实浏览复测已通过，超时问题已解决，不再是当前阻塞项。当前只通过 Browser Use 操作和采集，复用它的 CDP 连接，不使用 Playwright 或内置 HAR。
 
-按本次要求，浏览验证没有通过不阻断阶段 1。`scout.json` 明确记录 `pending`，不会把说明书、角色背景或阶段 0 基础设施问题写成真实产品发现。模型的基础对话、工具调用和识图仍需通过；输出使用适配器允许且探测通过的模式：优先 JSON Schema，其次 JSON Object，再次提示词 JSON，每次均须本地校验。DeepSeek Chat 不支持严格 JSON Schema，必须先通过 JSON Object 探测，配合 schema 提示词、本地校验和修正重试；JSON Object 不能视为严格结构化输出。提供商、请求协议、思考和并发配置见 `providers.md`。
+阶段 1 只生成计划，`scout.json` 的 `pending` 表示尚未进行 Scout 侦察，不表示浏览器超时未解决。不会把说明书、角色背景或基础设施问题写成真实产品发现。模型的基础对话、工具调用和识图仍需通过；输出使用适配器允许且探测通过的模式：优先 JSON Schema，其次 JSON Object，再次提示词 JSON，每次均须本地校验。DeepSeek Chat 不支持严格 JSON Schema，必须先通过 JSON Object 探测，配合 schema 提示词、本地校验和修正重试；JSON Object 不能视为严格结构化输出。提供商、请求协议、思考和并发配置见 `providers.md`。
 
 ## 安装与输入
 
