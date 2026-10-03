@@ -9,6 +9,7 @@ from browser_use import ActionResult, Tools
 
 from core.persona import Data, Text
 from browsing.evidence import redact
+from browsing.observations import ObservationGateway
 from orchestrator.personas import request_json
 
 
@@ -46,20 +47,21 @@ class GuardedTools(Tools):
                 del self.registry.registry.actions[name]
         self.persona, self.manual, self.collector = persona, manual, collector
         self.client, self.config, self.capability = client, config, capability
-        self.observed_technical_events = {}
-        if "read_console" in persona.browsing_profile.tools:
+        self.gateway = ObservationGateway(persona, collector)
+        self.observed_technical_events = self.gateway.observed
+        if "read_console" in self.gateway.allowed:
             @self.action(description="Read captured console messages and JavaScript errors. Developer permission required.")
             async def read_console() -> ActionResult:
                 return self.technical_result("read_console", collector.console())
-        if "list_failed_requests" in persona.browsing_profile.tools:
+        if "list_failed_requests" in self.gateway.allowed:
             @self.action(description="List captured failed requests and HTTP errors. Developer permission required.")
             async def list_failed_requests() -> ActionResult:
                 return self.technical_result("list_failed_requests", collector.failed_requests())
 
     def technical_result(self, name, events):
-        if name not in self.persona.browsing_profile.tools:
+        events = self.gateway.observe(name, events)
+        if events is None:
             return ActionResult(error="Technical observation permission denied")
-        self.observed_technical_events.update({item["event_id"]: item for item in events})
         return ActionResult(extracted_content=json.dumps(events, ensure_ascii=False))
 
     def denied(self, action, reason):
@@ -72,7 +74,7 @@ class GuardedTools(Tools):
         if len(active) != 1:
             return self.denied(values, "Each operation must contain exactly one action")
         name, params = active[0]
-        allowed = self.SAFE | set(self.persona.browsing_profile.tools)
+        allowed = self.SAFE | self.gateway.allowed
         if name not in allowed:
             return self.denied(values, "Action is not enabled for this persona")
         domains = self.manual["metadata"].allowed_domains

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from core.limits import async_slot
 from core.providers import get_adapter, llm_api
 from core.runtime import with_deadline
+from core.usage import measured_request
 
 
 def response_content(content):
@@ -46,7 +47,7 @@ async def create(client, config, messages, max_tokens, deadline, label, *, tools
     async def send(request):
         # Queue time does not consume the provider request's deadline.
         async with async_slot(config):
-            return await with_deadline(request, deadline, label)
+            return await with_deadline(lambda: measured_request(request, api, config["model"]), deadline, label)
     if llm_api(config) == "chat_completions":
         response = await send(lambda: client.chat.completions.create(
             model=config["model"], messages=messages, max_tokens=max_tokens, **options,

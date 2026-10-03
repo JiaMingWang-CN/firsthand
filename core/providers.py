@@ -10,6 +10,17 @@ class OpenAICompatibleAdapter:
     name = "openai_compatible"
     json_schema_limitation = None
 
+    def usage_tokens(self, usage):
+        input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
+        output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
+        details = usage.get("input_tokens_details", usage.get("prompt_tokens_details")) or {}
+        cached = details.get("cached_tokens", 0)
+        return {"input_tokens": input_tokens, "cached_input_tokens": cached,
+                "uncached_input_tokens": input_tokens - cached, "output_tokens": output_tokens}
+
+    def price_range(self, model, tokens):
+        return None
+
     def supports_json_schema(self, api):
         return True
 
@@ -31,6 +42,22 @@ class OpenAICompatibleAdapter:
 class DeepSeekAdapter(OpenAICompatibleAdapter):
     name = "deepseek"
     json_schema_limitation = JSON_OBJECT_WARNING
+
+    def usage_tokens(self, usage):
+        tokens = super().usage_tokens(usage)
+        cached = usage.get("prompt_cache_hit_tokens", tokens["cached_input_tokens"])
+        return {**tokens, "cached_input_tokens": cached, "uncached_input_tokens": tokens["input_tokens"] - cached}
+
+    def price_range(self, model, tokens):
+        # Official price snapshot, checked 2026-10-02 (America/Los_Angeles).
+        # Peak and off-peak vary with UTC time and Chinese holidays: report bounds rather than guess billing.
+        rates = {"deepseek-flash": (0.003, 0.15, 0.6), "deepseek-v4-pro": (0.022, 0.66, 1.98)}
+        if model not in rates:
+            return None
+        hit, miss, output = rates[model]
+        low = (tokens["cached_input_tokens"] * hit + tokens["uncached_input_tokens"] * miss + tokens["output_tokens"] * output) / 1_000_000
+        return {"usd_min": low, "usd_max": low * 2, "basis": "official off-peak/peak price bounds, not an invoice",
+                "source": "https://api-docs.deepseek.com/quick_start/pricing/", "checked_on": "2026-10-02 America/Los_Angeles"}
 
     def supports_json_schema(self, api):
         return api == "responses"

@@ -66,6 +66,19 @@ class Assessment(Data):
     summary: Text
 
 
+def finding_citation_error(finding, snapshots, technical):
+    if any(eid not in snapshots for eid in finding.evidence_ids):
+        return f"references missing evidence {finding.evidence_ids}"
+    if any(eid not in technical for eid in finding.technical_event_ids):
+        return f"technical evidence not observed {finding.technical_event_ids}"
+    sources = [snapshots[eid].text for eid in finding.evidence_ids]
+    sources.extend(str(technical[eid]["data"]) for eid in finding.technical_event_ids)
+    if not any(finding.observed_quote in text for text in sources):
+        return (f"quote {finding.observed_quote!r} is absent from cited evidence {finding.evidence_ids}. "
+                "Copy a short exact substring of a cited snapshot's text; do not join labels or quote the agent's reason.")
+    return None
+
+
 class ExperienceMemory(Data):
     persona_id: Text
     state_at_browse: Text
@@ -97,16 +110,13 @@ class ExperienceMemory(Data):
             technical = {item["event_id"]: item for item in self.observed_technical_events}
             if sorted(item.step for item in self.assessment.emotions) != [item.step for item in self.steps]:
                 raise ValueError("Emotion curve must cover every step exactly once")
-            for finding in self.assessment.findings:
-                if any(eid not in snapshots for eid in finding.evidence_ids):
-                    raise ValueError("Finding references missing evidence")
-                observed = "\n".join(snapshots[eid].text for eid in finding.evidence_ids)
-                if any(eid not in technical for eid in finding.technical_event_ids):
-                    raise ValueError("Finding cites technical evidence this persona did not observe")
-                observed += "\n".join(str(technical[eid]["data"]) for eid in finding.technical_event_ids)
-                # A quote anchors even a subjective interpretation to captured page text.
-                if finding.observed_quote not in observed:
-                    raise ValueError("Finding quote is not present in its cited evidence")
+            issues = []
+            for index, finding in enumerate(self.assessment.findings):
+                issue = finding_citation_error(finding, snapshots, technical)
+                if issue:
+                    issues.append(f"findings[{index}] ({finding.title}): {issue}")
+            if issues:
+                raise ValueError("\n".join(issues))
         return self
 
 

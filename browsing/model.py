@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from core.limits import async_slot
 from core.providers import get_adapter
+from core.usage import measured_request
 
 
 def has_image(messages):
@@ -68,7 +69,7 @@ class ProviderChatOpenAI(ChatOpenAI):
             async with async_slot(config):
                 self.requests_sent += 1
                 self.requests_with_images += has_image(kwargs.get("messages", []))
-                return await create(*args, **kwargs)
+                return await measured_request(lambda: create(*args, **kwargs), "chat_completions", self.model)
 
         client.chat.completions.create = counted_create
         return client
