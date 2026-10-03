@@ -122,6 +122,9 @@ def overview(store, notes):
                 "社区公开文字由阶段 4 控制器按“已选结论标题 + 页面原文”模板生成，措辞单一、重复度高，不代表真实用户的自由表达。"]
     if store.missing_experiences:
         coverage.append("没有已校验体验、因此不能发言也没有 NPS 的 Persona：" + "、".join(store.missing_experiences))
+    if store.missing_surveys:
+        coverage.append("缺少私密离场问卷的 Persona：" + "、".join(store.missing_surveys)
+                        + "；NPS、继续使用/付费意愿和问卷一致性只覆盖其余的人。")
     if store.late:
         coverage.append("体验记忆晚于其计划时间片才通过校验的 Persona：" + "、".join(store.late) + "；其体验后发言权限未覆盖原计划时间。")
     if store.recoveries:

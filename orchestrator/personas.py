@@ -204,7 +204,7 @@ async def plan_cohort(client, config, capability, manual, product):
               "每个槽位的 reason 说明它代表哪类目标用户；rationale 解释整体分布为什么贴合目标用户、哪些比例是样本假设，"
               "不要复述各维度人数（人数由系统根据槽位统计）。\n"
               + json.dumps({"product": product.model_dump(), "flows": [flow.model_dump() for flow in manual["flows"]],
-                            "accounts": accounts, "manual": manual["source"]}, ensure_ascii=False))
+                            "accounts": accounts, "manual": manual["generation_source"]}, ensure_ascii=False))
 
     def validate_plan(plan):
         problems = assignment_errors(plan.slots, manual) + cohort_issues(plan.slots, product, manual)
@@ -232,7 +232,7 @@ async def generate_persona(client, config, capability, manual, product, slot, ac
               "背景、persona 和 state_at_browse 要与指定时段一致，不能把这次体验写成别的时段，句子要完整。activity 的小时不能重复，完整睡眠的小时活跃概率为 0。"
               "模拟时间线不区分日期和星期：state_at_browse 不能写星期几、周末、工作日或具体日期，persona 也不要把作息绑定到某个星期。"
               "隐瞒倾向高时说明原因。\n"
-              + json.dumps({"product": product.model_dump(), "manual": manual["source"], "seed": seed, "previous": previous}, ensure_ascii=False))
+              + json.dumps({"product": product.model_dump(), "manual": manual["generation_source"], "seed": seed, "previous": previous}, ensure_ascii=False))
 
     def validate_candidate(result):
         candidate = build_persona(result, seed)
@@ -256,7 +256,7 @@ async def generate_draft(config, capability, manual):
         product = await request_json(client, config, capability, ProductSummary,
             "根据下列说明书提取定位、目标用户和核心功能。只能使用说明书事实；缺失的人群比例等假设必须在 assumptions 说明。"
             "说明书写明目标用户年龄范围时填 target_age_min/target_age_max，没写时两者都填 null。"
-            "不要把阶段 0 的基础设施问题当作产品缺陷。\n" + manual["source"], label="产品模型")
+            "不要把阶段 0 的基础设施问题当作产品缺陷。\n" + manual["generation_source"], label="产品模型")
         plan = await plan_cohort(client, config, capability, manual, product)
         semaphore = asyncio.Semaphore(model_limit)
         # The plan fixes the distribution, so slots are filled in parallel; name clashes are

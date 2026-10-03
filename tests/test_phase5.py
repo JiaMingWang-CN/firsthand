@@ -230,3 +230,10 @@ def test_failed_phase4_run_is_called_out(source, tmp_path):
     assert result["source_phase4_passed"] is False
     report = json.loads((tmp_path / "out" / "report.json").read_text(encoding="utf-8"))
     assert "阶段 4 验收未通过" in report["overview"]["coverage_notes"][0]
+
+
+def test_missing_surveys_are_called_out(source):
+    with sqlite3.connect(source / "run.db") as db:
+        db.execute("DELETE FROM surveys WHERE persona_id='p02'")
+    report = build_report(EvidenceStore(source), {})
+    assert any("p02" in note and "问卷" in note for note in report["overview"]["coverage_notes"])

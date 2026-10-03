@@ -367,3 +367,40 @@ def test_review_counts_distribution_from_draft(tmp_path, monkeypatch, draft):
     phase1.review(tmp_path, input_fn=lambda prompt: "quit")
     text = (tmp_path / "review.md").read_text(encoding="utf-8")
     assert "测试分布" in text and "- 性别：女 5，男 5" in text and "- 时段：午 2，早 3，晚 3，深夜 2" in text
+
+
+def test_known_issues_never_reach_generation_prompts(tmp_path, monkeypatch):
+    # The calibration set must not prime personas, whose text later enters the browsing prompt.
+    sentinel = "校准哨兵：导出按钮藏在二级菜单"
+    text = SAMPLE.read_text(encoding="utf-8")
+    start = text.index("# 已知问题")
+    end = text.index("\n# ", start + 1)
+    path = tmp_path / "manual.md"
+    path.write_text(text[:start] + "# 已知问题\n\n" + sentinel + "\n" + text[end:], encoding="utf-8")
+    manual = read_manual(path)
+    assert sentinel in manual["source"]
+    slots = plan_slots(manual)
+    prompts = []
+
+    async def fake(client, config, capability, schema, prompt, validate=None, label=None, **kwargs):
+        prompts.append(prompt)
+        if schema is ProductSummary:
+            return ProductSummary.model_validate(PRODUCT)
+        if schema.__name__ == "CohortPlan":
+            return schema.model_validate({"rationale": "按目标用户分布", "slots": [slot.model_dump() for slot in slots]})
+        seed = json.loads(prompt[prompt.index("\n") + 1:])["seed"]
+        night = int(seed["browse_slot"][:2]) < 6
+        return PersonaDetails.model_validate({
+            "realname": seed["realname"], "username": "u_" + seed["persona_id"], "gender": seed["gender"], "age": seed["age"],
+            "city": "上海", "timezone": "Asia/Shanghai", "profession": seed["profession"], "industry": "软件", "education": "本科",
+            "income_level": "中", "life_context": "在职", "product_history": "未使用过", "bio": "合成测试角色", "persona": "评估作品",
+            "mbti": "INTJ", "big_five": {key: "中" for key in ["openness", "conscientiousness", "extraversion", "agreeableness", "neuroticism"]},
+            "communication_style": "直接", "interested_topics": ["项目交付"], "wake": "10:00" if night else "06:00",
+            "sleep": "03:00" if night else "23:50", "activity": [{"hour": 12, "probability": 0.5}], "state_at_browse": "有空",
+            "motivation": "评估作品", "candor": "中", "withhold_reasons": ["怕显得不懂技术"]})
+
+    monkeypatch.setattr(personas, "request_json", fake)
+    asyncio.run(personas.generate_draft(dict(CONFIG, max_model_concurrency=2, max_browser_concurrency=1), CAPABILITY, manual))
+    assert len(prompts) == 12
+    assert all(sentinel not in prompt and "已知问题" not in prompt for prompt in prompts)
+    assert all(manual["sections"]["产品定位"][:20] in prompt for prompt in prompts)

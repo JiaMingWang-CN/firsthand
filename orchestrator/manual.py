@@ -87,4 +87,7 @@ def read_manual(path):
     # Ten users, three exploring, and one assigned flow per remaining user.
     if len(flows) > 3:
         raise ValueError("10 人中 3 人自由探索，其余每人一个流程；每流程至少 2 人，因此最多 3 个关键流程")
-    return {"source": source, "metadata": metadata, "sections": sections, "flows": flows}
+    # Generation prompts never see the calibration set: persona text later enters the browsing prompt.
+    generation_source = "---\n" + match[1] + "\n---\n\n" + "\n\n".join(
+        f"# {name}\n\n{body}" for name, body in sections.items() if name != "已知问题")
+    return {"source": source, "generation_source": generation_source, "metadata": metadata, "sections": sections, "flows": flows}

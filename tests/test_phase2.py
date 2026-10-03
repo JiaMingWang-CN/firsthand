@@ -195,23 +195,27 @@ def test_natural_language_forbidden_rule_is_checked_before_click(monkeypatch, de
     assert bool(result.error) is (decision is not True)
 
 
-@pytest.mark.parametrize("operation,tag,attributes,parent,checked", [
-    ({"navigate": {"url": "https://example.com/projects"}}, None, {}, None, False),
-    ({"click": {"index": 1}}, "A", {"href": "/projects"}, None, False),
-    ({"click": {"index": 1}}, "A", {"href": "#send"}, None, True),
-    ({"click": {"index": 1}}, "A", {"href": "/next"}, "FORM", True),
-    ({"click": {"index": 1}}, "BUTTON", {}, None, True),
-    ({"input": {"index": 1, "text": "hello"}}, "INPUT", {}, None, True)])
-def test_only_pure_in_domain_navigation_skips_the_model_rule_check(monkeypatch, operation, tag, attributes, parent, checked):
+@pytest.mark.parametrize("operation,tag,attributes,parent", [
+    ({"navigate": {"url": "https://example.com/projects"}}, None, {}, None),
+    ({"navigate": {"url": "https://example.com/account/delete?confirm=1"}}, None, {}, None),
+    ({"click": {"index": 1}}, "A", {"href": "/projects"}, None),
+    ({"click": {"index": 1}}, "A", {"href": "/account/delete?confirm=1"}, None),
+    ({"click": {"index": 1}}, "A", {"href": "#send"}, None),
+    ({"click": {"index": 1}}, "A", {"href": "/next"}, "FORM"),
+    ({"click": {"index": 1}}, "BUTTON", {}, None),
+    ({"input": {"index": 1, "text": "hello"}}, "INPUT", {}, None)])
+@pytest.mark.parametrize("allowed", [True, False])
+def test_every_navigation_and_click_passes_the_model_rule_check(monkeypatch, operation, tag, attributes, parent, allowed):
+    # In-domain GET links and script-handled anchors can still delete or change data.
     collector = FakeCollector()
     tools = policy.GuardedTools(fixture_persona(False), fixture_manual(), collector, None, {}, {}, experience.Completion)
-    checks, executed = [], []
+    prompts, executed = [], []
     async def forward(*args, **kwargs):
         executed.append(1)
         return ActionResult(extracted_content="ok")
-    async def decide(*args, **kwargs):
-        checks.append(1)
-        return policy.ActionDecision(allowed=True, reason="站内操作")
+    async def decide(client, config, capability, schema, prompt, **kwargs):
+        prompts.append(prompt)
+        return policy.ActionDecision(allowed=allowed, reason="站内操作" if allowed else "删除账号属于禁止操作")
     async def url():
         return "https://example.com"
     form = SimpleNamespace(node_name=parent, attributes={}, get_all_children_text=lambda: "表单", parent_node=None) if parent else None
@@ -219,9 +223,11 @@ def test_only_pure_in_domain_navigation_skips_the_model_rule_check(monkeypatch, 
         return SimpleNamespace(node_name=tag, attributes=attributes, get_all_children_text=lambda: "链接", parent_node=form)
     monkeypatch.setattr(Tools, "act", forward)
     monkeypatch.setattr(policy, "request_json", decide)
-    asyncio.run(tools.act(action(operation), SimpleNamespace(get_current_page_url=url, get_dom_element_by_index=node)))
-    assert bool(checks) is checked and executed
-    assert any(event["event"] == "action_auto_allowed" for event in collector.events) is (not checked)
+    result = asyncio.run(tools.act(action(operation), SimpleNamespace(get_current_page_url=url, get_dom_element_by_index=node)))
+    assert len(prompts) == 1 and bool(executed) is allowed and bool(result.error) is (not allowed)
+    target = operation.get("navigate", {}).get("url") or attributes.get("href")
+    assert not target or target in prompts[0]
+    assert not any(event["event"] == "action_auto_allowed" for event in collector.events)
 
 
 def test_each_step_reuses_previous_after_snapshot_as_before_state():
