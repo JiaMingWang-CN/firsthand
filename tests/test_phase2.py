@@ -407,3 +407,24 @@ def test_late_cdp_reply_is_counted_and_its_cancelled_request_is_named(tmp_path):
     assert counter.late_cdp_responses == 1
     cancelled = [item for item in collector.events if item["event"] == "cdp_request_cancelled"]
     assert [item["data"]["method"] for item in cancelled] == ["Page.captureScreenshot"]
+
+
+def test_dropped_accessibility_tree_marks_only_the_affected_step():
+    import logging
+    from browsing.probe import LogCounter
+    counter = LogCounter()
+    collector = FakeCollector()
+    recorder = experience.StepRecorder(collector, fixture_persona(True), counter)
+    agent = SimpleNamespace(history=FakeHistory(), state=SimpleNamespace(stopped=False, last_result=[]))
+    async def run():
+        for index in range(3):
+            await recorder.before(agent)
+            if index == 1:
+                counter.emit(logging.LogRecord("browser_use", logging.WARNING, "", 0, "CDP request ax_tree timed out", (), None))
+            collector.text = f"页面 {index}"
+            record_action(agent, {"click": {"index": index}})
+            await recorder.after(agent)
+    asyncio.run(run())
+    assert [step.page_structure_degraded for step in recorder.steps] == [False, True, False]
+    assert counter.dom_failures == 0 and counter.ax_tree_dropped == 1
+

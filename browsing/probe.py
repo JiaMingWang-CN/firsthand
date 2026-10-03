@@ -30,6 +30,8 @@ class LogCounter(logging.Handler):
         # cdp_use logs "duplicate response" when a reply arrives after its caller stopped waiting
         # (timeout or cancellation); it is a late response, not a second CDP client.
         self.late_cdp_responses = 0
+        # Browser Use silently continues with an empty accessibility tree when it cannot fetch one.
+        self.ax_tree_dropped = 0
 
     def attach(self):
         for name in self.LOGGERS:
@@ -47,6 +49,7 @@ class LogCounter(logging.Handler):
         self.dom_failures += (any(marker in message for marker in DOM_FAILURE_MARKERS)
                               or ("DOMWatchdog" in message and "timed out" in message))
         self.late_cdp_responses += "duplicate response" in message
+        self.ax_tree_dropped += message.startswith("CDP request ax_tree")
 
 
 async def probe_browser(config, run_dir, profile):

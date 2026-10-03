@@ -46,8 +46,8 @@ class StepRecorder:
     READ_ACTIONS = {"read_console", "list_failed_requests", "extract", "find_elements", "find_text", "search_page"}
     CAPTCHA = ("请输入验证码", "人机验证", "verify you are human", "checking your browser", "确认您是真人")
 
-    def __init__(self, collector, persona):
-        self.collector, self.persona = collector, persona
+    def __init__(self, collector, persona, log_counter=None):
+        self.collector, self.persona, self.log_counter = collector, persona, log_counter
         self.steps, self.seen, self.reads = [], set(), set()
         self.stalls = 0
         self.stop_reason = None
@@ -59,6 +59,8 @@ class StepRecorder:
 
     async def before(self, agent):
         self.step_started = time.monotonic()
+        # Browser Use builds the page state between this hook and on_step_end.
+        self.ax_dropped_before = self.log_counter.ax_tree_dropped if self.log_counter else 0
         self.history_length = len(agent.history.history)
         # The previous step's after-snapshot is this step's before-state; only the first step captures one.
         self.before_snapshot = self.last_after or await self.collector.snapshot(self.persona, f"s{len(self.steps) + 1:03d}_before")
@@ -86,7 +88,8 @@ class StepRecorder:
             after=after.evidence_id, seconds=round(time.monotonic() - self.step_started, 3),
             actions=redact(actions, self.collector.secrets), results=redact(results, self.collector.secrets),
             agent_observation=redact(output.evaluation_previous_goal or "", self.collector.secrets) if output else "",
-            stalled=not progress))
+            stalled=not progress,
+            page_structure_degraded=bool(self.log_counter and self.log_counter.ax_tree_dropped > self.ax_dropped_before)))
         self.collector.record("experience_step", self.steps[-1].model_dump())
         if not agent.history.is_done() and self.stalls >= self.persona.browsing_profile.stall_limit:
             self.stop_reason = f"连续 {self.stalls} 步没有新的页面状态或读取操作，达到 stall_limit"
@@ -103,6 +106,7 @@ async def assess_memory(client, config, capability, persona, memory, run_dir):
               "findings 只写观察到的痛点/亮点；不能把 CDP、模型或云浏览连接错误当作产品缺陷。"
               "由测试系统的禁止规则拒绝的操作属于覆盖限制，不列为产品缺陷。"
               "每条必须引 snapshot evidence_ids，并从引用的页面 text 或已实际查询的技术事件 data 原样摘录 observed_quote。"
+              "page_structure_degraded=true 的步骤里 Agent 缺少元素名称和角色，只能依赖截图与页面结构；涉及这些步骤的痛点要考虑这一限制，不把它当作产品缺陷。"
               "technical_event_ids 只引用 observed_technical_events；没查过技术工具就必须为空。"
               "引文选择短且连续的原文，不拼接技术标签列表；引用 JSON 中的换行时不要写成字面的反斜杠 n。"
               "无证据就删除该结论。未知的信息保持未知，不根据已知问题清单补写发现。\n"
@@ -186,7 +190,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                     await collector.attach()
                     await collector.prepare(persona)
                     await browser.navigate_to(manual["metadata"].url)
-                    recorder = StepRecorder(collector, persona)
+                    recorder = StepRecorder(collector, persona, log_counter)
                     tools = GuardedTools(persona, manual, collector, client, config, capability, Completion)
                     llm = ProviderChatOpenAI(model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
                         provider=route.config["provider"], thinking_type=config.get("thinking_type"),
@@ -250,6 +254,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                 memory.infrastructure_errors.append(error_summary(error, run_dir))
         result.update(outcome=memory.outcome, reason=memory.reason, steps=len(memory.steps),
                       dom_failures=log_counter.dom_failures, late_cdp_responses=log_counter.late_cdp_responses,
+                      degraded_page_structure_steps=[step.step for step in memory.steps if step.page_structure_degraded],
                       cancelled_cdp_requests=dict(Counter(item["data"]["method"] for item in (collector.events if collector else [])
                                                           if item["event"] == "cdp_request_cancelled")),
                       evidence_file="experience.json", raw_trace_file="raw_trace.jsonl")

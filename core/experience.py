@@ -42,6 +42,8 @@ class ExperienceStep(Data):
     results: list[dict]
     agent_observation: str
     stalled: bool
+    # Browser Use dropped the accessibility tree for this step: elements lacked names and roles.
+    page_structure_degraded: bool = False
 
 
 class Emotion(Data):
