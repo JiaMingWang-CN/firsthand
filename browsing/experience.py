@@ -50,6 +50,7 @@ class StepRecorder:
         self.steps, self.seen, self.reads = [], set(), set()
         self.stalls = 0
         self.stop_reason = None
+        self.last_after = None
 
     @staticmethod
     def fingerprint(snapshot):
@@ -58,14 +59,15 @@ class StepRecorder:
     async def before(self, agent):
         self.step_started = time.monotonic()
         self.history_length = len(agent.history.history)
-        self.before_snapshot = await self.collector.snapshot(self.persona, f"s{len(self.steps) + 1:03d}_before")
+        # The previous step's after-snapshot is this step's before-state; only the first step captures one.
+        self.before_snapshot = self.last_after or await self.collector.snapshot(self.persona, f"s{len(self.steps) + 1:03d}_before")
         self.seen.add(self.fingerprint(self.before_snapshot))
         if any(marker in self.before_snapshot.text.lower() for marker in self.CAPTCHA):
             self.stop_reason = "发现验证码或反爬验证，不尝试绕过"
             self.collector.record("captcha_detected", {"evidence_id": self.before_snapshot.evidence_id})
 
     async def after(self, agent):
-        after = await self.collector.snapshot(self.persona, f"s{len(self.steps) + 1:03d}_after")
+        after = self.last_after = await self.collector.snapshot(self.persona, f"s{len(self.steps) + 1:03d}_after")
         item = agent.history.history[-1] if len(agent.history.history) > self.history_length else None
         output = item.model_output if item else None
         actions = [action.model_dump(exclude_unset=True) for action in output.action] if output else []

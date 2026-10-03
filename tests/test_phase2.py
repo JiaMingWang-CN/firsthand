@@ -194,6 +194,57 @@ def test_natural_language_forbidden_rule_is_checked_before_click(monkeypatch, de
     assert bool(result.error) is (decision is not True)
 
 
+@pytest.mark.parametrize("operation,tag,attributes,parent,checked", [
+    ({"navigate": {"url": "https://example.com/projects"}}, None, {}, None, False),
+    ({"click": {"index": 1}}, "A", {"href": "/projects"}, None, False),
+    ({"click": {"index": 1}}, "A", {"href": "#send"}, None, True),
+    ({"click": {"index": 1}}, "A", {"href": "/next"}, "FORM", True),
+    ({"click": {"index": 1}}, "BUTTON", {}, None, True),
+    ({"input": {"index": 1, "text": "hello"}}, "INPUT", {}, None, True)])
+def test_only_pure_in_domain_navigation_skips_the_model_rule_check(monkeypatch, operation, tag, attributes, parent, checked):
+    collector = FakeCollector()
+    tools = policy.GuardedTools(fixture_persona(False), fixture_manual(), collector, None, {}, {}, experience.Completion)
+    checks, executed = [], []
+    async def forward(*args, **kwargs):
+        executed.append(1)
+        return ActionResult(extracted_content="ok")
+    async def decide(*args, **kwargs):
+        checks.append(1)
+        return policy.ActionDecision(allowed=True, reason="站内操作")
+    async def url():
+        return "https://example.com"
+    form = SimpleNamespace(node_name=parent, attributes={}, get_all_children_text=lambda: "表单", parent_node=None) if parent else None
+    async def node(index):
+        return SimpleNamespace(node_name=tag, attributes=attributes, get_all_children_text=lambda: "链接", parent_node=form)
+    monkeypatch.setattr(Tools, "act", forward)
+    monkeypatch.setattr(policy, "request_json", decide)
+    asyncio.run(tools.act(action(operation), SimpleNamespace(get_current_page_url=url, get_dom_element_by_index=node)))
+    assert bool(checks) is checked and executed
+    assert any(event["event"] == "action_auto_allowed" for event in collector.events) is (not checked)
+
+
+def test_each_step_reuses_previous_after_snapshot_as_before_state():
+    collector = FakeCollector()
+    taken = []
+    original = collector.snapshot
+    async def snapshot(persona, eid):
+        taken.append(eid)
+        return await original(persona, eid)
+    collector.snapshot = snapshot
+    recorder = experience.StepRecorder(collector, fixture_persona(True))
+    agent = SimpleNamespace(history=FakeHistory(), state=SimpleNamespace(stopped=False, last_result=[]))
+    async def run():
+        for index in range(3):
+            await recorder.before(agent)
+            collector.text = f"页面 {index}"
+            record_action(agent, {"click": {"index": index}})
+            await recorder.after(agent)
+    asyncio.run(run())
+    assert taken == ["s001_before", "s001_after", "s002_after", "s003_after"]
+    assert [(step.before, step.after) for step in recorder.steps] == [
+        ("s001_before", "s001_after"), ("s001_after", "s002_after"), ("s002_after", "s003_after")]
+
+
 def test_redaction_removes_account_and_transport_secrets():
     data = {"headers": {"Authorization": "Bearer key", "Cookie": "session=abc"}, "postData": "password=secret",
             "url": "https://example.com?token=another-key", "message": "secret-value"}
