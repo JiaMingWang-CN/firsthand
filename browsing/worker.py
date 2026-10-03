@@ -37,7 +37,11 @@ async def execute(context_path, persona_id):
     root = Path(context_path).parent
     from browsing.experience import run_experience
     from core.experience import load_experience
-    operation = asyncio.create_task(run_experience(config, capability, manual, persona, root / persona_id))
+    expectations = []
+    if context.get("simulation_database"):
+        from core.simulation import SimulationStore
+        expectations = SimulationStore(context["simulation_database"]).expectations(persona_id)
+    operation = asyncio.create_task(run_experience(config, capability, manual, persona, root / persona_id, expectations))
     cancellation = asyncio.create_task(watch_cancel(root / f"{persona_id}.cancel"))
     try:
         completed, _ = await asyncio.wait({operation, cancellation}, return_when=asyncio.FIRST_COMPLETED)

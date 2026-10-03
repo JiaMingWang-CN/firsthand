@@ -17,7 +17,7 @@ from browsing.model import ProviderChatOpenAI
 
 # Browser Use degrades silently to a minimal page state when CDP DOM requests fail;
 # count these so the probe fails instead of passing on a page the agent cannot operate.
-DOM_FAILURE_MARKERS = ("timed out", "DOM build failed")
+DOM_FAILURE_MARKERS = ("DOM build failed",)
 
 
 class LogCounter(logging.Handler):
@@ -28,7 +28,8 @@ class LogCounter(logging.Handler):
 
     def emit(self, record):
         message = record.getMessage()
-        self.dom_failures += any(marker in message for marker in DOM_FAILURE_MARKERS)
+        self.dom_failures += (any(marker in message for marker in DOM_FAILURE_MARKERS)
+                              or ("DOMWatchdog" in message and "timed out" in message))
         self.duplicate_responses += "duplicate response" in message
 
 

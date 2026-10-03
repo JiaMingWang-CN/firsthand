@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 from browsing.worker import configuration_hash
 from core.experience import load_experience
@@ -47,22 +48,22 @@ async def run_worker(root, persona_id):
             raise
 
 
-async def run_timeline(draft, rows, root, limit, worker=run_worker):
+async def run_timeline(draft, rows, root, limit, worker=run_worker, on_slice_end=None):
     semaphore = asyncio.Semaphore(limit)
     timeline = {"slices": [], "jobs": {}, "peak_workers": 0}
     active = 0
 
-    async def browse(row):
+    async def browse(row, queued_at, queued_monotonic):
         nonlocal active
         pid = row["persona_id"]
-        job = {**row, "state": "queued", "queued_at": utc_now()}
+        job = {**row, "state": "queued", "queued_at": queued_at}
         timeline["jobs"][pid] = job
         write_json(root / "timeline.json", timeline)
         try:
             async with semaphore:
                 active += 1
                 timeline["peak_workers"] = max(timeline["peak_workers"], active)
-                job.update(state="running", started_at=utc_now())
+                job.update(state="running", started_at=utc_now(), queue_seconds=time.monotonic() - queued_monotonic)
                 write_json(root / "timeline.json", timeline)
                 print(f"时间片 {row['slice_index']}：{pid} 开始浏览", flush=True)
                 try:
@@ -76,7 +77,6 @@ async def run_timeline(draft, rows, root, limit, worker=run_worker):
                 finally:
                     active -= 1
                     job["finished_at"] = utc_now()
-                    job["queue_seconds"] = (datetime.fromisoformat(job["started_at"]) - datetime.fromisoformat(job["queued_at"])).total_seconds()
                     write_json(root / "timeline.json", timeline)
                 print(f"{pid}：{job['state']}", flush=True)
         except asyncio.CancelledError:
@@ -95,8 +95,11 @@ async def run_timeline(draft, rows, root, limit, worker=run_worker):
             write_json(root / "timeline.json", timeline)
             # Failed personas do not cancel peers; the clock advances only when this slice drains.
             async with asyncio.TaskGroup() as tasks:
+                queued_at, queued_monotonic = utc_now(), time.monotonic()
                 for row in group:
-                    tasks.create_task(browse(row))
+                    tasks.create_task(browse(row, queued_at, queued_monotonic))
+            if on_slice_end is not None:
+                await on_slice_end(index, logical_time, group, timeline)
             state["state"] = "completed"
             write_json(root / "timeline.json", timeline)
     finally:

@@ -4,6 +4,7 @@ from camel.models import OpenAICompatibleModel
 
 from core.limits import async_slot, sync_slot
 from core.providers import get_adapter
+from core.usage import measured_request
 
 
 class ProviderModel(OpenAICompatibleModel):
@@ -20,4 +21,5 @@ class ProviderModel(OpenAICompatibleModel):
 
     async def _arun(self, *args, **kwargs):
         async with async_slot(self.provider_config):
-            return await super()._arun(*args, **kwargs)
+            request = super()._arun
+            return await measured_request(lambda: request(*args, **kwargs), "chat_completions", self.provider_config["model"])
