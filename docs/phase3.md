@@ -67,3 +67,9 @@ Scout 仍未执行；阶段 3 不把这些个人体验冒充完整 Scout。下�
 - 移除价格估算与 Steel 计费读取，产物 `cost.json` 改为 `usage.json`；上文真实验收中的美元数字是旧版本记录。
 - 人数与权限审计覆盖按批准草稿中的实际人数计算，不再写死 10 人。
 - 技术工具名称只在 `browsing/observations.py` 定义一次。
+
+## 2026-10-03 更正：迟到的 CDP 响应
+
+此前记录中的“重复响应为 0”不成立：cdp_use 在 `cdp_use.client` 日志器上告警，而 Browser Use 让该日志器不向上传递，计数器挂在 `cdp_use` 上始终收不到，计数恒为 0。cdp_use 的“duplicate response”实际含义是调用方已超时或取消等待后，浏览器才返回响应，并非多个 CDP 客户端干扰。阶段 3 MiMo 运行中 8 名完成者有 7 人出现，共 54 条。
+
+现计数器显式挂到 `cdp_use.client`，指标改名 `late_cdp_responses`；取证复用的 CDP 连接记录每个被放弃请求的方法名与等待秒数（`raw_trace.jsonl` 的 `cdp_request_cancelled`，汇总到 `result.json` 的 `cancelled_cdp_requests`）。它只记录、不单独判失败；真实影响仍由 DOM 构建失败、每步截图送达模型和取证截图错误三项检查拦截。已有运行的结果文件不重算。

@@ -21,16 +21,32 @@ DOM_FAILURE_MARKERS = ("DOM build failed",)
 
 
 class LogCounter(logging.Handler):
+    # Browser Use stops cdp_use.client from propagating, so its own logger must be attached explicitly.
+    LOGGERS = ("browser_use", "bubus", "cdp_use", "cdp_use.client")
+
     def __init__(self):
         super().__init__(logging.WARNING)
         self.dom_failures = 0
-        self.duplicate_responses = 0
+        # cdp_use logs "duplicate response" when a reply arrives after its caller stopped waiting
+        # (timeout or cancellation); it is a late response, not a second CDP client.
+        self.late_cdp_responses = 0
+
+    def attach(self):
+        for name in self.LOGGERS:
+            logging.getLogger(name).addHandler(self)
+
+    def detach(self):
+        for name in self.LOGGERS:
+            logging.getLogger(name).removeHandler(self)
 
     def emit(self, record):
+        if getattr(record, "muchhuman_counted", False):
+            return  # Reached through a second attached logger if propagation is ever re-enabled.
+        record.muchhuman_counted = True
         message = record.getMessage()
         self.dom_failures += (any(marker in message for marker in DOM_FAILURE_MARKERS)
                               or ("DOMWatchdog" in message and "timed out" in message))
-        self.duplicate_responses += "duplicate response" in message
+        self.late_cdp_responses += "duplicate response" in message
 
 
 async def probe_browser(config, run_dir, profile):
@@ -43,8 +59,7 @@ async def probe_browser(config, run_dir, profile):
               **chat_completions_fallback(config, "Browser Use")}
     started = time.monotonic()
     log_counter = LogCounter()
-    for name in ["browser_use", "cdp_use", "bubus"]:
-        logging.getLogger(name).addHandler(log_counter)
+    log_counter.attach()
     session = None
     browser_session = None
     async with async_slot(config, "browser"), AsyncSteel(steel_api_key=config["steel_api_key"], timeout=60, max_retries=0) as steel:
@@ -177,10 +192,9 @@ async def probe_browser(config, run_dir, profile):
                     result["released"] = True
                 except Exception as error:
                     result["release_error"] = error_summary(error, run_dir)
-            for name in ["browser_use", "cdp_use", "bubus"]:
-                logging.getLogger(name).removeHandler(log_counter)
+            log_counter.detach()
             result["dom_failures"] = log_counter.dom_failures
-            result["duplicate_responses"] = log_counter.duplicate_responses
+            result["late_cdp_responses"] = log_counter.late_cdp_responses
             document = next((doc for doc in documents.values() if doc["url"].rstrip("/") == config["url"].rstrip("/")), None)
             result["http_status"] = document.get("status") if document else None
             result["passed"] = "error" not in result and result.get("released", False) and all([

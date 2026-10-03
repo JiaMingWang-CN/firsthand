@@ -175,3 +175,9 @@ Steel 会话寿命显式设为 10 分钟（服务端返回 `timeout=600000`）�
 - 回归：浏览环境阶段 0–3 的 147 项通过、1 项因无 CAMEL 跳过；OASIS 环境三个适配器的思考参数测试 9 项通过。覆盖 MiMo 两协议的 enabled / disabled / 默认参数、JSON Schema 到 JSON Object 转换、Browser Use 校验修正、主 Agent JSON 校验、配置识别、协议降级和旧能力文件拒绝。首次广泛回归出现两处既有时序断言失败，单独与完整复测均通过，未修改相关代码。
 
 MiMo 官方文档说明非 auto 的 `tool_choice` 会被忽略，因此指定工具探测通过只说明样本中的工具调用成功，不证明强制指定生效。费用沿用通用适配器的未知价格结果，不套用 DeepSeek 单价。接口依据与配置说明见 `providers.md`。
+
+## 2026-10-03 更正：迟到的 CDP 响应
+
+此前记录中的“重复响应为 0”不成立：cdp_use 在 `cdp_use.client` 日志器上告警，而 Browser Use 让该日志器不向上传递，计数器挂在 `cdp_use` 上始终收不到，计数恒为 0。cdp_use 的“duplicate response”实际含义是调用方已超时或取消等待后，浏览器才返回响应，并非多个 CDP 客户端干扰。阶段 3 MiMo 运行中 8 名完成者有 7 人出现，共 54 条。
+
+现计数器显式挂到 `cdp_use.client`，指标改名 `late_cdp_responses`；取证复用的 CDP 连接记录每个被放弃请求的方法名与等待秒数（`raw_trace.jsonl` 的 `cdp_request_cancelled`，汇总到 `result.json` 的 `cancelled_cdp_requests`）。它只记录、不单独判失败；真实影响仍由 DOM 构建失败、每步截图送达模型和取证截图错误三项检查拦截。已有运行的结果文件不重算。

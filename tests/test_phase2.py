@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 import hashlib
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -362,3 +363,47 @@ def test_session_released_and_partial_memory_saved_on_failure(tmp_path, monkeypa
     memory = ExperienceMemory.model_validate_json((output / "experience.json").read_text(encoding="utf-8"))
     assert memory.assessment is None and not memory.steps
     assert memory.outcome == ("abandoned" if cancelled else "failed")
+
+
+def test_late_cdp_reply_is_counted_and_its_cancelled_request_is_named(tmp_path):
+    import logging
+    import browser_use  # noqa: F401 - applies Browser Use's logging setup, where cdp_use.client does not propagate
+    from websockets.exceptions import ConnectionClosed
+    from cdp_use.client import CDPClient
+    from browsing.probe import LogCounter
+
+    class LateSocket:
+        def __init__(self):
+            self.sent, self.cancelled = [], asyncio.Event()
+            self.replies = 0
+
+        async def send(self, message):
+            self.sent.append(json.loads(message))
+
+        async def recv(self):
+            await self.cancelled.wait()
+            self.replies += 1
+            if self.replies == 1:
+                return json.dumps({"id": self.sent[0]["id"], "result": {}})
+            raise ConnectionClosed(None, None)
+
+    async def run():
+        client = CDPClient("ws://test.invalid")
+        client.ws = socket = LateSocket()
+        collector = EvidenceCollector(SimpleNamespace(cdp_client=client), tmp_path, time.monotonic())
+        counter = LogCounter()
+        counter.attach()
+        try:
+            await collector.attach()
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(client.send.Page.captureScreenshot(params={}), 0.01)
+            socket.cancelled.set()
+            await client._handle_messages()
+        finally:
+            counter.detach()
+            collector.close()
+        return counter, collector
+    counter, collector = asyncio.run(run())
+    assert counter.late_cdp_responses == 1
+    cancelled = [item for item in collector.events if item["event"] == "cdp_request_cancelled"]
+    assert [item["data"]["method"] for item in cancelled] == ["Page.captureScreenshot"]

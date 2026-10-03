@@ -1,6 +1,7 @@
 """One persona, one Steel session, private memory grounded in browser evidence."""
 
 import asyncio
+from collections import Counter
 import hashlib
 import json
 import time
@@ -162,9 +163,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
     session, browser, collector, recorder, tools = None, None, None, None, None
     cancelled = False
     log_counter = LogCounter()
-    import logging
-    for name in ("browser_use", "cdp_use", "bubus"):
-        logging.getLogger(name).addHandler(log_counter)
+    log_counter.attach()
     async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
         try:
             async with async_slot(config, "browser"), AsyncSteel(steel_api_key=config["steel_api_key"], timeout=60, max_retries=0) as steel:
@@ -238,8 +237,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                 memory.steps = recorder.steps
             if tools:
                 memory.observed_technical_events = list(tools.observed_technical_events.values())
-            for name in ("browser_use", "cdp_use", "bubus"):
-                logging.getLogger(name).removeHandler(log_counter)
+            log_counter.detach()
         if not cancelled and memory.steps and not memory.infrastructure_errors and not log_counter.dom_failures:
             try:
                 memory.assessment = await assess_memory(client, config, capability, persona, memory, run_dir)
@@ -251,9 +249,13 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
             except Exception as error:
                 memory.infrastructure_errors.append(error_summary(error, run_dir))
         result.update(outcome=memory.outcome, reason=memory.reason, steps=len(memory.steps),
-                      dom_failures=log_counter.dom_failures, duplicate_responses=log_counter.duplicate_responses,
+                      dom_failures=log_counter.dom_failures, late_cdp_responses=log_counter.late_cdp_responses,
+                      cancelled_cdp_requests=dict(Counter(item["data"]["method"] for item in (collector.events if collector else [])
+                                                          if item["event"] == "cdp_request_cancelled")),
                       evidence_file="experience.json", raw_trace_file="raw_trace.jsonl")
-        result["passed"] = bool(result["passed"] and not memory.infrastructure_errors and not log_counter.duplicate_responses)
+        # Late CDP replies are recorded, not failed on: their impact is gated by DOM failures,
+        # per-step screenshots reaching the model and evidence capture errors.
+        result["passed"] = bool(result["passed"] and not memory.infrastructure_errors)
         write_json(run_dir / "experience.json", memory.model_dump())
         load_experience(run_dir)
         write_json(run_dir / "result.json", result)

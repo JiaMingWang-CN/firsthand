@@ -1,5 +1,6 @@
 """Reuse Browser Use's CDP client without taking over its event handlers."""
 
+import asyncio
 import hashlib
 import json
 import re
@@ -54,6 +55,19 @@ class EvidenceCollector:
             domain, method = event.split(".")
             getattr(getattr(cdp.register, domain), method)(
                 lambda payload, session_id=None, name=event: self.record(name, payload))
+        # Every typed CDP call goes through send_raw; record calls whose caller stopped waiting,
+        # which is what cdp_use later logs as a "duplicate response". Only the method name is kept.
+        send_raw = cdp.send_raw
+
+        async def tracked(method, params=None, session_id=None):
+            started = time.monotonic()
+            try:
+                return await send_raw(method, params, session_id)
+            except asyncio.CancelledError:
+                if not self.trace.closed:
+                    self.record("cdp_request_cancelled", {"method": method, "waited_seconds": round(time.monotonic() - started, 3)})
+                raise
+        cdp.send_raw = tracked
 
     async def prepare(self, persona):
         session = await self.browser.get_or_create_cdp_session()
