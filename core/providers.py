@@ -74,7 +74,25 @@ class DeepSeekAdapter(OpenAICompatibleAdapter):
         return super().output_options(api, json_schema, json_object)
 
 
-ADAPTERS = {adapter.name: adapter() for adapter in (OpenAICompatibleAdapter, DeepSeekAdapter)}
+class MiMoAdapter(OpenAICompatibleAdapter):
+    name = "mimo"
+    json_schema_limitation = "MiMo 未提供严格 JSON Schema 输出保证；使用 JSON Object，需提示词约束、本地校验和修正重试"
+
+    def supports_json_schema(self, api):
+        return False
+
+    def thinking_options(self, api, mode):
+        if api == "responses":
+            return super().thinking_options(api, mode)
+        return {"extra_body": {"thinking": {"type": mode}}} if mode else {}
+
+    def output_options(self, api, json_schema=None, json_object=False):
+        if json_schema:
+            print(self.json_schema_limitation, flush=True)
+        return super().output_options(api, json_object=bool(json_schema or json_object))
+
+
+ADAPTERS = {adapter.name: adapter() for adapter in (OpenAICompatibleAdapter, DeepSeekAdapter, MiMoAdapter)}
 
 
 def get_adapter(config):

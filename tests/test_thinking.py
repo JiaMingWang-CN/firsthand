@@ -12,7 +12,8 @@ from core import runtime
 
 @pytest.mark.parametrize("mode", ["enabled", "disabled", None])
 @pytest.mark.parametrize("structured", [False, True])
-def test_browser_thinking_on_wire(mode, structured):
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
+def test_browser_thinking_on_wire(mode, structured, provider):
     captured = []
 
     class Answer(BaseModel):
@@ -30,7 +31,7 @@ def test_browser_thinking_on_wire(mode, structured):
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
             llm = ProviderChatOpenAI(model="gpt-5", api_key="test", base_url="https://test.invalid/v1",
-                                    provider="deepseek", thinking_type=mode, http_client=client)
+                                    provider=provider, thinking_type=mode, http_client=client)
             result = await llm.ainvoke([UserMessage(content="Reply ok")], Answer if structured else None)
             assert (result.completion.answer if structured else result.completion) == "ok"
 

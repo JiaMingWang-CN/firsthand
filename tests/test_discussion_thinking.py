@@ -12,7 +12,7 @@ from discussion.probe import probe_discussion
 
 
 @pytest.mark.parametrize("mode", ["enabled", "disabled", None])
-@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible"])
+@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo"])
 def test_oasis_thinking_on_wire(tmp_path, monkeypatch, mode, provider):
     captured = []
 
@@ -45,7 +45,7 @@ def test_oasis_thinking_on_wire(tmp_path, monkeypatch, mode, provider):
     assert result["max_model_concurrency"] == 2 and result["max_browser_concurrency"] == 1
     assert captured
     for body in captured:
-        if mode and provider == "deepseek":
+        if mode and provider in {"deepseek", "mimo"}:
             assert body["thinking"] == {"type": mode}
             assert "reasoning_effort" not in body
         elif mode:

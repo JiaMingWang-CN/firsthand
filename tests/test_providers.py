@@ -18,7 +18,7 @@ SCHEMA = {"name": "answer", "strict": True, "schema": {"type": "object", "proper
           "required": ["answer"], "additionalProperties": False}}
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible"])
+@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo"])
 @pytest.mark.parametrize("api", ["responses", "chat_completions"])
 @pytest.mark.parametrize("mode", ["enabled", "disabled", None])
 def test_provider_parameters_on_wire(provider, api, mode, capsys):
@@ -48,11 +48,16 @@ def test_provider_parameters_on_wire(provider, api, mode, capsys):
         assert not {"thinking", "reasoning", "reasoning_effort"} & body.keys()
     elif api == "responses":
         assert body["reasoning"] == {"effort": effort} and "thinking" not in body
-    elif provider == "deepseek":
+    elif provider in {"deepseek", "mimo"}:
         assert body["thinking"] == {"type": mode} and "reasoning_effort" not in body
     else:
         assert body["reasoning_effort"] == effort and "thinking" not in body
-    if api == "responses":
+    if provider == "mimo":
+        output = body["text"]["format"] if api == "responses" else body["response_format"]
+        assert output == {"type": "json_object"}
+        assert "schema" in body["input" if api == "responses" else "messages"][0]["content"]
+        assert "MiMo" in capsys.readouterr().out
+    elif api == "responses":
         assert body["text"]["format"]["type"] == "json_schema"
     elif provider == "deepseek":
         assert body["response_format"] == {"type": "json_object"}
@@ -62,21 +67,24 @@ def test_provider_parameters_on_wire(provider, api, mode, capsys):
         assert body["response_format"]["type"] == "json_schema"
 
 
-def test_module_downgrade_keeps_identity_and_limits(tmp_path):
-    preferred = module_route(CONFIG, "Persona")
-    downgraded = module_route(CONFIG, "Browser Use", supports_responses=False)
-    assert preferred.config == CONFIG
-    assert downgraded.config == dict(CONFIG, api="chat_completions")
-    assert CONFIG["api"] == "responses"
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
+def test_module_downgrade_keeps_identity_and_limits(tmp_path, provider):
+    config = dict(CONFIG, provider=provider)
+    preferred = module_route(config, "Persona")
+    downgraded = module_route(config, "Browser Use", supports_responses=False)
+    assert preferred.config == config
+    assert downgraded.config == dict(config, api="chat_completions")
+    assert config["api"] == "responses"
     assert "fallback_reason" not in preferred.metadata
     assert downgraded.metadata["fallback_reason"]
-    runtime.write_json(tmp_path / "capability_profile.json", dict(CONFIG, ready=True))
+    runtime.write_json(tmp_path / "capability_profile.json", dict(config, ready=True))
     with pytest.raises(ValueError, match="LLM_PROVIDER changed"):
-        runtime.require_capabilities(tmp_path, dict(CONFIG, provider="openai_compatible"))
+        runtime.require_capabilities(tmp_path, dict(config, provider="openai_compatible"))
 
 
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
 @pytest.mark.parametrize("repairable", [True, False])
-def test_browser_json_object_is_locally_validated_and_repaired(repairable):
+def test_browser_json_object_is_locally_validated_and_repaired(provider, repairable):
     from browser_use.llm.exceptions import ModelProviderError
     from browser_use.llm.messages import UserMessage
     from browsing.model import ProviderChatOpenAI
@@ -95,7 +103,7 @@ def test_browser_json_object_is_locally_validated_and_repaired(repairable):
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
             browser = ProviderChatOpenAI(model="custom", api_key="test", base_url=CONFIG["base_url"],
-                                        provider="deepseek", http_client=transport)
+                                        provider=provider, http_client=transport)
             return await browser.ainvoke([UserMessage(content="Answer")], Answer)
     if repairable:
         assert asyncio.run(run()).completion.answer == "ok"
@@ -108,13 +116,14 @@ def test_browser_json_object_is_locally_validated_and_repaired(repairable):
     assert "校验错误" in bodies[1]["messages"][-1]["content"]
 
 
-def test_settings_validate_all_configuration(monkeypatch):
+@pytest.mark.parametrize("provider", ["DeepSeek", "MiMo"])
+def test_settings_validate_all_configuration(monkeypatch, provider):
     monkeypatch.setattr(runtime, "load_dotenv", lambda *args, **kwargs: None)
-    monkeypatch.setenv("LLM_PROVIDER", " DeepSeek ")
+    monkeypatch.setenv("LLM_PROVIDER", f" {provider} ")
     monkeypatch.setenv("LLM_MAX_CONCURRENCY", "3")
     monkeypatch.setenv("BROWSER_MAX_CONCURRENCY", "8")
     config = runtime.settings()
-    assert config["provider"] == "deepseek" and limits.concurrency_limits(config) == (3, 3)
+    assert config["provider"] == provider.lower() and limits.concurrency_limits(config) == (3, 3)
     monkeypatch.setenv("LLM_MAX_CONCURRENCY", "0")
     with pytest.raises(ValueError, match="LLM_MAX_CONCURRENCY"):
         runtime.settings()

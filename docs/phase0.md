@@ -161,3 +161,17 @@ Steel 会话寿命显式设为 10 分钟（服务端返回 `timeout=600000`）�
 - 回归验证：浏览环境 73 项通过（包含阶段 1 的既有兼容性检查）；OASIS 环境验证两种适配器的 enabled、disabled 和默认思考参数。共享限流测试覆盖混合模型入口、浏览额度独立、跨进程争用、取消和进程退出释放。
 
 新增配置见 `config/.env.example`。修改提供商后需重新探测，旧能力文件缺少 provider 时不作为 DeepSeek 能力依据。阶段 1 的人设调度与 JSON Object 能力选择随后按阶段提交补齐。
+
+## 2026-10-03：MiMo 适配与阶段 0 复测
+
+新增 `MiMoAdapter` 并注册 `LLM_PROVIDER=mimo`，复用公共请求层、Browser Use 和 CAMEL 桥接。Chat 发送 `thinking.type`，Responses 发送 `reasoning.effort=high/none`，留空采用服务端默认。两个协议均使用 JSON Object、schema 提示词与本地校验；不把格式正确记为严格 JSON Schema 支持。已有 `config/.env` 未修改。
+
+真实运行目录：`runs/phase0-mimo-adapter-20261003/`。使用配置：MiMo / mimo-v2.6-pro / Token Plan CN 端点 / Responses / thinking disabled / 模型上限 30 / 浏览器上限 5。阶段 0 总结果通过：
+
+- 模型：基础对话、单工具、指定工具样本、并行工具、两张随机识图、Responses 和 Chat JSON Object、10 请求并发样本均通过；建议并发仍为实测的 10，不代表已测出上限 30。JSON Schema 标为 unsupported。
+- 上下文：2K 和 32K 字符回显样本通过，8K 样本一次未返回预期答案；这不是接口报错，也不能据此宣称完整上下文可靠性或模型最大长度。原能力文件保留该失败。
+- Browser Use：降级为 Chat，2 步点击进入 `/projects` 并完成；2 次模型请求均带截图，时区及旁路采集通过，DOM 失败和重复响应均为 0；耗时 86.515 秒，Steel 会话已释放。
+- OASIS/CAMEL：降级为 Chat，外部逐步驱动、动作集合和潜水者只读约束通过，正常关闭。
+- 回归：浏览环境阶段 0–3 的 147 项通过、1 项因无 CAMEL 跳过；OASIS 环境三个适配器的思考参数测试 9 项通过。覆盖 MiMo 两协议的 enabled / disabled / 默认参数、JSON Schema 到 JSON Object 转换、Browser Use 校验修正、主 Agent JSON 校验、配置识别、协议降级和旧能力文件拒绝。首次广泛回归出现两处既有时序断言失败，单独与完整复测均通过，未修改相关代码。
+
+MiMo 官方文档说明非 auto 的 `tool_choice` 会被忽略，因此指定工具探测通过只说明样本中的工具调用成功，不证明强制指定生效。费用沿用通用适配器的未知价格结果，不套用 DeepSeek 单价。接口依据与配置说明见 `providers.md`。

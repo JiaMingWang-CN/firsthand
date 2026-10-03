@@ -16,7 +16,7 @@ PRODUCT = {"positioning": "作品展示", "target_users": "招聘方", "features
            "target_age_min": None, "target_age_max": None}
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible"])
+@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo"])
 @pytest.mark.parametrize("valid", [True, False])
 def test_json_object_generation_checks_and_repairs_without_strict_schema(provider, valid):
     bodies = []
@@ -41,7 +41,7 @@ def test_json_object_generation_checks_and_repairs_without_strict_schema(provide
     for body in bodies:
         assert body["model"] == "custom" and body["response_format"] == {"type": "json_object"}
         assert "schema" in body["messages"][1]["content"]
-        if provider == "deepseek":
+        if provider in {"deepseek", "mimo"}:
             assert body["thinking"] == {"type": "disabled"}
         else:
             assert body["reasoning_effort"] == "none"
@@ -49,7 +49,8 @@ def test_json_object_generation_checks_and_repairs_without_strict_schema(provide
     assert "修正下列校验错误" in bodies[1]["messages"][-1]["content"]
 
 
-def test_deepseek_chat_cannot_use_stale_schema_or_unverified_json_object():
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
+def test_chat_cannot_use_stale_schema_or_unverified_json_object(provider):
     capability = {"checks": {"json_schema": {"supported": True}, "json_prompt": {"supported": True}}}
     with pytest.raises(ValueError, match="JSON Object 能力探测通过"):
-        asyncio.run(request_json(None, CONFIG, capability, ProductSummary, "Extract product"))
+        asyncio.run(request_json(None, dict(CONFIG, provider=provider), capability, ProductSummary, "Extract product"))
