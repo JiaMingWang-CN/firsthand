@@ -12,8 +12,9 @@ from probe import model
 from orchestrator import phase0
 
 
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
 @pytest.mark.parametrize("unsupported", ["vision", "tools", None])
-def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
+def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported, provider):
     class FakeClient:
         def __init__(self, **kwargs):
             self.chat = SimpleNamespace(completions=self)
@@ -45,8 +46,14 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported):
 
     monkeypatch.setattr(model, "AsyncOpenAI", FakeClient)
     monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"test-image"))
-    config = {"provider": "deepseek", "model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret", "thinking_type": "disabled"}
+    config = {"provider": provider, "model": "custom", "base_url": "http://test.invalid/v1", "api_key": "test-secret", "thinking_type": "disabled"}
     profile = asyncio.run(model.probe_model(config, tmp_path))
+    if provider == "mimo":
+        # A passing sample is not proof the provider enforced the forced tool choice.
+        assert profile["checks"]["forced_tool"]["enforced"] is False
+        assert profile["stated_context_window"]["minimum_tokens"] == 256_000
+    else:
+        assert "enforced" not in profile["checks"]["forced_tool"] and profile["stated_context_window"] is None
     assert profile["ready"] is (unsupported is None)
     assert profile["structured_output"] == "json_object_with_validation"
     assert profile["checks"]["json_schema"]["status"] == "unsupported"

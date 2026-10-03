@@ -155,6 +155,25 @@ def test_social_audit_rejects_questionnaire_without_real_experience(tmp_path):
     assert "no fabricated NPS" in audit["survey_errors"][0]["reason"]
 
 
+def test_social_audit_records_invalid_disclosure_instead_of_crashing(tmp_path):
+    person = fixture_persona(False).model_copy(update={"participation": "poster"})
+    draft = SimpleNamespace(personas=[person])
+    store = SimulationStore(tmp_path / "run.db")
+    store.initialize(draft, [{"persona_id": person.persona_id, "slice_index": 2}])
+    save_fake_experience(tmp_path, person)
+    store.publish_experience(person.persona_id, 2, tmp_path / person.persona_id)
+    # Covers no finding id: not a partition of this persona's experience.
+    store.record_disclosure(person.persona_id, 2, Disclosure(shared=[], withheld=[], tone="brief"), "")
+    with sqlite3.connect(tmp_path / "oasis.db") as db:
+        db.executescript("CREATE TABLE post(post_id,user_id,content); CREATE TABLE comment(comment_id,user_id,content); "
+                         "CREATE TABLE trace(user_id,action);")
+    (tmp_path / "planner_rejections.jsonl").write_text(
+        '{"persona_id":"p01","attempt":1,"reason":"x"}\n{"persona_id":"p01","fallback":"do_nothing"}\n', encoding="utf-8")
+    audit = phase4.audit_social(store, draft, tmp_path / "oasis.db")
+    assert not audit["passed"] and "partition" in audit["public_projection_errors"][0]["reason"]
+    assert audit["planner_rejected_attempts"] == 1 and audit["planner_fallbacks_to_do_nothing"] == 1
+
+
 def test_browse_then_social_callback_drains_each_slice_before_advancing(tmp_path):
     rows = [{"persona_id": "p01", "slice_index": 0}, {"persona_id": "p02", "slice_index": 1}]
     calls = []

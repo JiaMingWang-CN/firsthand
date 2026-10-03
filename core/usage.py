@@ -1,4 +1,4 @@
-"""Per-run request ledger. No prompts, responses, credentials or shared-account balance guesses."""
+"""Per-run request and token ledger. No prompts, responses, credentials or prices."""
 
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
@@ -32,13 +32,12 @@ class UsageRecorder:
         usage = getattr(response, "usage", None)
         raw = usage.model_dump() if hasattr(usage, "model_dump") else usage
         tokens = get_adapter(self.config).usage_tokens(raw) if raw else None
-        price = get_adapter(self.config).price_range(model, tokens) if tokens else None
         seconds = time.monotonic() - started
         finished = datetime.now(timezone.utc)
         entry = {"request": len(self.entries) + 1, "api": api, "model": model,
                  "started_at": (finished - timedelta(seconds=seconds)).isoformat(),
                  "finished_at": finished.isoformat(), "seconds": round(seconds, 3),
-                 "error_type": type(error).__name__ if error else None, "usage": tokens, "price_range": price}
+                 "error_type": type(error).__name__ if error else None, "usage": tokens}
         self.entries.append(entry)
         with (self.run_dir / "model_usage.jsonl").open("a", encoding="utf-8") as file:
             file.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -46,12 +45,8 @@ class UsageRecorder:
     def summary(self):
         tokens = {key: sum((item["usage"] or {}).get(key, 0) for item in self.entries)
                   for key in ("input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens")}
-        prices = [item["price_range"] for item in self.entries if item["price_range"]]
-        complete = all(item["usage"] and item["price_range"] for item in self.entries)
         return {"requests": len(self.entries), "failed_requests": sum(item["error_type"] is not None for item in self.entries),
-                "requests_without_usage": sum(item["usage"] is None for item in self.entries), "tokens": tokens,
-                "estimate_complete": complete, "usd_min": sum(item["usd_min"] for item in prices),
-                "usd_max": sum(item["usd_max"] for item in prices), "billing_basis": "usage-based estimate; unreported failed attempts may still be billed"}
+                "requests_without_usage": sum(item["usage"] is None for item in self.entries), "tokens": tokens}
 
 
 async def measured_request(request, api, model):

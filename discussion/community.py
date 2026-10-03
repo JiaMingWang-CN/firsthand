@@ -16,7 +16,7 @@ from camel.toolkits import FunctionTool
 
 from core.community import (Disclosure, Withheld, allowed_actions,
                             finding_map, public_projection, validate_disclosure)
-from core.providers import module_route
+from core.providers import get_adapter, module_route
 from core.simulation import SimulationStore
 from core.runtime import write_json
 from discussion.model import ProviderModel
@@ -125,6 +125,9 @@ async def choose_action(backend, persona, feed, body, allowed, rejection_log=Non
                 with Path(rejection_log).open("a", encoding="utf-8") as file:
                     file.write(json.dumps({"persona_id": persona.persona_id, "attempt": attempt + 1, "reason": str(error)}, ensure_ascii=False) + "\n")
             messages.append({"role": "user", "content": "修正操作选择：" + str(error) + "。只调用一个工具，没有合适行动可调用 do_nothing。"})
+    if rejection_log:
+        with Path(rejection_log).open("a", encoding="utf-8") as file:
+            file.write(json.dumps({"persona_id": persona.persona_id, "fallback": "do_nothing"}, ensure_ascii=False) + "\n")
     return "do_nothing", {}
 
 
@@ -134,7 +137,10 @@ class Community:
         route = module_route(config, "OASIS/CAMEL", supports_responses=False)
         write_json(root / "protocol.json", route.metadata)
         self.backend = ProviderModel(route.config)
-        self.backend.model_config_dict.update(tool_choice="required", parallel_tool_calls=False)
+        self.backend.model_config_dict.update(parallel_tool_calls=False)
+        # A provider that ignores forced tool_choice gets "auto"; invalid replies go through the repair loop instead.
+        if get_adapter(config).honors_forced_tool_choice:
+            self.backend.model_config_dict["tool_choice"] = "required"
         self.graph = AgentGraph()
         self.agents = {}
         for index, persona in enumerate(draft.personas):
@@ -203,10 +209,16 @@ class Community:
         return {"active_personas": [p.persona_id for p in active]}
 
     async def finish(self):
-        async with asyncio.TaskGroup() as group:
-            for persona in self.draft.personas:
-                group.create_task(answer_exit(self.client, self.config, self.capability, persona, self.store))
-        return {"survey_count": len(self.draft.personas)}
+        # One persona's invalid questionnaire must not cancel the others; the audit reports missing coverage.
+        results = await asyncio.gather(*(answer_exit(self.client, self.config, self.capability, persona, self.store)
+                                         for persona in self.draft.personas), return_exceptions=True)
+        failures = [{"persona_id": persona.persona_id, "error_type": type(result).__name__, "reason": str(result)[:500]}
+                    for persona, result in zip(self.draft.personas, results) if isinstance(result, Exception)]
+        for result in results:
+            if isinstance(result, BaseException) and not isinstance(result, Exception):
+                raise result
+        write_json(self.root / "survey_failures.json", failures)
+        return {"survey_count": len(self.draft.personas) - len(failures), "survey_failures": failures}
 
     async def close(self):
         try:

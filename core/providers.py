@@ -9,6 +9,15 @@ JSON_OBJECT_WARNING = "DeepSeek Chat 不支持严格 JSON Schema 输出；JSON O
 class OpenAICompatibleAdapter:
     name = "openai_compatible"
     json_schema_limitation = None
+    honors_forced_tool_choice = True
+    context_window = None
+    warned = False
+
+    def warn_json_object(self):
+        # Once per process: the limitation is static, repeating it per request only buries real log lines.
+        if not self.warned:
+            print(self.json_schema_limitation, flush=True)
+            self.warned = True
 
     def usage_tokens(self, usage):
         input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
@@ -17,9 +26,6 @@ class OpenAICompatibleAdapter:
         cached = details.get("cached_tokens", 0)
         return {"input_tokens": input_tokens, "cached_input_tokens": cached,
                 "uncached_input_tokens": input_tokens - cached, "output_tokens": output_tokens}
-
-    def price_range(self, model, tokens):
-        return None
 
     def supports_json_schema(self, api):
         return True
@@ -39,7 +45,16 @@ class OpenAICompatibleAdapter:
         return {}
 
 
-class DeepSeekAdapter(OpenAICompatibleAdapter):
+class ThinkingTypeChatAdapter(OpenAICompatibleAdapter):
+    """Chat sends the vendor's thinking.type; Responses keeps reasoning.effort."""
+
+    def thinking_options(self, api, mode):
+        if api == "responses":
+            return super().thinking_options(api, mode)
+        return {"extra_body": {"thinking": {"type": mode}}} if mode else {}
+
+
+class DeepSeekAdapter(ThinkingTypeChatAdapter):
     name = "deepseek"
     json_schema_limitation = JSON_OBJECT_WARNING
 
@@ -48,47 +63,29 @@ class DeepSeekAdapter(OpenAICompatibleAdapter):
         cached = usage.get("prompt_cache_hit_tokens", tokens["cached_input_tokens"])
         return {**tokens, "cached_input_tokens": cached, "uncached_input_tokens": tokens["input_tokens"] - cached}
 
-    def price_range(self, model, tokens):
-        # Official price snapshot, checked 2026-10-02 (America/Los_Angeles).
-        # Peak and off-peak vary with UTC time and Chinese holidays: report bounds rather than guess billing.
-        rates = {"deepseek-flash": (0.003, 0.15, 0.6), "deepseek-v4-pro": (0.022, 0.66, 1.98)}
-        if model not in rates:
-            return None
-        hit, miss, output = rates[model]
-        low = (tokens["cached_input_tokens"] * hit + tokens["uncached_input_tokens"] * miss + tokens["output_tokens"] * output) / 1_000_000
-        return {"usd_min": low, "usd_max": low * 2, "basis": "official off-peak/peak price bounds, not an invoice",
-                "source": "https://api-docs.deepseek.com/quick_start/pricing/", "checked_on": "2026-10-02 America/Los_Angeles"}
-
     def supports_json_schema(self, api):
         return api == "responses"
 
-    def thinking_options(self, api, mode):
-        if api == "responses":
-            return super().thinking_options(api, mode)
-        return {"extra_body": {"thinking": {"type": mode}}} if mode else {}
-
     def output_options(self, api, json_schema=None, json_object=False):
         if api == "chat_completions" and (json_schema or json_object):
-            print(JSON_OBJECT_WARNING, flush=True)
+            self.warn_json_object()
             return {"response_format": {"type": "json_object"}}
         return super().output_options(api, json_schema, json_object)
 
 
-class MiMoAdapter(OpenAICompatibleAdapter):
+class MiMoAdapter(ThinkingTypeChatAdapter):
     name = "mimo"
     json_schema_limitation = "MiMo 未提供严格 JSON Schema 输出保证；使用 JSON Object，需提示词约束、本地校验和修正重试"
+    # MiMo documents that non-auto tool_choice values are ignored.
+    honors_forced_tool_choice = False
+    context_window = {"minimum_tokens": 256_000, "maximum_tokens": 1_000_000, "source": "用户确认的 MiMo 模型上下文范围（2026-10-03）"}
 
     def supports_json_schema(self, api):
         return False
 
-    def thinking_options(self, api, mode):
-        if api == "responses":
-            return super().thinking_options(api, mode)
-        return {"extra_body": {"thinking": {"type": mode}}} if mode else {}
-
     def output_options(self, api, json_schema=None, json_object=False):
         if json_schema:
-            print(self.json_schema_limitation, flush=True)
+            self.warn_json_object()
         return super().output_options(api, json_object=bool(json_schema or json_object))
 
 

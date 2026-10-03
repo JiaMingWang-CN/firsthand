@@ -10,14 +10,13 @@ from pathlib import Path
 import sys
 import time
 
+from browsing.observations import TECHNICAL_TOOLS
 from browsing.worker import configuration_hash
 from core.experience import load_experience
 from core.limits import concurrency_limits
 from core.runtime import ROOT, require, require_capabilities, settings, write_json
 from orchestrator.phase1 import draft_hash, require_approved
 from orchestrator.personas import schedule_rows
-
-TECHNICAL_TOOLS = {"read_console", "list_failed_requests"}
 
 
 def utc_now():
@@ -119,38 +118,8 @@ def peak_concurrency(intervals):
     return peak
 
 
-async def reconcile_billing(draft, root, config):
-    """Cost can be zero immediately after release while Steel's usage meter is still updating."""
-    from steel import AsyncSteel
-    async with AsyncSteel(steel_api_key=config["steel_api_key"], timeout=30, max_retries=0) as steel:
-        for persona in draft.personas:
-            result_file = root / persona.persona_id / "result.json"
-            session_file = root / persona.persona_id / "session.json"
-            if not result_file.exists() or not session_file.exists():
-                continue
-            result = json.loads(result_file.read_text(encoding="utf-8"))
-            session_id = json.loads(session_file.read_text(encoding="utf-8"))["id"]
-            try:
-                session = await steel.sessions.retrieve(session_id)
-                bill = await steel.get(f"/v1/sessions/{session_id}/cost", cast_to=dict[str, object])
-                for _ in range(3):
-                    if session.status != "released" or not session.duration or bill["usage"]["browser"]["value"]:
-                        break
-                    await asyncio.sleep(5)
-                    bill = await steel.get(f"/v1/sessions/{session_id}/cost", cast_to=dict[str, object])
-                available = (session.status == "released" and bill.get("currency") == "usd" and bill.get("unit") == "dollar"
-                             and not (session.duration and not bill["usage"]["browser"]["value"]))
-                result["browser_billing"] = {"available": bool(available), **bill, "reconciled_after_cohort": True,
-                    "initial_totalCost": result.get("browser_billing", {}).get("totalCost"),
-                    "reason": None if available else "Lifecycle or usage metering still pending",
-                    "source": "Steel GET /v1/sessions/{id}/cost"}
-            except Exception as error:
-                result["browser_billing"] = {"available": False, "error_type": type(error).__name__}
-            write_json(result_file, result)
-
-
 def summarize(draft, root, timeline, config):
-    details, violations, usages, bills, request_intervals, browser_intervals = {}, [], [], [], [], []
+    details, violations, usages, request_intervals, browser_intervals = {}, [], [], [], []
     audited = []
     for persona in draft.personas:
         pid = persona.persona_id
@@ -172,7 +141,6 @@ def summarize(draft, root, timeline, config):
             rejected = directory / "assessment_rejections.json"
             details[pid]["rejected_findings"] = len(json.loads(rejected.read_text(encoding="utf-8"))) if rejected.exists() else 0
             usages.append(usage)
-            bills.append(result.get("browser_billing", {"available": False}))
             browser_intervals.append((result.get("browser_slot_acquired_at"), result.get("browser_released_at")))
             ledger = directory / "model_usage.jsonl"
             if ledger.exists():
@@ -180,27 +148,22 @@ def summarize(draft, root, timeline, config):
                                          (json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()))
         except (ValueError, OSError, KeyError) as error:
             details[pid] = {"passed": False, "error_type": type(error).__name__}
-    cost = {"model_requests": sum(item["requests"] for item in usages),
-            "model_tokens": {key: sum(item["tokens"][key] for item in usages) for key in
-                             ("input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens")},
-            "model_usd_min": sum(item["usd_min"] for item in usages), "model_usd_max": sum(item["usd_max"] for item in usages),
-            "model_estimate_complete": len(usages) == len(draft.personas) and all(item["estimate_complete"] for item in usages),
-            "steel_usd_billed": sum(item.get("totalCost", 0) for item in bills),
-            "steel_billing_complete": len(bills) == len(draft.personas) and all(item["available"] for item in bills),
-            "scope": "This run's browsing, policy checks, repair retries and memory generation; excludes earlier persona generation and plan subscriptions"}
-    cost["total_usd_min"] = cost["model_usd_min"] + cost["steel_usd_billed"]
-    cost["total_usd_max"] = cost["model_usd_max"] + cost["steel_usd_billed"]
+    usage = {"model_requests": sum(item["requests"] for item in usages),
+             "requests_without_usage": sum(item["requests_without_usage"] for item in usages),
+             "model_tokens": {key: sum(item["tokens"][key] for item in usages) for key in
+                              ("input_tokens", "cached_input_tokens", "uncached_input_tokens", "output_tokens")},
+             "scope": "This run's browsing, policy checks, repair retries and memory generation"}
     model_peak, browser_peak = peak_concurrency(request_intervals), peak_concurrency(browser_intervals)
-    passed = (len(details) == 10 and all(item["passed"] for item in details.values()) and not violations
+    expected = len(draft.personas)
+    passed = (len(details) == expected and all(item["passed"] for item in details.values()) and not violations
               and all(job["state"] == "completed" for job in timeline["jobs"].values())
-              and model_peak <= config["max_model_concurrency"] and browser_peak <= concurrency_limits(config)[1]
-              and cost["model_estimate_complete"] and cost["steel_billing_complete"])
-    write_json(root / "permission_audit.json", {"passed": len(audited) == 10 and not violations,
-               "audited_personas": audited, "complete": len(audited) == 10, "violations": violations})
-    write_json(root / "cost.json", cost)
+              and model_peak <= config["max_model_concurrency"] and browser_peak <= concurrency_limits(config)[1])
+    write_json(root / "permission_audit.json", {"passed": len(audited) == expected and not violations,
+               "audited_personas": audited, "complete": len(audited) == expected, "violations": violations})
+    write_json(root / "usage.json", usage)
     return {"passed": passed, "personas": details, "outcomes": dict(Counter(item.get("outcome", "unavailable") for item in details.values())),
             "peak_workers": timeline["peak_workers"], "observed_peak_model_calls": model_peak, "observed_peak_browser_slots": browser_peak,
-            "permission_violations": violations, "cost": cost}
+            "permission_violations": violations, "usage": usage}
 
 
 async def execute(source_run, root):
@@ -221,7 +184,6 @@ async def execute(source_run, root):
     print(f"阶段 3 产物：{root}；浏览 Agent 上限={limit}", flush=True)
     try:
         timeline = await run_timeline(draft, rows, root, limit)
-        await reconcile_billing(draft, root, config)
     except asyncio.CancelledError:
         write_json(root / "phase3_result.json", {"passed": False, "status": "cancelled"})
         raise

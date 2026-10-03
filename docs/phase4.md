@@ -44,11 +44,11 @@ withheld 是本人的该次表达决定，不能理解成该事实从未在社�
 | `run.db` | 体验、看帖、表达决定、动作、活跃抽样、私密问卷、进程命令 |
 | `community/oasis.db` | 实际平台帖子、评论及 trace |
 | `community/protocol.json` | OASIS 模块的协议与降级原因 |
-| `community/model_usage.jsonl` / `.json` | 社区规划、过滤、问卷及所有修正尝试的用量和费用估算 |
+| `community/model_usage.jsonl` / `.json` | 社区规划、过滤、问卷及所有修正尝试的 token 用量 |
 | `p06_survey_recovery/` | 本样本的 MiMo 补录配置、能力/审批哈希、独立用量及订阅计费未知状态 |
 | `social_audit.json` | 体验/角色门禁、公开投影、问卷引用及人数覆盖审计 |
-| `permission_audit.json`、`cost.json` | 浏览技术权限与浏览费用 |
-| `phase4_result.json` | 浏览、讨论及全模型并发峰值、累计费用与验收状态 |
+| `permission_audit.json`、`usage.json` | 浏览技术权限与浏览 token 用量 |
+| `phase4_result.json` | 浏览、讨论及全模型并发峰值、用量与验收状态 |
 
 ```powershell
 .venv-browsing/Scripts/python.exe -m pytest tests -q
@@ -70,3 +70,10 @@ withheld 是本人的该次表达决定，不能理解成该事实从未在社�
 - 首次开发尝试 `runs/phase4-20261003T070353556759Z` 因无效社区工具选择停止，其失败记录保留；上述费用仅属于第二个样本。
 
 Scout 仍未执行。下一阶段为 Report Agent，Web UI 与采访位于阶段 6；报告应保留问卷一致性标记、晚验证体验与覆盖限制。
+
+## 2026-10-03 修订
+
+- 离场问卷各自独立：一人失败不再取消其他人，失败写入 `community/survey_failures.json`，审计按覆盖缺失判定不通过；结果完全由代码生成，不再手工改写 `timeline.json` 或 `phase4_result.json`。上文 `runs/phase4-20261003T071619710132Z` 的通过结论来自已记录的人工恢复，不是代码可复现结果。
+- 问卷提示明确已有体验者 `has_experience=true`、NPS 为整数，减少系统事实被模型答错导致的失败。
+- 审计中不合法的表达决定记为违规而不中断审计；统计规划器修正尝试与退回不行动次数。
+- 不再估算价格，验收不依赖费用完整性。

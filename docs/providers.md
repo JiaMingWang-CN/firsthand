@@ -16,7 +16,7 @@
 
 DeepSeek Chat **不支持严格 JSON Schema 输出**。使用 JSON Object，仅保证 JSON 格式，不保证字段、类型或业务约束。提示词包含 schema，每次结果必须经本地 Pydantic 和业务校验，错误时最多尝试 3 次并返回校验原因。Browser Use 同样使用 JSON Object、schema 提示词、本地校验和修正重试；OASIS 当前调用工具，不请求 JSON Schema 输出。能力文件分别记录首选协议与降级 Chat 的 JSON Schema、JSON Object 能力，不能把 JSON Object 成功记为 JSON Schema 成功。Responses 的 JSON Schema 仍需能力探测和本地校验。
 
-MiMo 通过 OpenAI SDK 的 Bearer 认证接入，支持 Chat Completions 和 Responses。当前配置为 `mimo-v2.6-pro`、`https://token-plan-cn.xiaomimimo.com/v1`、Responses、thinking disabled；按量 API 地址为 `https://api.xiaomimimo.com/v1`，套餐端点与密钥由用户配置。MiMo 的文档未提供严格 JSON Schema 保证，两个协议均使用 JSON Object，并复用 schema 提示词、本地校验和最多 3 次尝试；能力文件将 JSON Schema 标为 unsupported，单独实测 JSON Object。Browser Use 和 OASIS 的协议降级保留 MiMo 模型及端点。MiMo 文档说明 `tool_choice` 的非 auto 值会被忽略，所以探测中指定工具成功只能证明该样本调用成功，不能证明服务端强制工具选择。Token 用量沿用 OpenAI 格式；套餐费用不按 DeepSeek 价格估算。
+MiMo 通过 OpenAI SDK 的 Bearer 认证接入，支持 Chat Completions 和 Responses。当前配置为 `mimo-v2.6-pro`、`https://token-plan-cn.xiaomimimo.com/v1`、Responses、thinking disabled；按量 API 地址为 `https://api.xiaomimimo.com/v1`，套餐端点与密钥由用户配置。MiMo 的文档未提供严格 JSON Schema 保证，两个协议均使用 JSON Object，并复用 schema 提示词、本地校验和最多 3 次尝试；能力文件将 JSON Schema 标为 unsupported，单独实测 JSON Object。Browser Use 和 OASIS 的协议降级保留 MiMo 模型及端点。MiMo 文档说明 `tool_choice` 的非 auto 值会被忽略，所以探测中指定工具成功只能证明该样本调用成功，不能证明服务端强制工具选择。Token 用量沿用 OpenAI 格式。由于 MiMo 不强制非 auto 的 `tool_choice`，OASIS 规划器对 MiMo 不再发送 `tool_choice=required`，无效回复走最多 3 次修正，仍失败时选择不行动；`social_audit.json` 统计修正尝试与退回不行动次数，避免发言被静默压低。MiMo 上下文窗口按用户确认的 256K–1M tokens 记录到能力文件的 `stated_context_window`；探测里的 2K/8K/32K 字符回显只是抽样，单次回显失败不作为上下文上限依据。
 
 `LLM_MAX_CONCURRENCY` 限制所有模型请求，包括探测、人设生成、Browser Use 与 OASIS 的调用和重试。`BROWSER_MAX_CONCURRENCY` 限制实际浏览会话；浏览 Agent 并发为 `min(模型上限, 浏览器上限)`。人设生成与讨论只占模型额度，不占浏览额度。请求排队不消耗公共请求层的供应商响应时限。
 
@@ -27,3 +27,5 @@ MiMo 通过 OpenAI SDK 的 Bearer 认证接入，支持 Chat Completions 和 Res
 接口依据：[DeepSeek 思考模式](https://api-docs.deepseek.com/guides/thinking_mode)、[Responses](https://api-docs.deepseek.com/api/create-response)、[JSON Output](https://api-docs.deepseek.com/guides/json_mode)。框架桥接按仓库锁定版本的实际源码验证。
 
 MiMo 接口依据：[Chat Completions](https://mimo.mi.com/docs/en-US/api/chat/openai-api)、[Responses](https://mimo.mi.com/docs/en-US/api/chat/responses)、[JSON Object 与本地校验](https://mimo.mi.com/docs/en-US/quick-start/usage-guide/text-generation/structured-output)。文档核对日期：2026-10-03（America/Los_Angeles）。
+
+项目不显示价格：适配器只转换 token 用量，不提供价目，验收也不依赖费用完整性。JSON Object 限制提示每个进程只打印一次。

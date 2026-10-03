@@ -143,20 +143,19 @@ def test_usage_ledger_counts_repairs_and_uses_provider_cache_semantics(tmp_path,
     summary = json.loads((tmp_path / "model_usage.json").read_text(encoding="utf-8"))
     assert summary["requests"] == 2 and summary["tokens"]["cached_input_tokens"] == 1200
     assert summary["tokens"]["uncached_input_tokens"] == 800
-    assert summary["estimate_complete"] and summary["usd_max"] == pytest.approx(summary["usd_min"] * 2)
+    assert not any("usd" in key or "price" in key for key in summary)
     ledger = (tmp_path / "model_usage.jsonl").read_text(encoding="utf-8")
     assert "secret" not in ledger and "private product data" not in ledger
 
 
-def test_unknown_or_failed_usage_is_not_claimed_as_exact_cost(tmp_path):
+def test_failed_request_is_counted_without_usage(tmp_path):
     with UsageRecorder({"provider": "openai_compatible", "model": "custom"}, tmp_path) as recorder:
         recorder.record("chat_completions", "custom", time.monotonic(), error=TimeoutError())
     summary = json.loads((tmp_path / "model_usage.json").read_text(encoding="utf-8"))
     assert summary["failed_requests"] == summary["requests_without_usage"] == 1
-    assert not summary["estimate_complete"]
 
 
-def test_repair_metering_appends_without_discarding_initial_attempt_cost(tmp_path):
+def test_repair_metering_appends_without_discarding_initial_attempt_usage(tmp_path):
     config = {"provider": "deepseek", "model": "deepseek-flash"}
     response = SimpleNamespace(usage={"prompt_tokens": 100, "completion_tokens": 10})
     for _ in range(2):
@@ -168,7 +167,7 @@ def test_repair_metering_appends_without_discarding_initial_attempt_cost(tmp_pat
     assert [entry["request"] for entry in entries] == [1, 2]
 
 
-def test_reusing_experience_directory_cannot_overwrite_existing_cost_record(tmp_path):
+def test_reusing_experience_directory_cannot_overwrite_existing_usage_record(tmp_path):
     from browsing.experience import run_experience
     record = tmp_path / "model_usage.json"
     record.write_text('{"requests":87}', encoding="utf-8")
@@ -196,15 +195,12 @@ def test_phase3_uses_environment_minimum_and_keeps_keys_out_of_context(tmp_path,
     async def timeline(d, rows, root, limit):
         observed.append(limit)
         return {}
-    async def reconcile(*args):
-        pass
     monkeypatch.setattr(phase3, "require_approved", lambda path: (draft, None))
     monkeypatch.setattr(phase3, "settings", lambda: config)
     monkeypatch.setattr(phase3, "require_capabilities", lambda *args: {})
     monkeypatch.setattr(phase3, "draft_hash", lambda path: "approved-hash")
     monkeypatch.setattr(phase3, "schedule_rows", lambda d: [])
     monkeypatch.setattr(phase3, "run_timeline", timeline)
-    monkeypatch.setattr(phase3, "reconcile_billing", reconcile)
     monkeypatch.setattr(phase3, "summarize", lambda *args: {"passed": True})
     output = tmp_path / "output"
     assert asyncio.run(phase3.execute(tmp_path / "source", output))["passed"]
@@ -236,10 +232,10 @@ def save_fake_experience(root, persona, grant=False):
         (directory / snapshot["screenshot"]).write_bytes(b"evidence")
         snapshot["screenshot_sha256"] = hashlib.sha256(b"evidence").hexdigest()
     (directory / "experience.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-    result = {"passed": True, "released": True, "browser_billing": {"available": True, "totalCost": 0.002}}
+    result = {"passed": True, "released": True}
     (directory / "result.json").write_text(json.dumps(result), encoding="utf-8")
-    usage = {"requests": 1, "tokens": {"input_tokens": 100, "cached_input_tokens": 20, "uncached_input_tokens": 80, "output_tokens": 10},
-             "usd_min": 0.001, "usd_max": 0.002, "estimate_complete": True}
+    usage = {"requests": 1, "requests_without_usage": 0,
+             "tokens": {"input_tokens": 100, "cached_input_tokens": 20, "uncached_input_tokens": 80, "output_tokens": 10}}
     (directory / "model_usage.json").write_text(json.dumps(usage), encoding="utf-8")
     (directory / "model_usage.jsonl").write_text(json.dumps({"started_at": "2026-10-03T00:00:00+00:00", "finished_at": "2026-10-03T00:00:01+00:00"}), encoding="utf-8")
     rows = [{"event": "technical_tool_access", "data": {"tool": "read_console"}}] if grant else []
@@ -247,48 +243,18 @@ def save_fake_experience(root, persona, grant=False):
 
 
 @pytest.mark.parametrize("violation", [False, True])
-def test_cohort_audit_and_cost_aggregate_actual_persona_artifacts(tmp_path, violation):
-    people = [fixture_persona(False).model_copy(update={"persona_id": f"p{i:02d}"}) for i in range(1, 11)]
+@pytest.mark.parametrize("size", [10, 12])
+def test_cohort_audit_and_usage_aggregate_actual_persona_artifacts(tmp_path, violation, size):
+    people = [fixture_persona(False).model_copy(update={"persona_id": f"p{i:02d}"}) for i in range(1, size + 1)]
     for person in people:
         save_fake_experience(tmp_path, person, grant=violation and person.persona_id == "p04")
     timeline = {"jobs": {p.persona_id: {"state": "completed"} for p in people}, "peak_workers": 2}
     result = phase3.summarize(SimpleNamespace(personas=people), tmp_path, timeline,
                             {"max_model_concurrency": 30, "max_browser_concurrency": 5})
+    # Pass/fail depends on evidence and permissions, not on the cohort being exactly ten or on known prices.
     assert result["passed"] is (not violation)
-    assert result["cost"]["model_requests"] == 10
-    assert result["cost"]["steel_usd_billed"] == pytest.approx(0.02)
-    assert result["cost"]["total_usd_min"] == pytest.approx(0.03)
-    assert result["cost"]["total_usd_max"] == pytest.approx(0.04)
+    assert result["usage"]["model_requests"] == size and result["usage"]["model_tokens"]["input_tokens"] == 100 * size
+    audit = json.loads((tmp_path / "permission_audit.json").read_text(encoding="utf-8"))
+    assert audit["complete"] and len(audit["audited_personas"]) == size
+    assert not (tmp_path / "cost.json").exists()
     assert bool(result["permission_violations"]) is violation
-
-
-def test_final_billing_rechecks_initial_zero_instead_of_counting_it_as_free(tmp_path, monkeypatch):
-    import steel
-    person = fixture_persona(False)
-    directory = tmp_path / person.persona_id
-    directory.mkdir()
-    (directory / "session.json").write_text(json.dumps({"id": "session"}), encoding="utf-8")
-    (directory / "result.json").write_text(json.dumps({"browser_billing": {"available": True, "totalCost": 0}}), encoding="utf-8")
-    reads = []
-    class Steel:
-        def __init__(self, **kwargs):
-            self.sessions = self
-        async def __aenter__(self):
-            return self
-        async def __aexit__(self, *args):
-            pass
-        async def retrieve(self, sid):
-            return SimpleNamespace(status="released", duration=60000)
-        async def get(self, path, **kwargs):
-            reads.append(path)
-            ready = len(reads) > 1
-            return {"currency": "usd", "unit": "dollar", "totalCost": 0.002 if ready else 0,
-                    "usage": {"browser": {"value": 1 if ready else 0}}}
-    async def no_wait(seconds):
-        pass
-    monkeypatch.setattr(steel, "AsyncSteel", Steel)
-    monkeypatch.setattr(phase3.asyncio, "sleep", no_wait)
-    asyncio.run(phase3.reconcile_billing(SimpleNamespace(personas=[person]), tmp_path, {"steel_api_key": "test"}))
-    saved = json.loads((directory / "result.json").read_text(encoding="utf-8"))["browser_billing"]
-    assert saved["available"] and saved["initial_totalCost"] == 0 and saved["totalCost"] == 0.002
-    assert len(reads) == 2

@@ -15,7 +15,7 @@ from core.runtime import ROOT, require, require_capabilities, settings, write_js
 from core.simulation import SimulationStore
 from orchestrator.phase1 import draft_hash, require_approved
 from orchestrator.personas import schedule_rows
-from orchestrator.phase3 import peak_concurrency, reconcile_billing, run_timeline, summarize
+from orchestrator.phase3 import peak_concurrency, run_timeline, summarize
 
 
 async def wait_ready(store, process):
@@ -64,7 +64,11 @@ def audit_social(store, draft, oasis_path):
     for row in disclosures:
         memory = store.experience(row["persona_id"])
         plan = Disclosure(shared=json.loads(row["shared_json"]), withheld=[Withheld.model_validate(item) for item in json.loads(row["withheld_json"])], tone="direct")
-        validate_disclosure(plan, memory, people[row["persona_id"]].participation)
+        try:
+            validate_disclosure(plan, memory, people[row["persona_id"]].participation)
+        except ValueError as error:
+            projection_errors.append({"persona_id": row["persona_id"], "slice_index": row["slice_index"], "reason": str(error)})
+            continue
         # Match an allowed renderer tone; no private field can enter through a free-form model reply.
         if row["public_body"] not in {public_projection(plan.model_copy(update={"tone": tone}), memory) for tone in ("direct", "soft", "brief")}:
             projection_errors.append({"persona_id": row["persona_id"], "slice_index": row["slice_index"]})
@@ -88,10 +92,14 @@ def audit_social(store, draft, oasis_path):
         if mapped[user_id].participation == "lurker" and action not in {"sign_up", "refresh", "do_nothing"}:
             violations.append({"persona_id": mapped[user_id].persona_id, "action": action})
     withheld = sum(len(json.loads(row["withheld_json"])) for row in disclosures)
+    planner_log = Path(oasis_path).parent / "planner_rejections.jsonl"
+    planner = [json.loads(line) for line in planner_log.read_text(encoding="utf-8").splitlines()] if planner_log.exists() else []
     return {"passed": not violations and not projection_errors and not survey_errors and len(public) > 0 and withheld > 0,
             "violations": violations, "public_projection_errors": projection_errors, "posts_and_comments": len(public),
             "read_records": read_count, "before_experience_read_records": before_count, "withheld_records": withheld,
-            "survey_count": len(surveys), "survey_errors": survey_errors}
+            "survey_count": len(surveys), "survey_errors": survey_errors,
+            "planner_rejected_attempts": sum("attempt" in item for item in planner),
+            "planner_fallbacks_to_do_nothing": sum("fallback" in item for item in planner)}
 
 
 def finalize(draft, root, store, timeline, config, context):
@@ -100,15 +108,15 @@ def finalize(draft, root, store, timeline, config, context):
     usage = json.loads((root / "community/model_usage.json").read_text(encoding="utf-8"))
     intervals = []
     for ledger in [root / "community/model_usage.jsonl", *(root / p.persona_id / "model_usage.jsonl" for p in draft.personas)]:
-        intervals.extend((item["started_at"], item["finished_at"]) for item in
-                         (json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()))
+        if ledger.exists():
+            intervals.extend((item["started_at"], item["finished_at"]) for item in
+                             (json.loads(line) for line in ledger.read_text(encoding="utf-8").splitlines()))
     peak = peak_concurrency(intervals)
     write_json(root / "social_audit.json", social)
-    result = {"passed": browsing["passed"] and social["passed"] and usage["estimate_complete"]
+    result = {"passed": browsing["passed"] and social["passed"]
               and peak <= config["max_model_concurrency"] and store.metadata("community_state") == "closed",
               "context": context, "browsing": browsing, "social": social, "observed_peak_all_model_calls": peak,
-              "discussion_model_usage": usage, "total_usd_min": browsing["cost"]["total_usd_min"] + usage["usd_min"],
-              "total_usd_max": browsing["cost"]["total_usd_max"] + usage["usd_max"]}
+              "discussion_model_usage": usage}
     write_json(root / "phase4_result.json", result)
     return result
 
@@ -162,7 +170,6 @@ async def execute(source_run, root):
                     await process.wait()
             write_json(root / "phase4_result.json", {"passed": False, "status": "interrupted_or_failed"})
             raise
-    await reconcile_billing(draft, root, config)
     return finalize(draft, root, store, timeline, config, context)
 
 

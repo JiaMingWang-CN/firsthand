@@ -9,13 +9,26 @@ from openai import AsyncOpenAI
 
 from core import limits, runtime
 from core.llm import create
-from core.providers import get_adapter, module_route
+from core.providers import ADAPTERS, get_adapter, module_route
 
 
 CONFIG = {"provider": "deepseek", "model": "custom", "base_url": "https://test.invalid/v1", "api_key": "test",
           "thinking_type": "disabled", "api": "responses", "max_model_concurrency": 2, "max_browser_concurrency": 1}
 SCHEMA = {"name": "answer", "strict": True, "schema": {"type": "object", "properties": {"answer": {"type": "string"}},
           "required": ["answer"], "additionalProperties": False}}
+
+
+@pytest.fixture(autouse=True)
+def fresh_warnings(monkeypatch):
+    for adapter in ADAPTERS.values():
+        monkeypatch.setattr(adapter, "warned", False)
+
+
+def test_json_object_limitation_is_printed_once_per_process(capsys):
+    adapter = ADAPTERS["mimo"]
+    for _ in range(3):
+        adapter.output_options("chat_completions", SCHEMA)
+    assert capsys.readouterr().out.count("MiMo") == 1
 
 
 @pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo"])

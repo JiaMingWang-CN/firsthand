@@ -95,6 +95,9 @@ async def probe_model(config, run_dir):
                 options["tool_choice"] = {"type": "function", "function": {"name": "echo"}}
             await check(name, [{"role": "user", "content": f"Call echo with token {token}. Do not answer in text."}],
                         lambda message: valid_calls(message, ["echo"], token), **options)
+            if forced and not adapter.honors_forced_tool_choice:
+                # The sample can pass by choice; the provider documents that it does not enforce the setting.
+                profile["checks"][name].update(enforced=False, reason=f"{adapter.name} 忽略非 auto 的 tool_choice")
         await check("parallel_tools", [{"role": "user", "content": f"Call both echo_a and echo_b in one turn, each with token {token}."}],
                     lambda message: valid_calls(message, ["echo_a", "echo_b"], token),
                     tools=[tool_definition("echo_a"), tool_definition("echo_b")], parallel_tool_calls=True)
@@ -128,7 +131,9 @@ async def probe_model(config, run_dir):
                 {"type": "text", "text": "Read the three numbers in the image. Reply only with those numbers separated by spaces."},
                 {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}},
             ]}], lambda message, expected=answer: " ".join((message.content or "").split()) == expected)
-        # These samples establish a tested lower bound, not the model's maximum context.
+        # These samples establish a tested lower bound, not the model's maximum context;
+        # the provider-stated window, when known, is recorded separately.
+        profile["stated_context_window"] = adapter.context_window
         for size in [2048, 8192, 32768]:
             padding = "sample " * (size // 7)
             await check(f"context_{size}_chars", [{"role": "user", "content": f"Remember token {token}.\n{padding}\nReturn only the token from the beginning."}],

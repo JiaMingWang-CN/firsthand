@@ -122,4 +122,50 @@ def test_invalid_planner_calls_never_execute_and_fall_back_to_no_action(tmp_path
     path = tmp_path / "rejections.jsonl"
     result = asyncio.run(choose_action(Backend(), fixture_persona(False), [], "PUBLIC_ONLY", {"create_post", "do_nothing"}, path))
     assert result == ("do_nothing", {}) and len(calls) == 3
-    assert len(path.read_text(encoding="utf-8").splitlines()) == 3
+    entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert [item.get("attempt") for item in entries[:3]] == [1, 2, 3] and entries[3]["fallback"] == "do_nothing"
+
+
+@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
+def test_forced_tool_choice_is_sent_only_to_providers_that_enforce_it(tmp_path, monkeypatch, provider):
+    monkeypatch.chdir(tmp_path)
+    from datetime import datetime, timezone
+    from discussion.community import Community
+    from core.simulation import SimulationStore
+    from tests.verify_phase2 import fixture_persona
+    person = fixture_persona(False)
+    draft = SimpleNamespace(personas=[person], run_config=SimpleNamespace(start_time=datetime(2026, 10, 3, tzinfo=timezone.utc)))
+    store = SimulationStore(tmp_path / "run.db")
+    store.initialize(draft, [{"persona_id": person.persona_id, "slice_index": 1}])
+    (tmp_path / "community").mkdir()
+    config = {"provider": provider, "model": "custom", "base_url": "https://test.invalid/v1", "api_key": "test",
+              "thinking_type": "disabled", "api": "responses", "max_model_concurrency": 2, "max_browser_concurrency": 1}
+
+    async def run():
+        community = Community(draft, store, tmp_path / "community", config, {}, "seed")
+        try:
+            return dict(community.backend.model_config_dict)
+        finally:
+            await community.client.close()
+    options = asyncio.run(run())
+    assert options.get("tool_choice") == ("required" if provider == "deepseek" else None)
+    assert options["parallel_tool_calls"] is False
+
+
+def test_one_failed_questionnaire_does_not_cancel_the_others(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    from discussion import community as module
+    people = [SimpleNamespace(persona_id=f"p{i:02d}") for i in range(1, 4)]
+    answered = []
+
+    async def answer(client, config, capability, persona, store):
+        if persona.persona_id == "p02":
+            raise ValueError("invalid questionnaire")
+        await asyncio.sleep(0.01)
+        answered.append(persona.persona_id)
+    monkeypatch.setattr(module, "answer_exit", answer)
+    fake = SimpleNamespace(draft=SimpleNamespace(personas=people), client=None, config={}, capability={}, store=None, root=tmp_path)
+    result = asyncio.run(module.Community.finish(fake))
+    assert answered == ["p01", "p03"] and result["survey_count"] == 2
+    assert result["survey_failures"][0]["persona_id"] == "p02"
+    assert json.loads((tmp_path / "survey_failures.json").read_text(encoding="utf-8"))[0]["error_type"] == "ValueError"

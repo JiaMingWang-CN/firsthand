@@ -220,14 +220,6 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                             await steel.sessions.release(session.id)
                             result["released"] = True
                             result["browser_released_at"] = datetime.now(timezone.utc).isoformat()
-                            try:
-                                bill = await steel.get(f"/v1/sessions/{session.id}/cost", cast_to=dict[str, object])
-                                if bill.get("currency") != "usd" or bill.get("unit") != "dollar":
-                                    raise ValueError("Unsupported session bill currency or unit")
-                                result["browser_billing"] = {"available": True, **bill,
-                                    "source": "Steel GET /v1/sessions/{id}/cost"}
-                            except Exception as billing_error:
-                                result["browser_billing"] = {"available": False, "error_type": type(billing_error).__name__}
                         except Exception as error:
                             memory.infrastructure_errors.append(error_summary(error, run_dir))
         except asyncio.CancelledError:

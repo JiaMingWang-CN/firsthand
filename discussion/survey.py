@@ -30,8 +30,8 @@ async def answer_exit(client, config, capability, persona, store):
             biggest_issue=None, favorite=None, unsaid=[], opinion_changed=False, influencing_post_ids=[],
             explanation="尚无已校验的亲身体验，无法评价产品或给出 NPS；此为系统缺失标记，不是模型作答。")
     else:
-        prompt = ("这是匿名且不公开的离场问卷。无论发帖、潜水或隐瞒，都完整回答真实私下体验；不要伪装成已体验。"
-                  "NPS 为 0–10，未体验必须为 null。最大问题、最喜欢点、未说出口内容只引用自己的 finding_id；没有就为 null/空列表。"
+        prompt = ("这是匿名且不公开的离场问卷。无论发帖、潜水或隐瞒，都完整回答真实私下体验。"
+                  "你已有经系统校验的亲身体验：has_experience 必须为 true，nps 必须是 0–10 的整数。最大问题、最喜欢点、未说出口内容只引用自己的 finding_id；没有就为 null/空列表。"
                   "讨论影响只引用实际读过的帖子编号，不把其他人的话当自己的体验。\n"
                   + json.dumps({"persona": persona.model_dump(), "memory": memory.model_dump(exclude={"session"}),
                      "findings": {key: value.model_dump() for key, value in finding_map(memory).items()},
