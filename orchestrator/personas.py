@@ -149,7 +149,7 @@ def validation_message(error):
     return str(error)
 
 
-async def request_json(client, config, capability, schema, prompt, validate=None, label=None):
+async def request_json(client, config, capability, schema, prompt, validate=None, label=None, max_tokens=4096):
     checks = capability["checks"]
     adapter = get_adapter(config)
     schema_supported = adapter.supports_json_schema(llm_api(config))
@@ -168,7 +168,7 @@ async def request_json(client, config, capability, schema, prompt, validate=None
     label = label or schema.__name__
     for attempt in range(3):
         started = time.monotonic()
-        message, _ = await create(client, config, messages, 4096, GENERATION_DEADLINE, label, **options)
+        message, _ = await create(client, config, messages, max_tokens, GENERATION_DEADLINE, label, **options)
         elapsed = time.monotonic() - started
         content = message.content or ""
         try:
