@@ -24,6 +24,9 @@ def timeline_draft():
         duration_days=1, time_slice_minutes=60, max_concurrency=2))
 
 
+WORK_SECONDS = 0.05
+
+
 @pytest.mark.parametrize("limit", [1, 2, 5])
 def test_timeline_queues_peers_and_waits_before_advancing_clock(tmp_path, limit):
     rows = [{"persona_id": f"p{i:02d}", "slice_index": 0 if i <= 6 else 1, "utc_time": "2026-10-03T00:00:00+00:00"}
@@ -37,7 +40,7 @@ def test_timeline_queues_peers_and_waits_before_advancing_clock(tmp_path, limit)
         active += 1
         peak = max(peak, active)
         calls.append(pid)
-        await asyncio.sleep(0.015)
+        await asyncio.sleep(WORK_SECONDS)
         active -= 1
         if number <= 6:
             completed_first.add(pid)
@@ -46,7 +49,9 @@ def test_timeline_queues_peers_and_waits_before_advancing_clock(tmp_path, limit)
     assert len(calls) == 10 and len(set(calls)) == 10
     assert peak == limit and result["peak_workers"] == limit
     assert all(job["state"] == "completed" for job in result["jobs"].values())
-    assert max(job["queue_seconds"] for job in result["jobs"].values()) >= 0.015
+    # asyncio treats a timer as due within one clock resolution (15.625 ms on Windows), so a queued
+    # persona's measured wait for a full worker run can fall short of WORK_SECONDS by at most that much.
+    assert max(job["queue_seconds"] for job in result["jobs"].values()) >= WORK_SECONDS - time.get_clock_info("monotonic").resolution
     assert len(result["slices"]) == 24 and all(item["state"] == "completed" for item in result["slices"])
 
 
