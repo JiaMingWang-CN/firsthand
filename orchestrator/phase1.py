@@ -47,7 +47,7 @@ def save_review(run_dir, draft, manual):
              "阶段 0 浏览验证待解决，Scout 尚未执行；本文件不包含真实产品体验结论。", "",
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
              "## 模拟配置", "", "```json", draft.run_config.model_dump_json(indent=2), "```", "",
-             "默认并发为 1；Steel 套餐并发上限尚未验证。", "",
+             "浏览并发同时受环境中的模型上限、浏览器上限和能力探测建议值限制；Steel 套餐需匹配该配置。", "",
              "## 主 Agent 的分布方案", "", draft.cohort_rationale, "",
              "按当前草稿统计：", "", *distribution_summary(draft), "",
              "## Persona 与时间表", "", "| ID | 姓名 | 年龄/性别 | 设备/技术/耐心 | 动机 | 参与 | 本地体验时间 | UTC时间片 | 任务 |",

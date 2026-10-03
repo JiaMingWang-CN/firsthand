@@ -222,7 +222,7 @@ def test_json_validation_retry_keeps_schema_and_thinking():
 
 def test_failed_prompt_json_capability_cannot_be_used_as_fallback():
     capability = dict(CAPABILITY, checks={"json_schema": {"supported": False}, "json_prompt": {"supported": False}})
-    with pytest.raises(ValueError, match="未通过提示词 JSON"):
+    with pytest.raises(ValueError, match="未通过 JSON Object 或提示词 JSON"):
         asyncio.run(request_json(None, CONFIG, capability, ProductSummary, "Extract product"))
 
 
@@ -290,7 +290,8 @@ def test_reviewer_cannot_override_assignment_errors(draft):
         validate_draft(draft, read_manual(SAMPLE), CAPABILITY)
 
 
-def test_main_agent_plans_cohort_then_slots_fill_in_parallel(monkeypatch, capsys):
+@pytest.mark.parametrize("model_limit,browser_limit", [(1, 1), (3, 1), (2, 5), (10, 1)])
+def test_main_agent_plans_cohort_then_slots_fill_in_parallel(monkeypatch, capsys, model_limit, browser_limit):
     manual = read_manual(SAMPLE)
     slots = {slot.persona_id: slot for slot in plan_slots(manual)}
     in_flight, peak, calls = 0, 0, Counter()
@@ -345,13 +346,15 @@ def test_main_agent_plans_cohort_then_slots_fill_in_parallel(monkeypatch, capsys
         return real_client(**kwargs, http_client=httpx.AsyncClient(transport=httpx.MockTransport(respond)))
 
     monkeypatch.setattr(personas, "AsyncOpenAI", client)
-    draft = asyncio.run(personas.generate_draft(CONFIG, CAPABILITY, manual))
+    config = dict(CONFIG, max_model_concurrency=model_limit, max_browser_concurrency=browser_limit)
+    draft = asyncio.run(personas.generate_draft(config, CAPABILITY, manual))
     output = capsys.readouterr().out
     assert draft.cohort_rationale == "按目标用户分布"
     assert [(p.gender, p.age, p.browsing_profile.motivation) for p in draft.personas] == [
         (s.gender, s.age, s.motivation) for s in slots.values()]
     assert len({p.username for p in draft.personas}) == 10 and draft.personas[1].username == "user_2"
-    assert peak == 10 and calls["p02"] == 2 and calls["p03"] == 2
+    assert peak == model_limit and calls["p02"] == 2 and calls["p03"] == 2
+    assert draft.run_config.max_concurrency == min(model_limit, browser_limit)
     assert "维度矩阵 第 1 次不合法" in output and "至少 2 名开发者" in output and "姓名不能重复" in output and "维度矩阵 第 2 次通过" in output
     assert "Persona p03 第 1 次不合法" in output and "realname/profession/gender/age 必须与维度矩阵一致" in output
     assert "Persona p02 需重新生成：username 与已有角色重复" in output
