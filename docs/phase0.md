@@ -1,5 +1,13 @@
 # 阶段 0：技术验证与运行方式
 
+## 2026-10-03 审查修复：运行协议能力门禁
+
+首选 Responses 时，能力探测另测 Chat Completions 的基础对话、单工具调用和两次随机识图，保存为 `chat_completions_conversation`、`chat_completions_tool_call`、`chat_completions_vision_0/1`；四项均通过才允许 `ready=true`。框架降级后的能力不能由 Responses 样本代替。
+
+加载能力文件时也核对这四项。旧 Responses 能力文件缺少它们时必须重新探测，不修改历史能力文件或审批记录；若替换已审批目录的能力文件，需要重新审核，因为审批哈希绑定了该文件。回归通过本地协议夹具验证，不调用远程模型。
+
+浏览探针和正式浏览共用请求阶段的导航拦截，行为与限制见 `phase2.md`。
+
 ## 安装与配置
 
 浏览与模型探测使用 Python 3.12，OASIS 使用 Python 3.11。camel-oasis 0.2.5 的 Python 声明为 `>=3.10,<3.12`，不能与浏览环境直接共用。

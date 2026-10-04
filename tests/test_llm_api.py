@@ -144,9 +144,65 @@ def test_responses_probe_measures_chat_fallback_schema_separately(tmp_path, monk
     monkeypatch.setattr(model, "AsyncOpenAI", FakeClient)
     monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"test-image"))
     profile = asyncio.run(model.probe_model(CONFIG, tmp_path))
-    assert profile["ready"] and profile["api"] == "responses"
+    assert not profile["ready"] and profile["api"] == "responses"
     assert profile["checks"]["json_schema"]["supported"] is True
     assert profile["checks"]["chat_completions_json_schema"]["supported"] is False
     from core.runtime import chat_json_schema_supported
     assert chat_json_schema_supported(profile) is False
     assert chat_json_schema_supported({"checks": {"json_schema": {"supported": True}}}) is True
+
+
+@pytest.mark.parametrize("unsupported", ["conversation", "tools", "vision", None])
+def test_responses_readiness_requires_chat_runtime_capabilities(tmp_path, monkeypatch, unsupported):
+    import re
+    from types import SimpleNamespace
+    from probe import model
+
+    requests = []
+
+    async def fake_create(client, config, messages, *args, **kwargs):
+        content = messages[0]["content"]
+        chat = config["api"] == "chat_completions"
+        requests.append((chat, isinstance(content, list), bool(kwargs.get("tools"))))
+        calls = None
+        if isinstance(content, list):
+            answer = "cannot see" if chat and unsupported == "vision" else "123 456 789"
+        else:
+            token = re.search(r"[a-f0-9]{16}", content).group()
+            answer = token
+            if kwargs.get("tools") and not (chat and unsupported == "tools"):
+                calls = [SimpleNamespace(function=SimpleNamespace(name=tool["function"]["name"],
+                         arguments=json.dumps({"token": token}))) for tool in kwargs["tools"]]
+            if "JSON" in content:
+                answer = json.dumps({"token": token})
+            elif chat and unsupported == "conversation" and not kwargs.get("tools"):
+                answer = "wrong token"
+        return SimpleNamespace(content=answer, tool_calls=calls), None
+
+    monkeypatch.setattr(model, "create", fake_create)
+    monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"fixture"))
+    config = dict(CONFIG, provider="mimo")
+    profile = asyncio.run(model.probe_model(config, tmp_path))
+    assert profile["ready"] is (unsupported is None)
+    assert any(chat and tools for chat, _, tools in requests)
+    assert sum(chat and images for chat, images, _ in requests) == 2
+    if unsupported:
+        with pytest.raises(ValueError):
+            require_capabilities(tmp_path, config)
+    else:
+        assert require_capabilities(tmp_path, config)["ready"]
+
+
+@pytest.mark.parametrize("missing", ["chat_completions_conversation", "chat_completions_tool_call",
+                                    "chat_completions_vision_0", "chat_completions_vision_1"])
+def test_saved_responses_profile_cannot_skip_failed_or_missing_chat_probe(tmp_path, missing):
+    checks = {name: {"supported": True} for name in ("chat_completions_conversation",
+              "chat_completions_tool_call", "chat_completions_vision_0", "chat_completions_vision_1")}
+    for value in (None, {"supported": False}):
+        if value is None:
+            checks.pop(missing, None)
+        else:
+            checks[missing] = value
+        write_json(tmp_path / "capability_profile.json", {**CONFIG, "ready": True, "checks": checks})
+        with pytest.raises(ValueError, match="Chat Completions"):
+            require_capabilities(tmp_path, CONFIG)

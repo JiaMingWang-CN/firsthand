@@ -19,12 +19,14 @@ from report.render import render
 def fingerprint(source):
     """Hash every file the report reads, so a mid-run change to the source is detected."""
     return {str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
-            for path in sorted(source.rglob("*")) if path.is_file() and path.suffix in {".db", ".json", ".jsonl"}
+            for path in sorted(source.rglob("*")) if path.is_file() and path.suffix in {".db", ".json", ".jsonl", ".png"}
             and not path.name.endswith(("-wal", "-shm"))}
 
 
 async def execute(source, root, capability_dir, use_model):
     source, root = Path(source).resolve(), Path(root).resolve()
+    if root.is_relative_to(source):
+        raise ValueError("Report output must be outside the source run directory")
     if not (source / "phase4_result.json").is_file():
         raise ValueError("Source must be a phase-4 run directory")
     phase4 = json.loads((source / "phase4_result.json").read_text(encoding="utf-8"))
@@ -52,19 +54,20 @@ async def execute(source, root, capability_dir, use_model):
         notes.append("未调用模型：问题清单与亮点为空，其余章节来自完整记录。")
     report = build_report(store, claims, notes)
     errors = verify_report(report, store)
-    if fingerprint(source) != before:
-        errors.append("来源运行目录在生成期间发生变化")
     context = json.loads((source / "run_context.json").read_text(encoding="utf-8"))
     model_path = Path(context["source_run"]) / "product_model.json"
     product = json.loads(model_path.read_text(encoding="utf-8"))["metadata"]["name"] if model_path.is_file() else "产品"
     write_json(root / "report.json", report)
-    (root / "report.md").write_text(render(report, source, root, product), encoding="utf-8")
+    (root / "report.md").write_text(render(report, source, root, product, evidence_index=store.records), encoding="utf-8")
     write_json(root / "agent_trace.json", trace)
     write_json(root / "evidence_index.json", {ref: {key: value for key, value in record.items() if key != "data"}
                                               for ref, record in store.records.items()})
+    unchanged = fingerprint(source) == before
+    if not unchanged:
+        errors.append("来源运行目录在生成期间发生变化")
     result = {"passed": not errors and (not use_model or bool(report["sections"]["issues"] or report["sections"]["highlights"])),
               "errors": errors, "model_used": use_model, "source_run": str(source), "source_context_sha256": hashlib.sha256(
-                  (source / "run_context.json").read_bytes()).hexdigest(), "source_files_unchanged": fingerprint(source) == before,
+                  (source / "run_context.json").read_bytes()).hexdigest(), "source_files_unchanged": unchanged,
               "issues": len(report["sections"]["issues"]), "highlights": len(report["sections"]["highlights"]),
               "rejected_claims": len(report["rejected_claims"]), "silence_signals": len(report["silence_signals"]),
               "source_provider": context["configuration"]["provider"], "source_phase4_passed": bool(phase4.get("passed"))}

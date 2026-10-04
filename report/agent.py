@@ -70,7 +70,8 @@ def claim_error(claim, store, section):
     if not anchored:
         return f"“{section}”章节至少要引用一条 {kind} 类型的体验结论"
     people = affected(claim, store, kind)
-    named = {pid for pid in re.findall(r"(?<![A-Za-z0-9])p\d+(?!\d)", claim.title + claim.detail) if pid in store.people}
+    named = {pid.lower() for pid in re.findall(r"(?<![A-Za-z0-9])p\d+(?!\d)", claim.title + "\n" + claim.detail,
+                                             flags=re.I) if pid.lower() in store.people}
     if named - people:
         return f"标题或正文点名了没有引用其 {kind} 体验结论的 Persona：" + "、".join(sorted(named - people))
     return None
@@ -203,11 +204,12 @@ def consistency(store):
 
 def opinion_dynamics(store):
     reads = [record for record in store.records.values() if record["category"] == "reads"]
-    per_person = defaultdict(lambda: {"before_experience": 0, "after_experience": 0})
+    per_person = defaultdict(lambda: {"before_experience": 0, "after_experience": 0, "refs": []})
     readers = defaultdict(lambda: {"before": set(), "all": set()})
     for record in reads:
         data, pid = record["data"], record["persona_id"]
         per_person[pid]["before_experience" if data["before_experience"] else "after_experience"] += 1
+        per_person[pid]["refs"].append(record["ref_id"])
         readers[data["post_id"]]["all"].add(pid)
         if data["before_experience"]:
             readers[data["post_id"]]["before"].add(pid)
@@ -218,6 +220,7 @@ def opinion_dynamics(store):
             influence.append({"persona_id": pid, "post_ids": answer["influencing_post_ids"],
                               "refs": [f"{pid}:survey:influencing_post_ids", *(f"post:{post}" for post in answer["influencing_post_ids"] if f"post:{post}" in store.records)]})
     reach = [{"post_id": post, "ref_id": f"post:{post}" if f"post:{post}" in store.records else None,
+              "refs": [r["ref_id"] for r in reads if r["data"]["post_id"] == post],
               "readers": sorted(seen["all"]), "read_before_own_experience": sorted(seen["before"])}
              for post, seen in sorted(readers.items(), key=lambda item: (-len(item[1]["all"]), item[0]))]
     return {"read_records": len(reads), "by_persona": dict(per_person), "opinion_changes": influence, "post_reach": reach[:10]}
@@ -264,11 +267,14 @@ def verify_report(report, store):
             if not item["evidence"] or any(link["ref_id"] not in known for link in item["evidence"]):
                 errors.append(f"{section}: {item['title']} 缺少可解析的证据")
     for name, rows in [("silence_signals", report["silence_signals"]), ("consistency", report["consistency"]),
-                       ("time_slots", report["time_slots"]), ("opinion_changes", report["opinion_dynamics"]["opinion_changes"])]:
+                       ("time_slots", report["time_slots"]), ("opinion_changes", report["opinion_dynamics"]["opinion_changes"]),
+                       ("read_counts", report["opinion_dynamics"]["by_persona"].values()),
+                       ("post_reach", report["opinion_dynamics"]["post_reach"])]:
         for item in rows:
             if not item["refs"] and (name != "time_slots" or item["personas"]):
                 errors.append(f"{name}: 条目缺少证据引用")
             errors.extend(f"{name}: 引用不存在 {ref}" for ref in item["refs"] if ref not in known)
+    errors.extend(f"public_voice: 引用不存在 {item['ref_id']}" for item in report["public_voice"]["items"] if item["ref_id"] not in known)
     return errors
 
 

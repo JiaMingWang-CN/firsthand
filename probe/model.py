@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.llm import create
 from core.limits import concurrency_limits
 from core.providers import get_adapter
-from core.runtime import error_summary, llm_api, require, settings, write_json
+from core.runtime import CHAT_RUNTIME_CHECKS, error_summary, llm_api, require, settings, write_json
 
 # Whole-request limit per probe; a normal vision check takes up to about 50s.
 PROBE_DEADLINE = 90
@@ -115,12 +115,18 @@ async def probe_model(config, run_dir):
         await check("json_object", [{"role": "user", "content": f'Return only JSON: {{"token":"{token}"}}'}],
                     valid_json, json_object=True)
         if llm_api(config) == "responses":
-            # Browser Use and OASIS fall back to Chat Completions; measure its structured output separately.
+            # The frameworks execute on Chat: capability on Responses is not evidence for that path.
+            chat_config = dict(config, api="chat_completions")
+            await check("chat_completions_conversation", [{"role": "user", "content": f"Reply with exactly {token}"}],
+                        lambda message: (message.content or "").strip() == token, request_config=chat_config)
+            await check("chat_completions_tool_call", [{"role": "user", "content": f"Call echo with token {token}. Do not answer in text."}],
+                        lambda message: valid_calls(message, ["echo"], token), request_config=chat_config,
+                        tools=[tool_definition("echo")])
             await check("chat_completions_json_schema", [{"role": "user", "content": f'Return a JSON object with token "{token}".'}],
-                        valid_json, request_config=dict(config, api="chat_completions"),
+                        valid_json, request_config=chat_config,
                         json_schema={"name": "probe", "strict": True, "schema": schema})
             await check("chat_completions_json_object", [{"role": "user", "content": f'Return only JSON: {{"token":"{token}"}}'}],
-                        valid_json, request_config=dict(config, api="chat_completions"), json_object=True)
+                        valid_json, request_config=chat_config, json_object=True)
         # Verify prompt-constrained JSON too, so the fallback has evidence.
         await check("json_prompt", [{"role": "user", "content": f'Return only valid JSON: {{"token":"{token}"}}'}], valid_json)
         for index in range(2):
@@ -131,6 +137,12 @@ async def probe_model(config, run_dir):
                 {"type": "text", "text": "Read the three numbers in the image. Reply only with those numbers separated by spaces."},
                 {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}},
             ]}], lambda message, expected=answer: " ".join((message.content or "").split()) == expected)
+            if llm_api(config) == "responses":
+                await check(f"chat_completions_vision_{index}", [{"role": "user", "content": [
+                    {"type": "text", "text": "Read the three numbers in the image. Reply only with those numbers separated by spaces."},
+                    {"type": "image_url", "image_url": {"url": "data:image/png;base64," + base64.b64encode(png).decode()}},
+                ]}], lambda message, expected=answer: " ".join((message.content or "").split()) == expected,
+                            request_config=chat_config)
         # These samples establish a tested lower bound, not the model's maximum context;
         # the provider-stated window, when known, is recorded separately.
         profile["stated_context_window"] = adapter.context_window
@@ -141,6 +153,8 @@ async def probe_model(config, run_dir):
         await asyncio.gather(*(check(f"concurrent_{index}", [{"role": "user", "content": f"Reply with exactly {token}"}],
                               lambda message: (message.content or "").strip() == token) for index in range(10)))
     required = ["conversation", "tool_call", "vision_0", "vision_1"]
+    if llm_api(config) == "responses":
+        required.extend(CHAT_RUNTIME_CHECKS)
     profile["ready"] = all(profile["checks"][name]["supported"] for name in required)
     profile["structured_output"] = ("json_schema" if profile["checks"]["json_schema"]["supported"] else
                                     "json_object_with_validation" if profile["checks"]["json_object"]["supported"] else "prompt_with_validation")

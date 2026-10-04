@@ -14,6 +14,8 @@ from core.limits import concurrency_limits
 from core.providers import get_adapter, llm_api, module_route
 
 ROOT = Path(__file__).resolve().parents[1]
+CHAT_RUNTIME_CHECKS = ("chat_completions_conversation", "chat_completions_tool_call",
+                       "chat_completions_vision_0", "chat_completions_vision_1")
 
 
 def settings():
@@ -103,4 +105,7 @@ def require_capabilities(run_dir, config):
         raise ValueError("Thinking mode changed; rerun the model capability probe")
     if profile.get("api", "chat_completions") != llm_api(config):
         raise ValueError("LLM_API changed; rerun the model capability probe")
+    if llm_api(config) == "responses" and not all(
+            profile.get("checks", {}).get(name, {}).get("supported") is True for name in CHAT_RUNTIME_CHECKS):
+        raise ValueError("Chat Completions runtime conversation, tool calling and vision probes must pass; rerun the model capability probe")
     return profile

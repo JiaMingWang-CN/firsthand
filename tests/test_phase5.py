@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import sqlite3
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -113,10 +114,13 @@ def test_forged_quote_and_wrong_issue_kind_are_rejected(source):
 
 
 def add_actions(source, success):
+    from core.community import Disclosure, public_projection
+    from core.experience import load_experience
+    body = public_projection(Disclosure(shared=["p01:f001"], withheld=[], tone="direct"), load_experience(source / "p01"))
     with sqlite3.connect(source / "run.db") as db:
         db.execute("CREATE TABLE actions(persona_id, slice_index, action, public_body, result_json)")
-        db.execute("UPDATE disclosures SET shared_json='[\"p01:f001\"]', withheld_json='[]', public_body='公开正文'")
-        db.execute("INSERT INTO actions VALUES('p01',1,'create_post','公开正文',?)", (json.dumps({"success": success}),))
+        db.execute("UPDATE disclosures SET shared_json='[\"p01:f001\"]', withheld_json='[]', public_body=?", (body,))
+        db.execute("INSERT INTO actions VALUES('p01',1,'create_post',?,?)", (body, json.dumps({"success": success})))
 
 
 def test_a_rejected_publication_does_not_count_as_public(source):
@@ -237,3 +241,110 @@ def test_missing_surveys_are_called_out(source):
         db.execute("DELETE FROM surveys WHERE persona_id='p02'")
     report = build_report(EvidenceStore(source), {})
     assert any("p02" in note and "问卷" in note for note in report["overview"]["coverage_notes"])
+
+
+@pytest.mark.parametrize("mutation", ["foreign", "non_finding", "overlap", "duplicate", "missing",
+                                    "unknown_persona", "lurker_shared", "private_body", "before_experience"])
+def test_report_rejects_invalid_disclosure_contract(source, mutation):
+    shared, hidden, pid, body = [], [{"finding_id": "p01:f001", "reason": "私下保留"}], "p01", ""
+    if mutation == "foreign":
+        hidden[0]["finding_id"] = "p02:f001"
+    elif mutation == "non_finding":
+        hidden[0]["finding_id"] = "p01:outcome"
+    elif mutation == "overlap":
+        shared = ["p01:f001"]
+    elif mutation == "duplicate":
+        hidden *= 2
+    elif mutation == "missing":
+        hidden = []
+    elif mutation == "unknown_persona":
+        pid = "p99"
+    elif mutation == "lurker_shared":
+        pid, shared, hidden = "p02", ["p02:f001"], []
+    elif mutation == "private_body":
+        body = "PRIVATE_SENTINEL"
+    with sqlite3.connect(source / "run.db") as db:
+        if mutation == "before_experience":
+            db.execute("UPDATE experiences SET slice_index=2 WHERE persona_id='p01'")
+        db.execute("UPDATE disclosures SET persona_id=?,shared_json=?,withheld_json=?,public_body=?",
+                   (pid, json.dumps(shared), json.dumps(hidden), body))
+    with pytest.raises(ValueError, match="Disclosure"):
+        EvidenceStore(source)
+
+
+@pytest.mark.parametrize("prose", ["P01、P02 都遇到按钮无反馈", "p01、P02 都遇到按钮无反馈"])
+def test_persona_name_gate_is_case_insensitive(source, prose):
+    store = EvidenceStore(source)
+    item = claim(["p01:f001"])
+    item.detail = prose
+    accepted, rejected = accept_claims([item], store, "issues")
+    assert not accepted and "p02" in rejected[0]["reason"]
+    item.citations.append(Citation(ref_id="p02:f001", quote="按钮无反馈"))
+    assert accept_claims([item], store, "issues")[0]
+
+
+def test_nested_report_output_is_rejected_before_writing(source):
+    from orchestrator.phase5 import execute, fingerprint
+    save_json(source / "phase4_result.json", {"passed": True})
+    before = fingerprint(source)
+    with pytest.raises(ValueError, match="outside"):
+        asyncio.run(execute(source, source / "reports" / "new", None, False))
+    assert not (source / "reports").exists() and fingerprint(source) == before
+
+
+@pytest.mark.parametrize("changed", ["metadata", "screenshot"])
+def test_source_change_during_output_makes_report_fail(source, tmp_path, monkeypatch, changed):
+    from orchestrator import phase5
+    save_json(source / "phase4_result.json", {"passed": True})
+    save_json(source / "run_context.json", {"source_run": str(tmp_path), "configuration": {"provider": "fixture"}})
+    original = phase5.write_json
+    def change_source(path, data):
+        original(path, data)
+        if Path(path).name == "report.json":
+            if changed == "metadata":
+                save_json(source / "social_audit.json", {"passed": False})
+            else:
+                (source / "p01/screenshots/before.png").write_bytes(b"changed screenshot")
+    monkeypatch.setattr(phase5, "write_json", change_source)
+    result = asyncio.run(phase5.execute(source, tmp_path / "out", None, False))
+    assert not result["passed"] and not result["source_files_unchanged"] and result["errors"]
+
+
+def test_all_rendered_conclusion_sections_link_to_local_evidence(source, tmp_path):
+    from orchestrator.phase5 import execute
+    with sqlite3.connect(source / "run.db") as db:
+        db.execute("INSERT INTO reads VALUES(1,'p01',0,1,1,?)", (json.dumps({"post_id": 1, "content": "无反馈"}),))
+        answer = json.loads(db.execute("SELECT answer_json FROM surveys WHERE persona_id='p01'").fetchone()[0])
+        answer.update(opinion_changed=True, influencing_post_ids=[1])
+        db.execute("UPDATE surveys SET answer_json=? WHERE persona_id='p01'", (json.dumps(answer),))
+    save_json(source / "phase4_result.json", {"passed": True})
+    save_json(source / "run_context.json", {"source_run": str(tmp_path), "configuration": {"provider": "fixture"}})
+    out = tmp_path / "report with spaces"
+    assert asyncio.run(execute(source, out, None, False))["passed"]
+    markdown = (out / "report.md").read_text(encoding="utf-8")
+    for heading, end in [("### 4.1", "### 4.2"), ("### 4.2", "### 4.3"),
+                         ("### 4.3", "## 5."), ("## 5.", "## 6."), ("## 6.", "## 7.")]:
+        section = markdown.split(heading, 1)[1].split(end, 1)[0]
+        assert "](" in section, heading
+    read_table = markdown.split("| Persona | 体验前看帖", 1)[1].split("**自述观点被改变**", 1)[0]
+    assert "[read:1]" in read_table
+
+
+def test_relative_evidence_links_encode_spaces_and_markdown_delimiters(tmp_path):
+    from report.render import link
+    assert link(tmp_path / "source dir", tmp_path / "out", "shot (1).png", "截图") == "[截图](../source%20dir/shot%20%281%29.png)"
+
+
+def test_unknown_ref_is_reported_as_failure_not_render_crash(source, tmp_path, monkeypatch):
+    from orchestrator import phase5
+    save_json(source / "phase4_result.json", {"passed": True})
+    save_json(source / "run_context.json", {"source_run": str(tmp_path), "configuration": {"provider": "fixture"}})
+    original = phase5.build_report
+    def dangling(*args):
+        report = original(*args)
+        report["consistency"][0]["refs"].append("ghost:ref")
+        return report
+    monkeypatch.setattr(phase5, "build_report", dangling)
+    result = asyncio.run(phase5.execute(source, tmp_path / "out", None, False))
+    assert not result["passed"] and any("ghost:ref" in error for error in result["errors"])
+    assert "`ghost:ref`" in (tmp_path / "out/report.md").read_text(encoding="utf-8")

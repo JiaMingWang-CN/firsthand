@@ -3,8 +3,9 @@
 import json
 from pathlib import Path
 import sqlite3
+from contextlib import closing
 
-from core.community import ExitAnswer, validate_exit
+from core.community import Disclosure, ExitAnswer, public_projection, validate_disclosure, validate_exit
 from core.experience import ExperienceMemory, load_experience
 
 
@@ -20,7 +21,7 @@ def read_lines(path):
 
 
 def rows(path, table, optional=False):
-    with sqlite3.connect(path.as_uri() + "?mode=ro", uri=True) as db:
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)) as db:
         db.row_factory = sqlite3.Row
         db.execute("PRAGMA query_only=ON")
         if optional and not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?", (table,)).fetchone():
@@ -87,8 +88,22 @@ class EvidenceStore:
         for row in self.disclosures:
             data = {"slice_index": row["slice_index"], "shared": json.loads(row["shared_json"]),
                     "withheld": json.loads(row["withheld_json"]), "public_body": row["public_body"]}
-            if any(key not in self.records for key in data["shared"] + [item["finding_id"] for item in data["withheld"]]):
-                raise ValueError("Disclosure references missing findings")
+            pid = row["persona_id"]
+            if pid not in self.people:
+                raise ValueError(f"Disclosure {row['disclosure_id']} references an unknown persona")
+            memory = self.memories.get(pid)
+            if memory and row["slice_index"] < self.experiences[pid]["slice_index"]:
+                memory = None
+            try:
+                plan = Disclosure(shared=data["shared"], withheld=data["withheld"], tone="direct")
+                validate_disclosure(plan, memory, self.people[pid]["persona"]["participation"])
+                if row["public_body"] not in {public_projection(plan.model_copy(update={"tone": tone}), memory)
+                                             for tone in ("direct", "soft", "brief")}:
+                    raise ValueError("Public text differs from the shared-only projection")
+            except ValueError as error:
+                raise ValueError(f"Disclosure {row['disclosure_id']} violates its persona's disclosure contract") from error
+            data["shared"] = plan.shared
+            data["withheld"] = [item.model_dump() for item in plan.withheld]
             if row["public_body"] and (not self.has_actions or (row["persona_id"], row["slice_index"], row["public_body"]) in accepted):
                 self.published.update((row["persona_id"], key) for key in data["shared"])
             self.add(f"disclosure:{row['disclosure_id']}", "withheld", "run.db", data, row["persona_id"])
