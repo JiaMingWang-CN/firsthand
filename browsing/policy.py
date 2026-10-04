@@ -3,24 +3,20 @@
 import json
 import os
 import re
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin
 
 from browser_use import ActionResult, Tools
 
 from core.persona import Data, Text
 from browsing.evidence import redact
 from browsing.observations import ObservationGateway
+from browsing.navigation import allowed_url
 from orchestrator.personas import request_json
 
 
 class ActionDecision(Data):
     allowed: bool
     reason: Text
-
-
-def allowed_url(url, domains):
-    parsed = urlsplit(url)
-    return parsed.scheme in {"http", "https"} and parsed.hostname in domains and not parsed.username and not parsed.password
 
 
 def account_secrets(persona, manual):
@@ -95,7 +91,13 @@ class GuardedTools(Tools):
                 return self.denied(values, "Target link is outside allowed HTTP(S) domains")
             parent = node.parent_node
             while parent:
+                if parent.node_name.lower() == "a" and parent.attributes.get("href"):
+                    if not allowed_url(urljoin(current_url, parent.attributes["href"]), domains):
+                        return self.denied(values, "Ancestor link is outside allowed HTTP(S) domains")
+                    target["link"] = {"attributes": parent.attributes, "text": parent.get_all_children_text()[:2000]}
                 if parent.node_name.lower() == "form":
+                    if parent.attributes.get("action") and not allowed_url(urljoin(current_url, parent.attributes["action"]), domains):
+                        return self.denied(values, "Form submits outside allowed HTTP(S) domains")
                     target["form"] = {"attributes": parent.attributes, "text": parent.get_all_children_text()[:2000]}
                     break
                 parent = parent.parent_node

@@ -14,6 +14,7 @@ from steel import AsyncSteel
 from core.limits import async_slot
 from core.runtime import chat_completions_fallback, chat_json_schema_supported, error_summary, require, require_capabilities, settings, write_json
 from browsing.model import ProviderChatOpenAI
+from browsing.navigation import NavigationGuard
 
 # Browser Use degrades silently to a minimal page state when CDP DOM requests fail;
 # count these so the probe fails instead of passing on a page the agent cannot operate.
@@ -65,6 +66,7 @@ async def probe_browser(config, run_dir, profile):
     log_counter.attach()
     session = None
     browser_session = None
+    navigation = None
     async with async_slot(config, "browser"), AsyncSteel(steel_api_key=config["steel_api_key"], timeout=60, max_retries=0) as steel:
         try:
             session = await steel.sessions.create(
@@ -86,6 +88,8 @@ async def probe_browser(config, run_dir, profile):
             with (run_dir / "raw_trace.jsonl").open("w", encoding="utf-8") as trace:
 
                 def record(event, payload):
+                    if trace.closed:
+                        return
                     counts[event] = counts.get(event, 0) + 1
                     if event == "Network.requestWillBeSent" and payload.get("type") == "Document":
                         documents[payload["requestId"]] = {"url": payload["request"]["url"]}
@@ -108,6 +112,9 @@ async def probe_browser(config, run_dir, profile):
                     domain, method = event.split(".")
                     getattr(getattr(cdp.register, domain), method)(
                         lambda payload, session_id=None, name=event: record(name, payload))
+
+                navigation = NavigationGuard(browser_session, [host], record)
+                await navigation.attach()
 
                 async def prepare(cdp_session):
                     # Overrides are per CDP session, so apply them to every page the agent focuses.
@@ -169,6 +176,7 @@ async def probe_browser(config, run_dir, profile):
                 agent.settings.use_vision = True
                 result["use_vision"] = agent.settings.use_vision
                 history = await asyncio.wait_for(agent.run(max_steps=6, on_step_end=capture), timeout=360)
+                navigation.check()
                 # Agent.run resets the browser session when it finishes, so read the URL from history.
                 final_url = next((url for url in reversed(history.urls()) if url), None)
                 result["agent_success"] = history.is_successful()
@@ -195,6 +203,8 @@ async def probe_browser(config, run_dir, profile):
                     result["released"] = True
                 except Exception as error:
                     result["release_error"] = error_summary(error, run_dir)
+            if navigation:
+                await navigation.close()
             log_counter.detach()
             result["dom_failures"] = log_counter.dom_failures
             result["late_cdp_responses"] = log_counter.late_cdp_responses

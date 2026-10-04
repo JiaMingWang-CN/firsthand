@@ -15,6 +15,7 @@ from steel import AsyncSteel
 from browsing.evidence import EvidenceCollector, redact
 from browsing.model import ProviderChatOpenAI
 from browsing.policy import GuardedTools, account_secrets
+from browsing.navigation import NavigationGuard
 from browsing.probe import LogCounter
 from core.experience import Assessment, Completion, ExperienceMemory, ExperienceStep, finding_citation_error, load_experience
 from core.limits import async_slot
@@ -46,8 +47,9 @@ class StepRecorder:
     READ_ACTIONS = {"read_console", "list_failed_requests", "extract", "find_elements", "find_text", "search_page"}
     CAPTCHA = ("请输入验证码", "人机验证", "verify you are human", "checking your browser", "确认您是真人")
 
-    def __init__(self, collector, persona, log_counter=None):
+    def __init__(self, collector, persona, log_counter=None, navigation=None):
         self.collector, self.persona, self.log_counter = collector, persona, log_counter
+        self.navigation = navigation
         self.steps, self.seen, self.reads = [], set(), set()
         self.stalls = 0
         self.stop_reason = None
@@ -58,6 +60,8 @@ class StepRecorder:
         return hashlib.sha256((snapshot.url + "\n" + snapshot.text + f"\n{snapshot.scroll_x},{snapshot.scroll_y}").encode()).hexdigest()
 
     async def before(self, agent):
+        if self.navigation:
+            self.navigation.check()
         self.step_started = time.monotonic()
         # Browser Use builds the page state between this hook and on_step_end.
         self.ax_dropped_before = self.log_counter.ax_tree_dropped if self.log_counter else 0
@@ -97,6 +101,8 @@ class StepRecorder:
             agent.state.stopped = True
 
     async def should_stop(self):
+        if self.navigation:
+            self.navigation.check()
         return self.stop_reason is not None
 
 
@@ -165,6 +171,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
         reason="浏览尚未完成", outcome_source="infrastructure", session={}, snapshots=[], steps=[],
         observed_technical_events=[], assessment=None, infrastructure_errors=[])
     session, browser, collector, recorder, tools = None, None, None, None, None
+    navigation = None
     cancelled = False
     log_counter = LogCounter()
     log_counter.attach()
@@ -188,9 +195,11 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                     collector = EvidenceCollector(browser, run_dir, started,
                                                   [config["api_key"], config["steel_api_key"], *credentials])
                     await collector.attach()
+                    navigation = NavigationGuard(browser, manual["metadata"].allowed_domains, collector.record)
+                    await navigation.attach()
                     await collector.prepare(persona)
                     await browser.navigate_to(manual["metadata"].url)
-                    recorder = StepRecorder(collector, persona, log_counter)
+                    recorder = StepRecorder(collector, persona, log_counter, navigation)
                     tools = GuardedTools(persona, manual, collector, client, config, capability, Completion)
                     llm = ProviderChatOpenAI(model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
                         provider=route.config["provider"], thinking_type=config.get("thinking_type"),
@@ -206,6 +215,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                     agent.settings.use_vision = True
                     history = await asyncio.wait_for(agent.run(max_steps=persona.browsing_profile.max_steps,
                         on_step_start=recorder.before, on_step_end=recorder.after), timeout=max(1, 580 - (time.monotonic() - started)))
+                    navigation.check()
                     if recorder.stop_reason:
                         memory.outcome, memory.reason, memory.outcome_source = "abandoned", recorder.stop_reason, "runtime_limit"
                     elif history.is_done():
@@ -227,6 +237,8 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                             result["browser_released_at"] = datetime.now(timezone.utc).isoformat()
                         except Exception as error:
                             memory.infrastructure_errors.append(error_summary(error, run_dir))
+                    if navigation:
+                        await navigation.close()
         except asyncio.CancelledError:
             cancelled = True
             memory.outcome, memory.reason, memory.outcome_source = "abandoned", "运行被取消，保留已采集的证据", "runtime_limit"

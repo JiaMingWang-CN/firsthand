@@ -1,5 +1,15 @@
 # 阶段 2：单人浏览与 Experience Memory
 
+## 2026-10-03 审查修复：前置导航拦截
+
+`NavigationGuard` 在 Browser Use 的同一条 CDP 连接上启用 `Fetch.requestPaused`，只拦截请求阶段的 Document 请求。每次重定向、脚本导航、iframe 和新标签页都按说明书的完整主机名检查；白名单外请求调用 `Fetch.failRequest`，在请求发出前拒绝，并记录 `navigation_blocked`。普通资源请求不扩大为导航白名单约束。嵌套链接及表单的外域目标也在动作检查时拒绝。
+
+新目标先暂停，安装拦截后再恢复执行。保留框架的 Target/Network 事件处理函数；Fetch 已被其他处理函数占用时拒绝启动，不覆盖它。拦截初始化或执行失败会停止浏览；CDP 自动重连会丢失这些钩子，因此本次体验中拒绝自动重连，按基础设施失败清理会话，之后使用新会话重跑。实现适配当前锁定的 Browser Use 0.13.10。
+
+本地 Chrome 集成回归实际验证脚本跳转、iframe、弹窗及 HTTP 重定向：被禁止的目标服务器收到零条请求；白名单内导航和新弹窗仍能完成。无需模型或 Steel 费用。`tests/test_navigation.py` 同时覆盖新目标恢复顺序、事件冲突、初始化失败及连接替换；没有本地 Chrome/Chromium 时只跳过该集成项。
+
+2026-10-04 补充修复：安装拦截时同步更新已有 page/iframe 会话的子目标自动附加设置，确保后续跨站 iframe 先暂停、安装拦截后再执行。新增本地 Chrome 回归先加载白名单内跨站 iframe，再从其独立会话跳转到禁止域名；该测试在修复前复现目标服务器收到请求，修复后要求请求被拦截且目标服务器收到零条请求。
+
 单个 Persona 使用一个独立 Steel 会话，由 Browser Use 操作；仍沿用同一提供商、模型、思考设置和并发额度。Browser Use 单独降级为 Chat，操作规则检查和体验记忆整理使用环境选择的请求协议。DeepSeek Chat 继续使用 JSON Object、schema 提示词、本地校验和修正重试，不宣称严格 JSON Schema 输出。
 
 ## 正式执行

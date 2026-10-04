@@ -230,6 +230,23 @@ def test_every_navigation_and_click_passes_the_model_rule_check(monkeypatch, ope
     assert not any(event["event"] == "action_auto_allowed" for event in collector.events)
 
 
+@pytest.mark.parametrize("parent_tag,attributes", [("A", {"href": "https://outside.invalid"}),
+                                                  ("FORM", {"action": "https://outside.invalid"})])
+def test_ancestor_links_and_external_forms_are_denied_before_policy_or_browser(monkeypatch, parent_tag, attributes):
+    tools = policy.GuardedTools(fixture_persona(False), fixture_manual(), FakeCollector(), None, {}, {}, experience.Completion)
+    async def forbidden(*args, **kwargs):
+        pytest.fail("An external link/form must be rejected before a model request or browser action")
+    async def url():
+        return "https://example.com"
+    parent = SimpleNamespace(node_name=parent_tag, attributes=attributes, get_all_children_text=lambda: "Continue", parent_node=None)
+    async def node(index):
+        return SimpleNamespace(node_name="BUTTON", attributes={}, get_all_children_text=lambda: "Continue", parent_node=parent)
+    monkeypatch.setattr(Tools, "act", forbidden)
+    monkeypatch.setattr(policy, "request_json", forbidden)
+    result = asyncio.run(tools.act(action({"click": {"index": 1}}), SimpleNamespace(get_current_page_url=url, get_dom_element_by_index=node)))
+    assert result.error and tools.collector.events[-1]["event"] == "action_blocked"
+
+
 def test_each_step_reuses_previous_after_snapshot_as_before_state():
     collector = FakeCollector()
     taken = []
