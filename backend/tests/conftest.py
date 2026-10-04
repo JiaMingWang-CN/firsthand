@@ -76,6 +76,9 @@ def runs_root(source, tmp_path):
         "configuration": {"provider": "fixture", "model": "m", "api": "chat_completions", "api_key": "SECRET-KEY"}})
     save_json(root / "phase1-x" / "product_model.json", {"metadata": {"name": "演示产品"}})
     save_json(root / "phase1-x" / "draft.json", {"run_config": {"duration_days": 1, "time_slice_minutes": 60}})
+    save_json(run / "timeline.json", {"slices": [], "peak_workers": 1, "jobs": {
+        "p01": {"started_at": "2026-10-03T07:16:26+00:00", "finished_at": "2026-10-03T07:17:34+00:00"},
+        "p02": {"started_at": "2026-10-03T07:17:37+00:00", "finished_at": "2026-10-03T07:20:18+00:00"}}})
     save_json(run / "p01" / "session.json", {"viewer_url": "https://viewer.example/SECRET-SESSION"})
     save_json(run / "cost.json", {"model_usd_min": 0.09, "total_usd_max": 0.23, "steel_usd_billed": 0.05})
     ledger = lambda model, usage, error=None: json.dumps({"request": 1, "api": "chat_completions", "model": model, "error_type": error, "usage": usage})

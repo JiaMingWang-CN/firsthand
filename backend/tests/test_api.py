@@ -1,5 +1,7 @@
 import json
+import os
 import shutil
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -80,6 +82,27 @@ def test_report_and_evidence_resolve(client):
     assert client.get(evidence["files"][0]).status_code == 200
     assert client.get("/api/runs/phase4-x/evidence/p01:f999").status_code == 404
     assert client.get("/api/runs/phase4-x/report?report_id=phase4-x").status_code == 404
+
+
+def test_runs_report_their_browsing_span(client):
+    assert client.get("/api/runs").json()[0]["started_at"] == "2026-10-03T07:16:26+00:00"
+    overview = client.get("/api/runs/phase4-x").json()
+    assert (overview["started_at"], overview["finished_at"]) == ("2026-10-03T07:16:26+00:00", "2026-10-03T07:20:18+00:00")
+
+
+def test_default_report_prefers_a_passed_model_report_over_a_newer_check_run(runs_root):
+    written = runs_root / "phase5-model"
+    shutil.copytree(runs_root / "phase5-x", written)
+    result = json.loads((written / "phase5_result.json").read_text(encoding="utf-8"))
+    (written / "phase5_result.json").write_text(json.dumps({**result, "model_used": True, "passed": True}), encoding="utf-8")
+    newer = runs_root / "phase5-newer-check"
+    shutil.copytree(runs_root / "phase5-x", newer)  # model_used is false here and it is the newest report
+    later = time.time_ns() + 10**10
+    os.utime(newer / "report.json", ns=(later, later))
+    client = TestClient(create_app(runs_root))
+    assert [item["id"] for item in client.get("/api/runs/phase4-x").json()["reports"]][0] == "phase5-newer-check"
+    assert client.get("/api/runs/phase4-x/report").json()["id"] == "phase5-model"
+    assert client.get("/api/runs/phase4-x/report?report_id=phase5-newer-check").json()["id"] == "phase5-newer-check"
 
 
 def test_unknown_or_non_simulation_runs_are_not_found(client):

@@ -56,6 +56,13 @@ def report_index(root):
                      for item in sorted(items, key=lambda item: -item["_mtime"])] for source, items in found.items()}
 
 
+def job_span(path):
+    """First start and last finish of the browsing jobs recorded in timeline.json."""
+    jobs = (read_json(path / "timeline.json", {}) or {}).get("jobs", {}).values()
+    return (min((job["started_at"] for job in jobs if job.get("started_at")), default=None),
+            max((job["finished_at"] for job in jobs if job.get("finished_at")), default=None))
+
+
 def list_runs(root):
     reports = report_index(root)
     runs = []
@@ -64,16 +71,15 @@ def list_runs(root):
             continue
         result = read_json(path / "phase4_result.json", {})
         context = read_json(path / "run_context.json", {})
-        jobs = (read_json(path / "timeline.json", {}) or {}).get("jobs", {}).values()
         phase1 = sibling(root, context.get("source_run"))
         product = read_json(phase1 / "product_model.json", {}) if phase1 else {}
+        started, finished = job_span(path)
         configuration = context.get("configuration", {})
         runs.append({
             "id": path.name, "passed": result.get("passed"), "status": result.get("status"),
             "product": product.get("metadata", {}).get("name"),
             "provider": configuration.get("provider"), "model": configuration.get("model"),
             "personas": len(context.get("schedule", [])),
-            "started_at": min((job["started_at"] for job in jobs if job.get("started_at")), default=None),
-            "finished_at": max((job["finished_at"] for job in jobs if job.get("finished_at")), default=None),
+            "started_at": started, "finished_at": finished,
             "reports": reports.get(path.name, [])})
     return runs

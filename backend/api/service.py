@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from api.runs import NotFound, RunInvalid, SERVED_FILE, read_json, report_index, run_path, sibling
+from api.runs import NotFound, RunInvalid, SERVED_FILE, job_span, read_json, report_index, run_path, sibling
 from report.evidence import EvidenceStore
 
 
@@ -64,6 +64,7 @@ class Reader:
         timeline = read_json(path / "timeline.json", {}) or {}
         return {
             "id": run_id, "passed": result.get("passed"), "status": result.get("status"),
+            "started_at": job_span(path)[0], "finished_at": job_span(path)[1],
             "limitations": result.get("limitations", []), "acceptance_scope": result.get("acceptance_scope"),
             "product": read_json(phase1 / "product_model.json") if phase1 else None,
             "run_config": (read_json(phase1 / "draft.json", {}) or {}).get("run_config") if phase1 else None,
@@ -135,7 +136,8 @@ class Reader:
         reports = report_index(self.root).get(run_id, [])
         if not reports:
             raise NotFound(f"{run_id} has no report")
-        chosen = report_id or reports[0]["id"]
+        # Newest first, but a report the model wrote and that passed beats a newer model-less check run.
+        chosen = report_id or next((item["id"] for item in reports if item["passed"] and item["model_used"]), reports[0]["id"])
         if chosen not in {item["id"] for item in reports}:
             raise NotFound(f"Unknown report: {chosen}")
         folder = self.root / chosen
