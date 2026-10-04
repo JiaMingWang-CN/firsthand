@@ -1,4 +1,3 @@
-import asyncio
 import json
 import shutil
 
@@ -6,34 +5,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
-from conftest import save_json
-from orchestrator.phase5 import execute
-
-
-@pytest.fixture
-def runs_root(source, tmp_path):
-    root = tmp_path / "runs"
-    root.mkdir()
-    run = root / "phase4-x"
-    shutil.copytree(source, run)
-    save_json(run / "phase4_result.json", {"passed": True, "status": "completed", "limitations": ["样本很小"]})
-    # Contexts keep the absolute path of the machine that wrote them; the API must resolve it by directory name.
-    save_json(run / "run_context.json", {
-        "source_run": "C:\\old-checkout\\runs\\phase1-x",
-        "schedule": [{"persona_id": "p01", "local_time": "2026-10-03T09:40:00+08:00", "slice_index": 1},
-                     {"persona_id": "p02", "local_time": "2026-10-03T10:55:00+08:00", "slice_index": 2}],
-        "configuration": {"provider": "fixture", "model": "m", "api": "chat_completions", "api_key": "SECRET-KEY"}})
-    save_json(root / "phase1-x" / "product_model.json", {"metadata": {"name": "演示产品"}})
-    save_json(root / "phase1-x" / "draft.json", {"run_config": {"duration_days": 1, "time_slice_minutes": 60}})
-    save_json(run / "p01" / "session.json", {"viewer_url": "https://viewer.example/SECRET-SESSION"})
-    save_json(run / "cost.json", {"model_usd_min": 0.09, "total_usd_max": 0.23, "steel_usd_billed": 0.05})
-    ledger = lambda model, usage, error=None: json.dumps({"request": 1, "api": "chat_completions", "model": model, "error_type": error, "usage": usage})
-    full = {"input_tokens": 100, "cached_input_tokens": 40, "uncached_input_tokens": 60, "output_tokens": 10}
-    (run / "p01" / "model_usage.jsonl").write_text("\n".join([ledger("model-a", full), ledger("model-a", None, "TimeoutError")]) + "\n", encoding="utf-8")
-    (run / "community").mkdir(exist_ok=True)
-    (run / "community" / "model_usage.jsonl").write_text("\n".join([ledger("model-a", full), ledger("model-b", full)]) + "\n", encoding="utf-8")
-    asyncio.run(execute(run, root / "phase5-x", None, False))
-    return root
 
 
 @pytest.fixture
