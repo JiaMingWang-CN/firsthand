@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { P, label, fmt } from '../lib/sim.js'
+import { P, label, fmt, clockOf } from '../lib/sim.js'
 import Avatar from './Avatar.vue'
 import PartTag from './PartTag.vue'
 const props = defineProps({ pid: String, compact: Boolean })
@@ -13,13 +13,13 @@ const p = computed(() => P[props.pid])
     <div class="body">
       <div class="row nm"><span class="name">{{ p.realname }}</span><span class="sim-badge">模拟</span></div>
       <div class="sub">{{ p.age }} · {{ p.gender }} · {{ p.city }} · {{ p.profession }}</div>
-      <div class="sub bg">{{ p.life }}{{ compact ? '' : ' ' + p.history }}</div>
+      <div class="sub bg">{{ p.bio }}</div>
       <div class="attrs">
         <span class="tag">{{ label.device[p.device] }}</span>
         <span class="tag">{{ label.tech[p.tech] }}</span>
         <span class="tag">{{ label.patience[p.patience] }}</span>
         <span class="tag"><PartTag :kind="p.participation" /></span>
-        <span class="simtime">◷ 体验 {{ fmt(p.slot) }}</span>
+        <span class="simtime">◷ 体验 {{ fmt(p.slot) }}<template v-if="p.localSlot != null"> · 本地 {{ clockOf(p.localSlot) }}</template></span>
       </div>
     </div>
   </div>

@@ -1,8 +1,8 @@
 <script setup>
 import { computed } from 'vue'
-import { reads } from '../mock/data.js'
-import { postById, votesOf, browseStart } from '../lib/sim.js'
-import { ThumbsUp, Eye } from 'lucide-vue-next'
+import { reads } from '../lib/data.js'
+import { postById } from '../lib/sim.js'
+import { Eye } from 'lucide-vue-next'
 import PersonaChip from './PersonaChip.vue'
 import SimTime from './SimTime.vue'
 import EvTag from './EvTag.vue'
@@ -20,7 +20,6 @@ const readers = computed(() => reads.filter((r) => r.post === props.id).sort((a,
       <h2 class="t">{{ post.title }}</h2>
       <p class="body">{{ post.body }}</p>
       <div class="row foot">
-        <span class="votes num"><ThumbsUp />{{ votesOf(post.id) }}</span>
         <span class="votes"><Eye />被看 {{ readers.length }} 次</span>
         <span class="sp"></span>
         <EvTag v-for="(ev, i) in post.evidence" :key="i" :ev="ev" />
@@ -30,7 +29,7 @@ const readers = computed(() => reads.filter((r) => r.post === props.id).sort((a,
     <div class="label sec">评论 {{ post.comments.length }}</div>
     <div class="comments">
       <div v-for="c in post.comments" :key="c.id" class="cmt" :class="{ focus: focus === c.id }">
-        <div class="row who"><PersonaChip :pid="c.author" /><SimTime :m="c.t" /><span class="votes num"><ThumbsUp />{{ votesOf(c.id) }}</span></div>
+        <div class="row who"><PersonaChip :pid="c.author" /><SimTime :m="c.t" /></div>
         <p class="body">{{ c.body }}</p>
         <div class="row" v-if="c.evidence.length"><span class="faint ev-k">依据的体验</span><EvTag v-for="(ev, i) in c.evidence" :key="i" :ev="ev" /></div>
         <div class="row" v-else><span class="tag noev">无证据</span><span class="faint ev-k">这条评论没有对应的体验步骤</span></div>
@@ -41,7 +40,7 @@ const readers = computed(() => reads.filter((r) => r.post === props.id).sort((a,
     <div class="readers">
       <div v-for="r in readers" :key="r.pid + r.t" class="rd">
         <PersonaChip :pid="r.pid" /><SimTime :m="r.t" />
-        <span class="faint">{{ r.t < browseStart(r.pid) ? '体验前看到' : '体验后看到' }}</span>
+        <span class="faint">{{ r.before ? '体验前看到' : '体验后看到' }}</span>
         <p v-if="r.expectation" class="exp">形成预期：{{ r.expectation }}</p>
       </div>
     </div>

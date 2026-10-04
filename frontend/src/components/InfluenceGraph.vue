@@ -1,7 +1,7 @@
 <script setup>
 // 舆论动态：帖子 → 谁在什么时候看到 → 是否带着预期去体验
 import { computed, ref } from 'vue'
-import { personas, posts, reads } from '../mock/data.js'
+import { personas, posts, reads } from '../lib/data.js'
 import { P, fmt, browseStart, browseEnd } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
 

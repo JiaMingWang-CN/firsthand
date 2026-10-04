@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
-import { surveys } from '../mock/data.js'
+import { surveys } from '../lib/data.js'
 import { P, npsOf } from '../lib/sim.js'
 import PersonaChip from './PersonaChip.vue'
 import Avatar from './Avatar.vue'
@@ -9,8 +9,10 @@ const asTable = ref(false)
 const cols = computed(() => Array.from({ length: 11 }, (_, n) => ({
   n, pids: Object.entries(surveys).filter(([, s]) => s.nps === n).map(([pid]) => pid),
 })))
-const nps = computed(() => npsOf(Object.values(surveys).map((s) => s.nps)))
-const total = Object.keys(surveys).length
+// 没有亲身体验的人物没有 NPS，不计入
+const scored = computed(() => Object.values(surveys).map((s) => s.nps).filter(Number.isInteger))
+const nps = computed(() => npsOf(scored.value))
+const total = computed(() => scored.value.length)
 </script>
 
 <template>
@@ -39,11 +41,11 @@ const total = Object.keys(surveys).length
       <table class="data compact">
         <thead><tr><th>人物</th><th class="r">推荐意愿</th><th>继续使用</th><th>付费</th></tr></thead>
         <tbody>
-          <tr v-for="(s, pid) in surveys" :key="pid"><td><PersonaChip :pid="pid" /></td><td class="r num">{{ s.nps }}</td><td>{{ s.keep }}</td><td>{{ s.pay }}</td></tr>
+          <tr v-for="(s, pid) in surveys" :key="pid"><td><PersonaChip :pid="pid" /></td><td class="r num">{{ s.nps ?? '—' }}</td><td>{{ s.keep }}</td><td>{{ s.pay }}</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="source">来源：离场问卷 · {{ total }}/{{ total }} 名人物私下作答（含潜水者）</div>
+    <div class="source">来源：离场问卷 · {{ total }}/{{ Object.keys(surveys).length }} 名人物有亲身体验并给出推荐意愿（含潜水者）</div>
   </div>
 </template>
 

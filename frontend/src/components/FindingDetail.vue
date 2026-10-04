@@ -1,14 +1,14 @@
 <script setup>
 import { computed } from 'vue'
-import { posts, withheld, steps } from '../mock/data.js'
-import { findingById, F, P, fmt } from '../lib/sim.js'
+import { posts, withheld, steps } from '../lib/data.js'
+import { findingById, F, P, fmt, strengthLabel } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
 import SevTag from './SevTag.vue'
 import EvTag from './EvTag.vue'
 import PersonaChip from './PersonaChip.vue'
 import DotMatrix from './DotMatrix.vue'
 import EmotionCurve from './EmotionCurve.vue'
-import MockScreen from './MockScreen.vue'
+import Shot from './Shot.vue'
 import VoiceCard from './VoiceCard.vue'
 
 const props = defineProps({ id: String })
@@ -41,7 +41,7 @@ const stepOf = (ev) => steps[ev.pid][ev.step - 1]
     <div class="panel tight kpis">
       <div><div class="label">受影响</div><DotMatrix :x="f.affected.length" :y="f.denominator" :color="color" /></div>
       <div v-if="f.quit?.length"><div class="label">因此放弃</div><span class="num">{{ f.quit.length }}/{{ f.affected.length }}</span></div>
-      <div v-if="!hl"><div class="label">证据强度</div><span>{{ ['无', '弱', '中', '强'][f.strength] }}</span></div>
+      <div v-if="!hl"><div class="label">证据强度</div><span>{{ strengthLabel(f.strength) }}</span></div>
     </div>
 
     <div class="sec">
@@ -54,7 +54,7 @@ const stepOf = (ev) => steps[ev.pid][ev.step - 1]
       <div class="row chips"><EvTag v-for="(ev, i) in f.evidence" :key="i" :ev="ev" /></div>
       <div class="thumbs">
         <button v-for="(ev, i) in thumbs" :key="i" type="button" class="th" @click="openDrawer({ type: 'evidence', ev }, { fromDrawer: true })">
-          <MockScreen :screen="stepOf(ev).screen" :device="stepOf(ev).device || P[ev.pid].device" :target="stepOf(ev).target" :path="stepOf(ev).path" :time="fmt(stepOf(ev).t).slice(3)" />
+          <Shot compact :step="stepOf(ev)" :device="P[ev.pid].device" />
           <span class="cap num">{{ P[ev.pid].realname }} · #{{ ev.step }}</span>
         </button>
       </div>

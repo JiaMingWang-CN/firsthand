@@ -1,11 +1,11 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { personas, steps, posts, run } from '../mock/data.js'
+import { personas, steps, posts, run } from '../lib/data.js'
 import { P, fmt, statusAt, stepIndexAt, browseStart, browseEnd, feedUntil, postById, label, assignmentLabel } from '../lib/sim.js'
 import { clock, seek, pause, play, openDrawer } from '../lib/store.js'
 import { Play, SkipForward, Eye, ThumbsUp, MessageSquare, FileText } from 'lucide-vue-next'
 import SimTimeline from '../components/SimTimeline.vue'
-import MockScreen from '../components/MockScreen.vue'
+import Shot from '../components/Shot.vue'
 import PersonaChip from '../components/PersonaChip.vue'
 import Avatar from '../components/Avatar.vue'
 import StatusDot from '../components/StatusDot.vue'
@@ -19,7 +19,7 @@ const focusId = computed(() => {
   if (pinned.value) return pinned.value
   if (browsing.value.length) return browsing.value[0].id
   const started = personas.filter((p) => browseStart(p.id) <= clock.t).sort((a, b) => browseStart(b.id) - browseStart(a.id))
-  return started[0]?.id || 'p9'
+  return started[0]?.id || personas[0]?.id
 })
 const fp = computed(() => P[focusId.value])
 const idx = computed(() => stepIndexAt(focusId.value, clock.t))
@@ -92,7 +92,7 @@ function activityOf(pid) {
           </span>
         </div>
         <div class="screenwrap" :class="fp.device">
-          <MockScreen v-if="cur" :screen="cur.screen" :device="cur.device || fp.device" :target="cur.target" :path="cur.path" :time="fmt(cur.t).slice(3)" :live="focusStatus === 'browse'" />
+          <Shot v-if="cur" :step="cur" :device="fp.device" :time="fmt(cur.t).slice(3)" :live="focusStatus === 'browse'" />
           <div v-else class="empty-screen">
             <p>{{ fp.realname }} 还没有开始体验</p>
             <SimTime :m="fp.slot" prefix="开始于" />

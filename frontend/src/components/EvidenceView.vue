@@ -1,12 +1,12 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { steps } from '../mock/data.js'
+import { steps } from '../lib/data.js'
 import { resolveEvidence, findingsCiting, fmt, mmss, label } from '../lib/sim.js'
 import { openDrawer, toast } from '../lib/store.js'
 import { Copy, Film, Terminal, Globe, EyeOff, Eye, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import PersonaChip from './PersonaChip.vue'
 import SimTime from './SimTime.vue'
-import MockScreen from './MockScreen.vue'
+import Shot from './Shot.vue'
 import SevTag from './SevTag.vue'
 
 const props = defineProps({ ev: Object })
@@ -52,9 +52,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <button class="btn btn-ghost icon sm" type="button" :disabled="stepNo >= total" aria-label="下一步（J）" @click="go(1)"><ChevronRight /></button>
     </div>
     <h3 class="act">{{ st.act }}</h3>
-    <div class="url num">{{ st.path.startsWith('mail.') ? st.path : 'https://demo.qingtan.test' + st.path }}</div>
+    <div class="url num">{{ st.url || st.path }}</div>
 
-    <MockScreen class="shot" :screen="st.screen" :device="st.device || p.device" :target="st.target" :path="st.path" :time="fmt(st.t).slice(3)" />
+    <Shot class="shot" :step="st" :device="p.device" :time="fmt(st.t).slice(3)" />
 
     <div class="row tags">
       <span class="tag" :class="mood.cls"><span class="dot"></span>{{ mood.text }}</span>
@@ -74,11 +74,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
     <!-- 录像片段 -->
     <section class="blk" :class="{ focus: focusKind === 'video' }">
       <div class="bh"><Film /><b>录像片段</b><span class="faint num">{{ mmss(Math.max(0, r.video - 5)) }} – {{ mmss(r.video + 5) }}</span><span class="sp"></span>
-        <button class="btn btn-ghost sm" type="button" @click="toast('演示数据：真实版本会打开 Steel 录像并定位到 ' + mmss(r.video))"><ExternalLink />打开录像</button>
+        <a v-if="p.replay?.url" class="btn btn-ghost sm" :href="p.replay.url" target="_blank" rel="noopener"><ExternalLink />打开 Steel 回放</a>
       </div>
-      <div class="player">
-        <div class="bar"><i :style="{ left: `${(r.video / (r.video + 120)) * 100}%` }"></i><span class="win" :style="{ left: `${((r.video - 5) / (r.video + 120)) * 100}%` }"></span></div>
-        <div class="row faint pl"><span class="num">定位到 {{ mmss(r.video) }}，前后各留 5 秒</span></div>
+      <div class="row faint pl">
+        <span class="num">请在回放中定位到 {{ mmss(r.video) }}，前后各留 5 秒。</span>
+        <span v-if="p.replay?.basis">秒数为估算：{{ p.replay.basis }}。</span>
+        <span v-if="!p.replay?.url">这次体验没有保存回放链接。</span>
       </div>
     </section>
 
@@ -94,7 +95,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <span class="tx">{{ t.text }}</span>
         </div>
       </div>
-      <p v-else class="faint empty">这一步没有错误或警告。旁路采集仍保存了完整轨迹。</p>
+      <p v-else class="faint empty">没有这一步的 Console / Network 记录（该人物无权查看技术工具，或记录里没有错误与警告）。</p>
       <p v-if="r.trace.length && !canSeeTrace" class="faint empty">这些数据由旁路采集记录，人物本身在体验时看不到。</p>
     </section>
 
@@ -144,9 +145,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .bh { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
 .bh svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--text-2); }
 .bh .faint { font-size: var(--fs-xs); }
-.player .bar { position: relative; height: 6px; border-radius: 3px; background: var(--surface-2); margin: var(--sp-2) 0; }
-.player .bar i { position: absolute; top: -4px; width: 2px; height: 14px; background: var(--text); display: block; }
-.player .win { position: absolute; top: 0; height: 6px; width: 8%; background: var(--border-strong); border-radius: 3px; }
 .pl { font-size: var(--fs-xs); }
 .trace { background: var(--surface-2); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-xs); overflow-x: auto; }
 .tl { display: flex; gap: var(--sp-2); padding: 3px 0; white-space: nowrap; }

@@ -1,5 +1,5 @@
 import { reactive, watch } from 'vue'
-import { DAY } from './sim.js'
+import { timeline } from './data.js'
 
 // —— 主题 ——
 function systemTheme() {
@@ -21,7 +21,7 @@ export const SPEEDS = [
   { id: 4, label: '4×', perSec: 8 },
   { id: 16, label: '16×', perSec: 32 },
 ]
-export const clock = reactive({ t: DAY, playing: false, speed: 4, stopped: false })
+export const clock = reactive({ t: timeline.total, playing: false, speed: 4, stopped: false })
 let raf = 0
 let last = 0
 function tick(now) {
@@ -29,13 +29,13 @@ function tick(now) {
   const dt = (now - last) / 1000
   last = now
   const perSec = SPEEDS.find((s) => s.id === clock.speed).perSec
-  clock.t = Math.min(DAY, clock.t + dt * perSec)
-  if (clock.t >= DAY) { clock.playing = false; return }
+  clock.t = Math.min(timeline.total, clock.t + dt * perSec)
+  if (clock.t >= timeline.total) { clock.playing = false; return }
   raf = requestAnimationFrame(tick)
 }
 export function play() {
   if (clock.stopped) return
-  if (clock.t >= DAY) clock.t = 0
+  if (clock.t >= timeline.total) clock.t = 0
   clock.playing = true
   last = performance.now()
   cancelAnimationFrame(raf)
@@ -43,7 +43,7 @@ export function play() {
 }
 export function pause() { clock.playing = false; cancelAnimationFrame(raf) }
 export function togglePlay() { clock.playing ? pause() : play() }
-export function seek(t) { clock.t = Math.max(0, Math.min(DAY, t)) }
+export function seek(t) { clock.t = Math.max(0, Math.min(timeline.total, t)) }
 
 // —— 抽屉：最多叠两层，第三层起在第二层内替换并保留返回 ——
 export const drawers = reactive({ stack: [] })

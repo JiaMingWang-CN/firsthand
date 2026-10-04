@@ -1,0 +1,3417 @@
+{
+ "overview": {
+  "id": "phase4-20261003T071619710132Z",
+  "passed": true,
+  "status": "completed_with_documented_recovery",
+  "started_at": "2026-10-03T07:16:26.987214+00:00",
+  "finished_at": "2026-10-03T07:48:19.979883+00:00",
+  "limitations": [
+   "p06 exit questionnaire alone uses user-selected MiMo; remaining sample uses DeepSeek.",
+   "p06 memory was verified at slice 24; no post-experience discussion by p06.",
+   "Original finish command failure and p06 browser exit code are preserved; this is a recovered sample.",
+   "MiMo Token Plan request cost is unavailable; original known costs exclude this supplement.",
+   "Scout not performed. Browse peak 1; not a five-browser stress test."
+  ],
+  "acceptance_scope": "Stage 4 functionality and evidence/permission/questionnaire audits. Cost completeness is reported separately for the authorized subscription supplement.",
+  "product": {
+   "metadata": {
+    "name": "JiaMingWang-CN 个人作品网站",
+    "url": "https://wjm.dpdns.org",
+    "allowed_domains": [
+     "wjm.dpdns.org"
+    ],
+    "test_accounts": [
+     {
+      "role": "new_visitor",
+      "description": "无需登录，访问公开页面的新访客"
+     }
+    ],
+    "forbidden_actions": [
+     "提交联系表单或向外发送邮件、短信和消息",
+     "真实支付、注册或修改账号",
+     "调用管理接口或修改网站数据",
+     "访问外部项目站点和 GitHub"
+    ]
+   },
+   "summary": {
+    "positioning": "王佳明的个人作品展示网站，帮助招聘方、潜在合作方和开发者了解其背景、技术能力和已交付的项目。",
+    "target_users": "招聘人员、用人团队的技术负责人、希望寻找开发者的潜在合作方，以及参考作品的开发者和学生；技术水平覆盖非技术招聘人员、普通用户与开发者；工作日白天以桌面正式评估为主，也可能在通勤、午休、晚上或深夜用手机快速浏览。",
+    "features": [
+     "首页介绍：展示姓名、学习背景、开发方向和项目经历，便于形成初步判断。",
+     "项目展示：通过“项目”导航查看项目卡片、项目标题、技术信息和展示内容。"
+    ],
+    "assumptions": [
+     "样本假设用户男女都有，年龄约 20–55 岁；这不是网站实际访客统计。"
+    ],
+    "target_age_min": 20,
+    "target_age_max": 55
+   },
+   "flows": [
+    {
+     "name": "了解开发者背景与方向",
+     "account_role": "new_visitor",
+     "entry": "首页",
+     "steps": "打开首页 → 阅读姓名与简介 → 阅读开发方向和经历 → 判断是否值得继续了解",
+     "expected_result": "能够说出开发者的姓名、开发方向及至少一项经历",
+     "success_criteria": "首页相关文本可读，能基于实际页面找到姓名、开发方向和经历的证据"
+    },
+    {
+     "name": "浏览项目并评估相关性",
+     "account_role": "new_visitor",
+     "entry": "页面内“项目”导航",
+     "steps": "打开首页 → 点击“项目”导航 → 浏览项目卡片及技术信息 → 选择一个与自己的评估目的相关的项目",
+     "expected_result": "能从项目列表找到至少一个相关项目，并解释选择理由",
+     "success_criteria": "能通过页面导航到项目页，读取至少一个项目标题及其展示信息，不访问外部项目站点"
+    }
+   ],
+   "sections": {
+    "产品定位": "王佳明的个人作品展示网站，帮助招聘方、潜在合作方和开发者了解其背景、技术能力和已交付的项目。",
+    "目标用户": "招聘人员、用人团队的技术负责人、希望寻找开发者的潜在合作方，以及参考作品的开发者和学生。工作日白天的正式评估以桌面访问为主，也可能在通勤、午休、晚上或深夜用手机快速浏览。样本假设用户男女都有，年龄约 20–55 岁；这不是网站实际访客统计。技术水平覆盖非技术招聘人员、普通用户与开发者。",
+    "核心功能": "- 首页介绍：展示姓名、学习背景、开发方向和项目经历，便于形成初步判断。\n- 项目展示：通过“项目”导航查看项目卡片、项目标题、技术信息和展示内容。",
+    "关键流程": "## 流程：了解开发者背景与方向\n- 适用账号：新访客\n- 入口：首页\n- 主要步骤：打开首页 → 阅读姓名与简介 → 阅读开发方向和经历 → 判断是否值得继续了解\n- 期望结果：能够说出开发者的姓名、开发方向及至少一项经历\n- 成功标准：首页相关文本可读，能基于实际页面找到姓名、开发方向和经历的证据\n\n## 流程：浏览项目并评估相关性\n- 适用账号：新访客\n- 入口：页面内“项目”导航\n- 主要步骤：打开首页 → 点击“项目”导航 → 浏览项目卡片及技术信息 → 选择一个与自己的评估目的相关的项目\n- 期望结果：能从项目列表找到至少一个相关项目，并解释选择理由\n- 成功标准：能通过页面导航到项目页，读取至少一个项目标题及其展示信息，不访问外部项目站点",
+    "竞品与替代方案": "开发者的纸质或 PDF 简历、其他个人作品网站、公开代码主页。这里只作用户背景参考，不安排外部网站浏览。",
+    "已知问题": "暂无经人工确认的产品问题校准集。阶段 0 的 Steel/CDP 链路超时是测试基础设施问题，不能据此认定本网站有缺陷。",
+    "本次关注点": "首页是否容易理解，招聘方与非技术用户能否判断技术方向；项目入口是否容易发现，桌面与手机访问是否便于阅读与评估作品。\n\n说明书根据 2026-10-02 阶段 0 的已有首页截图与项目页观察日志编写。首页内容与“项目”入口有历史观察依据，当前页面仍待站点所有者核对；未执行新的 Scout。访客分布及作息是明确的样本假设。"
+   }
+  },
+  "run_config": {
+   "start_time": "2026-10-03T00:00:00Z",
+   "duration_days": 1,
+   "time_slice_minutes": 60,
+   "max_concurrency": 5
+  },
+  "configuration": {
+   "provider": "deepseek",
+   "model": "deepseek-flash",
+   "api": "responses",
+   "thinking_type": "disabled",
+   "max_model_concurrency": 30,
+   "max_browser_concurrency": 5
+  },
+  "personas": 10,
+  "timeline": {
+   "slices": 24,
+   "peak_workers": 1
+  },
+  "usage": {
+   "models": [
+    {
+     "model": "deepseek-flash",
+     "requests": 187,
+     "failed_requests": 0,
+     "input_tokens": 1645744,
+     "cached_input_tokens": 960384,
+     "output_tokens": 51216
+    },
+    {
+     "model": "mimo-v2.6-pro",
+     "requests": 1,
+     "failed_requests": 0,
+     "input_tokens": 25955,
+     "cached_input_tokens": 0,
+     "output_tokens": 402
+    }
+   ],
+   "total": {
+    "requests": 188,
+    "failed_requests": 0,
+    "input_tokens": 1671699,
+    "cached_input_tokens": 960384,
+    "output_tokens": 51618
+   },
+   "scope": "浏览、讨论与问卷阶段的模型请求；不含人设生成"
+  },
+  "audit": {
+   "passed": true,
+   "violations": [],
+   "public_projection_errors": [],
+   "posts_and_comments": 30,
+   "read_records": 391,
+   "before_experience_read_records": 187,
+   "withheld_records": 68,
+   "survey_count": 10,
+   "survey_errors": []
+  },
+  "coverage": {
+   "personas": [
+    "p01",
+    "p02",
+    "p03",
+    "p04",
+    "p05",
+    "p06",
+    "p07",
+    "p08",
+    "p09",
+    "p10"
+   ],
+   "tools": {
+    "experience": 118,
+    "withheld": 48,
+    "discussion": 30,
+    "reads": 391,
+    "surveys": 110,
+    "media": 5967,
+    "coverage": 11
+   },
+   "late_verified_experiences": [
+    "p06"
+   ],
+   "survey_recoveries": [
+    "p06_survey_recovery"
+   ],
+   "missing_experiences": [],
+   "missing_surveys": []
+  },
+  "reports": [
+   {
+    "id": "review-fixes-report-20261003-final",
+    "passed": true,
+    "model_used": false,
+    "issues": 0,
+    "highlights": 0
+   },
+   {
+    "id": "review-fixes-report-20261003",
+    "passed": true,
+    "model_used": false,
+    "issues": 0,
+    "highlights": 0
+   },
+   {
+    "id": "phase5-20261003-mimo-r2",
+    "passed": true,
+    "model_used": true,
+    "issues": 5,
+    "highlights": 4
+   },
+   {
+    "id": "phase5-20261003-mimo",
+    "passed": true,
+    "model_used": true,
+    "issues": 5,
+    "highlights": 4
+   }
+  ]
+ },
+ "personas": [
+  {
+   "persona_id": "p01",
+   "persona": {
+    "realname": "逄书黎",
+    "username": "pangshuli_hr",
+    "gender": "女",
+    "age": 27,
+    "city": "杭州",
+    "timezone": "Asia/Shanghai",
+    "profession": "互联网公司招聘专员",
+    "industry": "互联网招聘与人力资源服务",
+    "education": "本科，人力资源管理专业",
+    "income_level": "中",
+    "life_context": "逄书黎在杭州一家中型互联网公司做招聘专员，负责技术岗的初筛与面试安排，每天上午要处理夜里积压的简历和推荐链接，习惯在办公桌前先把候选人材料过一遍再进站会。她不懂编程，判断技术候选人主要靠简历结构、项目描述是否清楚、有没有可交付成果。她手上候选池很杂，遇到看起来不错的作品页会先放进初筛清单，再把结论发到部门招聘群让技术负责人复核；所以她看页面时更在意能不能快速抓到关键信息。她不用带团队，但背着每周的初筛量和到面率指标，节奏紧、耐心有限。",
+    "product_history": "此前没有访问过这个个人作品网站；她以前看过不少开发者的 PDF 简历和零散的个人主页链接，但没用过这个网站，本次是第一次打开，没有亲身体验可谈。",
+    "bio": "杭州互联网公司技术岗招聘专员，非技术背景，专做简历初筛与候选人推荐。看人先看结构再看成果，习惯把判断写进招聘群，说话直接、不绕弯。",
+    "persona": "她上午九点半左右已经坐在工位上，用公司配的台式机开着浏览器和几个招聘后台标签页，趁处理简历的间隙把候选人给的链接点开快速扫一遍。她不用手机做这件事，桌面大屏方便同时对照简历和页面。她参与方式偏公开型：看完会把自己的判断直接发到招聘群，用词简短，像“方向对得上，可以约面”“没看到项目落点，先放着”。她作息规律，晚上十一点半前睡，早上七点起，上午是状态最好的时段，但耐心不多——如果首页几十秒内读不出姓名、开发方向和经历，她就会关掉页面转去看下一份材料。她明确表示不懂技术细节，不会评价代码好坏，只会判断信息是否够用来约面。",
+    "mbti": "ESTJ",
+    "big_five": {
+     "openness": "中",
+     "conscientiousness": "高",
+     "extraversion": "高",
+     "agreeableness": "中",
+     "neuroticism": "中"
+    },
+    "communication_style": "直接、简洁、任务导向，先给结论再补理由；会用招聘行话，不喜欢铺垫和客套，遇到含糊表述会追问“具体做了什么、交付了什么”。",
+    "interested_topics": [
+     "技术岗候选人初筛",
+     "简历与作品页的可读性",
+     "招聘流程效率",
+     "面试安排与到面率",
+     "招聘群内的内部推荐"
+    ],
+    "persona_id": "p01",
+    "browsing_profile": {
+     "device": "desktop",
+     "tech_level": "novice",
+     "patience": "low",
+     "max_steps": 15,
+     "stall_limit": 4,
+     "motivation": "付费决策",
+     "motivation_detail": "她正在为两个后端与前端技术岗做初筛，要用这个作品网站判断这位开发者是不是值得放进初筛清单并推荐给用人团队的技术负责人，具体目的是在最短时间内读出姓名、开发方向和一段可用经历，形成可发到招聘群的结论。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "task",
+      "flow": "了解开发者背景与方向"
+     }
+    },
+    "schedule": {
+     "wake": "07:00",
+     "sleep": "23:30",
+     "activity_by_hour": {
+      "7": 0.7,
+      "8": 0.85,
+      "9": 0.95,
+      "10": 0.9,
+      "11": 0.85,
+      "12": 0.6,
+      "13": 0.8,
+      "14": 0.9,
+      "15": 0.85,
+      "16": 0.8,
+      "17": 0.7,
+      "18": 0.6,
+      "19": 0.5,
+      "20": 0.45,
+      "21": 0.4,
+      "22": 0.25,
+      "23": 0.1
+     },
+     "browse_slot": "09:40",
+     "state_at_browse": "上午九点四十，逄书黎刚处理完一批夜间投递的简历，在办公桌前用台式机打开候选人发来的作品网站链接。她手边是开着筛选表格的另一个屏幕，招聘群消息还在不断弹出，她给自己留的时间不多，打算在几十秒内读完首页，确认姓名、开发方向和至少一项经历，能得出“值得约面/先放着”的结论就关掉页面。"
+    },
+    "participation": "poster",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "中",
+     "withhold_reasons": [
+      "招聘岗位和公司名称属于内部信息，不方便对外透露",
+      "招聘群的内部评价和候选池情况涉及同事判断，不会全说",
+      "对页面体验的负面评价会说得比心里想的缓和一些，避免显得刻薄",
+      "不熟悉技术细节，涉及技术判断的部分会主动保留不说"
+     ]
+    }
+   },
+   "browse_slice": 1,
+   "scheduled_at": "2026-10-03T09:40:00+08:00",
+   "job_state": "completed",
+   "experience": {
+    "outcome": "success",
+    "outcome_source": "agent_self_report",
+    "reason": "首页文本清晰可读，成功获取开发者姓名、开发方向和经历证据。姓名：王佳明；开发方向：后端开发与 AI 应用开发（独立全栈开发）；经历：①独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计358次提交）；②AI 方向三个项目：毕业设计「基于大语言模型的 MySQL 自然语言查询系统」（七阶段 SSE 流水线 + SQL 安全闸门 + 数据脱敏，267项单元测试）、本地实时语音助手「回声室」、LLM 指纹与测评平台；③在两家公司兼职任全栈开发。教育背景：保定理工学院计算机科学与技术本科在读（2023.09–2027.07）。正在准备后端开发/AI 应用开发方向实习。招聘初筛结论：方向对得上（后端+AI），有可交付的上线项目成果，信息结构清晰，值得放进初筛清单推荐给技术负责人复核。",
+    "state_at_browse": "上午九点四十，逄书黎刚处理完一批夜间投递的简历，在办公桌前用台式机打开候选人发来的作品网站链接。她手边是开着筛选表格的另一个屏幕，招聘群消息还在不断弹出，她给自己留的时间不多，打算在几十秒内读完首页，确认姓名、开发方向和至少一项经历，能得出“值得约面/先放着”的结论就关掉页面。",
+    "assignment": {
+     "type": "task",
+     "flow": "了解开发者背景与方向"
+    },
+    "steps": 1,
+    "pains": 0,
+    "highlights": 2,
+    "late_verified": false
+   },
+   "survey": {
+    "nps": 9,
+    "continue_using": "yes",
+    "would_pay": "unsure",
+    "flags": [
+     "unsaid_item_was_publicly_expressed_requires_review"
+    ]
+   }
+  },
+  {
+   "persona_id": "p03",
+   "persona": {
+    "realname": "佴知宪",
+    "username": "nianshi_xian_43",
+    "gender": "男",
+    "age": 43,
+    "city": "杭州",
+    "timezone": "Asia/Shanghai",
+    "profession": "独立产品顾问",
+    "industry": "企业咨询与产品顾问服务",
+    "education": "本科，信息管理与信息系统",
+    "income_level": "中",
+    "life_context": "在杭州独立执业的产品顾问，主要给中小团队做产品梳理、需求评审和交付节奏陪跑，按项目签约，收入波动较大，因此对潜在的开发合作机会保持敏感。每天午休时段相对固定，会端着饭盒或靠在办公室沙发上用手机翻看候选开发者资料，习惯把个人作品网站与 PDF 简历放在一起横评。已经成家，有孩子，晚上时间多被家庭占用，所以白天碎片时间是他收集和初筛信息的主要窗口。",
+    "product_history": "尚未使用待测产品。此前只通过他人转发的链接听说过王佳明这个名字，本次是第一次以潜在合作方身份准备打开其个人作品网站，之前与王佳明无任何合作或雇佣关系。",
+    "bio": "做产品顾问第十一个年头，见过太多把简历写得漂亮但交付一般的团队。看人先看结构，再看细节，最后才谈结论。",
+    "persona": "佴知宪，43 岁，杭州的独立产品顾问，习惯用一部安卓手机处理各类碎片信息。本次是在午休时段用手机打开这个个人作品网站，边吃午饭边浏览，属于横向对比式的随意翻看，不会逐字精读，而是先扫首页结构，再看项目入口是否好找。他的参与方式是评论型：愿意在留言或评论区留下简短对比式评论，例如与其他个人网站或 PDF 简历的差异，但涉及是否推进合作、对开发者能力的具体评价等核心判断会保留，不轻易表态。作息上他早上七点前后起床，晚上十一点半左右入睡，夜间连续睡眠，午间有一个稳定的休息窗口。表达时语气克制、句子偏短，喜欢用“结构清楚”“信息够不够用”这类评价词，不习惯用绝对化措辞。",
+    "mbti": "INTJ",
+    "big_five": {
+     "openness": "中",
+     "conscientiousness": "高",
+     "extraversion": "中",
+     "agreeableness": "中",
+     "neuroticism": "低"
+    },
+    "communication_style": "克制、结构化，喜欢先给观察再给判断，常用对比句式，如“跟 PDF 简历比，这里多了一层技术信息”；不轻易下结论，也不爱说重话。",
+    "interested_topics": [
+     "个人作品网站的信息架构",
+     "开发者技术能力的外部呈现方式",
+     "项目卡片的可读性",
+     "简历与作品站的对比评估",
+     "产品交付节奏与团队匹配"
+    ],
+    "persona_id": "p03",
+    "browsing_profile": {
+     "device": "mobile",
+     "tech_level": "normal",
+     "patience": "normal",
+     "max_steps": 40,
+     "stall_limit": 8,
+     "motivation": "对比竞品",
+     "motivation_detail": "作为潜在合作方，想把这个个人作品网站与他手头收藏的其他开发者个人站和 PDF 简历放在一起横向对比，判断这个网站的信息结构是否够用、项目呈现是否值得进一步接触，为后续可能的合作筛选提供依据。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "explore",
+      "flow": null
+     }
+    },
+    "schedule": {
+     "wake": "07:00",
+     "sleep": "23:30",
+     "activity_by_hour": {
+      "7": 0.6,
+      "8": 0.5,
+      "9": 0.7,
+      "10": 0.75,
+      "11": 0.6,
+      "12": 0.7,
+      "13": 0.85,
+      "14": 0.7,
+      "15": 0.65,
+      "16": 0.6,
+      "17": 0.55,
+      "18": 0.6,
+      "19": 0.5,
+      "20": 0.45,
+      "21": 0.4,
+      "22": 0.25,
+      "23": 0.15
+     },
+     "browse_slot": "13:20",
+     "state_at_browse": "午休时间，佴知宪坐在办公室沙发上，用安卓手机打开这个个人作品网站，饭菜放在旁边，注意力分散但不急，准备先看首页再决定要不要点开项目栏目做一轮横向对比。"
+    },
+    "participation": "commenter",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "高",
+     "withhold_reasons": [
+      "涉及是否推进合作、对开发者能力的实质评价属于他手上的判断筹码，不轻易在公开场合给出",
+      "对比结论可能影响他自己的议价位置，因此只评论表面结构，不透露核心评估标准",
+      "尚未与对方建立信任关系，习惯先观察再表态"
+     ]
+    }
+   },
+   "browse_slice": 5,
+   "scheduled_at": "2026-10-03T13:20:00+08:00",
+   "job_state": "completed",
+   "experience": {
+    "outcome": "success",
+    "outcome_source": "agent_self_report",
+    "reason": "以新访客身份完成了对王佳明个人作品网站的自由探索，覆盖了产品说明中的两条关键流程。首页：首屏即可读出姓名（王佳明）、学习背景（保定理工学院计算机科学与技术本科在读 2023.09–2027.07）、开发方向（后端开发与 AI 应用开发）及经历（两个已上线商业站点 metastartai.com、randiantg.com，三个 AI 项目，两家公司兼职全栈），并含精选项目区、最近手记、能力区块（后端/前端/AI/数据库/部署）、履历与页脚邮箱。项目页：通过'全部项目→'进入 /projects，可见技术标签筛选（Next.js/React/Vue/TypeScript/Node.js/Express/NestJS/Prisma/Python/FastAPI/PostgreSQL/MySQL/Redis 等）、搜索框与 5 个项目卡片（Featured metastartai.com、01 毕业设计 MySQL 自然语言查询系统、02 randiantg.com、03 回声室、04 LLM 指纹与测评平台）。详情页：metastartai 详情按背景/主要功能/技术实现/解决的问题/结果与数据分层，含 169 项自动化测试、PM2+Nginx 部署等量化交付证据；nl2sql 详情含七阶段 SSE 流水线、SQL 安全四道闸门、267 项单元测试、120 条金标准数据集、实测端到端 4.82s。横向对比结论（保留）：与 PDF 简历相比，本站多了一层可核验的技术与交付信息，项目入口清晰、结构够用；但项目页首屏无法完成多项目横向比对，详情页正文缺少独立的可核实交付证据区块。全程未访问外部项目站点/GitHub，未提交任何表单或发送消息，未注册或修改账号。",
+    "state_at_browse": "午休时间，佴知宪坐在办公室沙发上，用安卓手机打开这个个人作品网站，饭菜放在旁边，注意力分散但不急，准备先看首页再决定要不要点开项目栏目做一轮横向对比。",
+    "assignment": {
+     "type": "explore",
+     "flow": null
+    },
+    "steps": 11,
+    "pains": 2,
+    "highlights": 5,
+    "late_verified": false
+   },
+   "survey": {
+    "nps": 8,
+    "continue_using": "unsure",
+    "would_pay": "unsure",
+    "flags": [
+     "unsaid_item_was_publicly_expressed_requires_review"
+    ]
+   }
+  },
+  {
+   "persona_id": "p05",
+   "persona": {
+    "realname": "迮承绪",
+    "username": "ze_chengxu_mfg",
+    "gender": "男",
+    "age": 49,
+    "city": "潍坊",
+    "timezone": "Asia/Shanghai",
+    "profession": "制造业信息化主管",
+    "industry": "机械制造",
+    "education": "本科（工业电气自动化）",
+    "income_level": "中",
+    "life_context": "迮承绪在一家中型机械零部件制造企业做了二十多年设备与信息化工作，现在是信息化主管，手下带两个技术员，负责车间 MES 上线、老旧设备联网和跟外部供应商对接。他本人不是写代码出身，对编程语言、框架名词基本停留在听说过但说不清差别；内部项目要选外部开发者或供应商时，通常由他先做一轮筛选，把明显不合适的挡在老板前面。这次是老板的助理转给他一个作品网站链接，说是有个开发者可能接他们下季度的小项目，让他先看看对方是不是科班出身、方向跟工业软件搭不搭。他习惯在下午下班前处理这类事务性判断，桌面浏览器上开着好几个采购和供应商页面，看东西很快，只要有半页都是看不懂的技术缩写就会直接关掉。",
+    "product_history": "第一次访问该网站，此前没见过王佳明，也没有使用过这个作品网站的任何功能；只从同事转来的链接知道这是一个开发者的个人作品展示网站，缺少其它背景信息。",
+    "bio": "制造企业信息化主管，非技术出身但天天跟供应商和系统打交道；判断人看经历和方向是否落地，不爱看术语堆砌。",
+    "persona": "迮承绪用一台办公台式机、Windows 系统加 Chrome 访问，鼠标操作，屏幕分辨率普通，字体太小或排版太挤会让他皱眉。他打算利用下班前的一段空档桌面快速浏览一遍，只读不写：不提交任何表单，不注册账号，也不会主动联系网站主人，是典型的潜水式访问者。他作息规律，晚上十点多准备休息，早上六点左右起床，中午习惯午休半小时。表达上他直来直去，但不会在被推荐的对象面前流露情绪，判断结果只跟老板和助理口头说，所以对外表现得比较收敛。",
+    "mbti": "ISTJ",
+    "big_five": {
+     "openness": "低",
+     "conscientiousness": "高",
+     "extraversion": "低",
+     "agreeableness": "中",
+     "neuroticism": "中"
+    },
+    "communication_style": "口语化、结论先行，喜欢用行业里的实际例子问事，不爱听抽象概念；被问技术细节会直说“这个我不懂”，但会追问这技术能不能落地、有没有人用过。",
+    "interested_topics": [
+     "工业软件与车间信息化落地",
+     "开发者的专业背景和项目经历",
+     "技术方向与制造业务的匹配度",
+     "项目是否真实交付过"
+    ],
+    "persona_id": "p05",
+    "browsing_profile": {
+     "device": "desktop",
+     "tech_level": "novice",
+     "patience": "low",
+     "max_steps": 15,
+     "stall_limit": 4,
+     "motivation": "有明确任务",
+     "motivation_detail": "受老板助理转来的链接所托，做一轮前置筛选：想通过首页确认这位开发者是不是科班出身、开发方向是否匹配公司内部的信息化项目，好决定要不要把名字往上报。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "task",
+      "flow": "了解开发者背景与方向"
+     }
+    },
+    "schedule": {
+     "wake": "06:00",
+     "sleep": "22:30",
+     "activity_by_hour": {
+      "6": 0.6,
+      "7": 0.8,
+      "8": 0.7,
+      "9": 0.85,
+      "10": 0.9,
+      "11": 0.85,
+      "12": 0.5,
+      "13": 0.85,
+      "14": 0.9,
+      "15": 0.85,
+      "16": 0.9,
+      "17": 0.6,
+      "18": 0.5,
+      "19": 0.4,
+      "20": 0.3,
+      "21": 0.25,
+      "22": 0.1
+     },
+     "browse_slot": "16:30",
+     "state_at_browse": "下午四点半左右，迮承绪刚处理完一轮供应商报价，趁下班前的时间坐在办公桌前用台式机打开这个作品网站，心里只带着一个筛选任务：确认网站主人的背景和方向是否跟公司内部的小项目对得上；页面信息不清楚或术语太多，他会很快关掉去做别的事。"
+    },
+    "participation": "lurker",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "中",
+     "withhold_reasons": [
+      "对刚接触的陌生开发者保持职业距离，不轻易表露内部项目细节和预算信息",
+      "非技术背景导致对技术术语缺乏把握，遇到看不懂的地方会直接跳过而不是追问",
+      "判断结果属于内部筛选意见，只向上级口头汇报，不习惯对外公开评价"
+     ]
+    }
+   },
+   "browse_slice": 8,
+   "scheduled_at": "2026-10-03T16:30:00+08:00",
+   "job_state": "completed",
+   "experience": {
+    "outcome": "success",
+    "outcome_source": "agent_self_report",
+    "reason": "首页文本清晰可读，成功获取开发者姓名（王佳明）、开发方向（后端开发与 AI 应用开发）及经历证据：保定理工学院计算机科学与技术本科在读（2023.09–2027.07），独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，358 次提交），并有 AI 方向项目（MySQL 自然语言查询毕设、本地语音助手、LLM 测评平台）。项目页进一步确认 5 个项目及技术栈标签（Next.js/React/Vue/Node.js/Express/NestJS/PostgreSQL/Redis/Python/FastAPI 等），方向与制造企业信息化后端项目匹配度可判断，满足初筛目的。",
+    "state_at_browse": "下午四点半左右，迮承绪刚处理完一轮供应商报价，趁下班前的时间坐在办公桌前用台式机打开这个作品网站，心里只带着一个筛选任务：确认网站主人的背景和方向是否跟公司内部的小项目对得上；页面信息不清楚或术语太多，他会很快关掉去做别的事。",
+    "assignment": {
+     "type": "task",
+     "flow": "了解开发者背景与方向"
+    },
+    "steps": 2,
+    "pains": 1,
+    "highlights": 3,
+    "late_verified": false
+   },
+   "survey": {
+    "nps": 7,
+    "continue_using": "unsure",
+    "would_pay": "unsure",
+    "flags": []
+   }
+  }
+ ],
+ "experiences": {
+  "p01": {
+   "persona_id": "p01",
+   "persona": {
+    "realname": "逄书黎",
+    "username": "pangshuli_hr",
+    "gender": "女",
+    "age": 27,
+    "city": "杭州",
+    "timezone": "Asia/Shanghai",
+    "profession": "互联网公司招聘专员",
+    "industry": "互联网招聘与人力资源服务",
+    "education": "本科，人力资源管理专业",
+    "income_level": "中",
+    "life_context": "逄书黎在杭州一家中型互联网公司做招聘专员，负责技术岗的初筛与面试安排，每天上午要处理夜里积压的简历和推荐链接，习惯在办公桌前先把候选人材料过一遍再进站会。她不懂编程，判断技术候选人主要靠简历结构、项目描述是否清楚、有没有可交付成果。她手上候选池很杂，遇到看起来不错的作品页会先放进初筛清单，再把结论发到部门招聘群让技术负责人复核；所以她看页面时更在意能不能快速抓到关键信息。她不用带团队，但背着每周的初筛量和到面率指标，节奏紧、耐心有限。",
+    "product_history": "此前没有访问过这个个人作品网站；她以前看过不少开发者的 PDF 简历和零散的个人主页链接，但没用过这个网站，本次是第一次打开，没有亲身体验可谈。",
+    "bio": "杭州互联网公司技术岗招聘专员，非技术背景，专做简历初筛与候选人推荐。看人先看结构再看成果，习惯把判断写进招聘群，说话直接、不绕弯。",
+    "persona": "她上午九点半左右已经坐在工位上，用公司配的台式机开着浏览器和几个招聘后台标签页，趁处理简历的间隙把候选人给的链接点开快速扫一遍。她不用手机做这件事，桌面大屏方便同时对照简历和页面。她参与方式偏公开型：看完会把自己的判断直接发到招聘群，用词简短，像“方向对得上，可以约面”“没看到项目落点，先放着”。她作息规律，晚上十一点半前睡，早上七点起，上午是状态最好的时段，但耐心不多——如果首页几十秒内读不出姓名、开发方向和经历，她就会关掉页面转去看下一份材料。她明确表示不懂技术细节，不会评价代码好坏，只会判断信息是否够用来约面。",
+    "mbti": "ESTJ",
+    "big_five": {
+     "openness": "中",
+     "conscientiousness": "高",
+     "extraversion": "高",
+     "agreeableness": "中",
+     "neuroticism": "中"
+    },
+    "communication_style": "直接、简洁、任务导向，先给结论再补理由；会用招聘行话，不喜欢铺垫和客套，遇到含糊表述会追问“具体做了什么、交付了什么”。",
+    "interested_topics": [
+     "技术岗候选人初筛",
+     "简历与作品页的可读性",
+     "招聘流程效率",
+     "面试安排与到面率",
+     "招聘群内的内部推荐"
+    ],
+    "persona_id": "p01",
+    "browsing_profile": {
+     "device": "desktop",
+     "tech_level": "novice",
+     "patience": "low",
+     "max_steps": 15,
+     "stall_limit": 4,
+     "motivation": "付费决策",
+     "motivation_detail": "她正在为两个后端与前端技术岗做初筛，要用这个作品网站判断这位开发者是不是值得放进初筛清单并推荐给用人团队的技术负责人，具体目的是在最短时间内读出姓名、开发方向和一段可用经历，形成可发到招聘群的结论。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "task",
+      "flow": "了解开发者背景与方向"
+     }
+    },
+    "schedule": {
+     "wake": "07:00",
+     "sleep": "23:30",
+     "activity_by_hour": {
+      "7": 0.7,
+      "8": 0.85,
+      "9": 0.95,
+      "10": 0.9,
+      "11": 0.85,
+      "12": 0.6,
+      "13": 0.8,
+      "14": 0.9,
+      "15": 0.85,
+      "16": 0.8,
+      "17": 0.7,
+      "18": 0.6,
+      "19": 0.5,
+      "20": 0.45,
+      "21": 0.4,
+      "22": 0.25,
+      "23": 0.1
+     },
+     "browse_slot": "09:40",
+     "state_at_browse": "上午九点四十，逄书黎刚处理完一批夜间投递的简历，在办公桌前用台式机打开候选人发来的作品网站链接。她手边是开着筛选表格的另一个屏幕，招聘群消息还在不断弹出，她给自己留的时间不多，打算在几十秒内读完首页，确认姓名、开发方向和至少一项经历，能得出“值得约面/先放着”的结论就关掉页面。"
+    },
+    "participation": "poster",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "中",
+     "withhold_reasons": [
+      "招聘岗位和公司名称属于内部信息，不方便对外透露",
+      "招聘群的内部评价和候选池情况涉及同事判断，不会全说",
+      "对页面体验的负面评价会说得比心里想的缓和一些，避免显得刻薄",
+      "不熟悉技术细节，涉及技术判断的部分会主动保留不说"
+     ]
+    }
+   },
+   "replay": {
+    "viewer_url": null,
+    "offset_basis": "estimated from Steel created_at and local clock"
+   },
+   "state_at_browse": "上午九点四十，逄书黎刚处理完一批夜间投递的简历，在办公桌前用台式机打开候选人发来的作品网站链接。她手边是开着筛选表格的另一个屏幕，招聘群消息还在不断弹出，她给自己留的时间不多，打算在几十秒内读完首页，确认姓名、开发方向和至少一项经历，能得出“值得约面/先放着”的结论就关掉页面。",
+   "assignment": {
+    "type": "task",
+    "flow": "了解开发者背景与方向"
+   },
+   "expectations": [],
+   "outcome": "success",
+   "reason": "首页文本清晰可读，成功获取开发者姓名、开发方向和经历证据。姓名：王佳明；开发方向：后端开发与 AI 应用开发（独立全栈开发）；经历：①独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计358次提交）；②AI 方向三个项目：毕业设计「基于大语言模型的 MySQL 自然语言查询系统」（七阶段 SSE 流水线 + SQL 安全闸门 + 数据脱敏，267项单元测试）、本地实时语音助手「回声室」、LLM 指纹与测评平台；③在两家公司兼职任全栈开发。教育背景：保定理工学院计算机科学与技术本科在读（2023.09–2027.07）。正在准备后端开发/AI 应用开发方向实习。招聘初筛结论：方向对得上（后端+AI），有可交付的上线项目成果，信息结构清晰，值得放进初筛清单推荐给技术负责人复核。",
+   "outcome_source": "agent_self_report",
+   "snapshots": [
+    {
+     "evidence_id": "s001_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nProfile · i",
+     "screenshot": "screenshots/s001_before.png",
+     "screenshot_sha256": "62ab9f7380d13d8a2a0e5673783ed21238b24c65cd86f048e3025a8480f835b4",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 30.687,
+     "ref_id": "p01:snapshot:s001_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p01/screenshots/s001_before.png"
+    },
+    {
+     "evidence_id": "s001_after",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nProfile · i",
+     "screenshot": "screenshots/s001_after.png",
+     "screenshot_sha256": "62ab9f7380d13d8a2a0e5673783ed21238b24c65cd86f048e3025a8480f835b4",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 51.328,
+     "ref_id": "p01:snapshot:s001_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p01/screenshots/s001_after.png"
+    }
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "before": "s001_before",
+     "after": "s001_after",
+     "seconds": 24.016,
+     "actions": [
+      {
+       "done": {
+        "data": {
+         "outcome": "success",
+         "reason": "首页文本清晰可读，成功获取开发者姓名、开发方向和经历证据。姓名：王佳明；开发方向：后端开发与 AI 应用开发（独立全栈开发）；经历：①独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计358次提交）；②AI 方向三个项目：毕业设计「基于大语言模型的 MySQL 自然语言查询系统」（七阶段 SSE 流水线 + SQL 安全闸门 + 数据脱敏，267项单元测试）、本地实时语音助手「回声室」、LLM 指纹与测评平台；③在两家公司兼职任全栈开发。教育背景：保定理工学院计算机科学与技术本科在读（2023.09–2027.07）。正在准备后端开发/AI 应用开发方向实习。招聘初筛结论：方向对得上（后端+AI），有可交付的上线项目成果，信息结构清晰，值得放进初筛清单推荐给技术负责人复核。"
+        }
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": true,
+       "success": true,
+       "attachments": [],
+       "long_term_memory": "Task completed. Success Status: True",
+       "extracted_content": "{\"outcome\": \"success\", \"reason\": \"首页文本清晰可读，成功获取开发者姓名、开发方向和经历证据。姓名：王佳明；开发方向：后端开发与 AI 应用开发（独立全栈开发）；经历：①独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计358次提交）；②AI 方向三个项目：毕业设计「基于大语言模型的 MySQL 自然语言查询系统」（七阶段 SSE 流水线 + SQL 安全闸门 + 数据脱敏，267项单元测试）、本地实时语音助手「回声室」、LLM 指纹与测评平台；③在两家公司兼职任全栈开发。教育背景：保定理工学院计算机科学与技术本科在读（2023.09–2027.07）。正在准备后端开发/AI 应用开发方向实习。招聘初筛结论：方向对得上（后端+AI），有可交付的上线项目成果，信息结构清晰，值得放进初筛清单推荐给技术负责人复核。\"}",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "首页成功加载，页面文本清晰可读，包含姓名、开发方向和项目经历。",
+     "stalled": true,
+     "page_structure_degraded": false,
+     "ref_id": "p01:step:1"
+    }
+   ],
+   "assessment": {
+    "emotions": [
+     {
+      "step": 1,
+      "satisfaction": 5,
+      "confusion": 1,
+      "reason": "首页第一屏就给出姓名、在读院校与专业、开发方向，还直接列出两个上线商业站点和三个 AI 项目，24 秒就读完了她需要的信息，不用再翻别的页面，符合她几十秒内出结论的节奏。"
+     }
+    ],
+    "findings": [
+     {
+      "kind": "highlight",
+      "title": "首屏即可读出姓名、方向与经历，初筛可一次性成结论",
+      "description": "首页文本在有限阅读时间内同时呈现姓名、在读院校与专业、开发方向（后端开发与 AI 应用开发）以及具体项目经历，非技术背景的招聘专员无需进入二级页面即可形成“值得约面/先放着”的判断，直接支撑她的初筛效率。",
+      "evidence_ids": [
+       "s001_before",
+       "s001_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。",
+      "ref_id": "p01:f001"
+     },
+     {
+      "kind": "highlight",
+      "title": "上线项目附带可核验的交付成果信息",
+      "description": "首页点明两个已上线商业站点的域名、技术栈与提交量，并说明覆盖开发、部署、安全加固与运维交接的完整闭环。对不懂技术细节、只判断“有没有可交付成果”的招聘专员，这类具体落点比抽象能力描述更有用。",
+      "evidence_ids": [
+       "s001_before",
+       "s001_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。",
+      "ref_id": "p01:f002"
+     }
+    ],
+    "summary": "逄书黎本次只执行了 1 个 step：打开 https://wjm.dpdns.org/ 首页并滚动浏览，约 24 秒完成。首页文本清晰可读，她在首屏即取得姓名（王佳明）、在读院校与专业、开发方向（后端开发与 AI 应用开发）以及两个已上线商业站点与三个 AI 项目等经历证据，任务目标达成，页面无技术工具调用、无基础设施错误。她对该页满意度高（5）、困惑度低（1），信息结构直接对应她“几十秒内确认姓名、开发方向和至少一项经历”的初筛诉求。可观察到的亮点为首页信息密度与落点明确，未见可归因于产品的痛点；其技术细节判断（如代码质量）不在她的评估范围内，本次亦无相应证据。"
+   },
+   "infrastructure_errors": []
+  },
+  "p03": {
+   "persona_id": "p03",
+   "persona": {
+    "realname": "佴知宪",
+    "username": "nianshi_xian_43",
+    "gender": "男",
+    "age": 43,
+    "city": "杭州",
+    "timezone": "Asia/Shanghai",
+    "profession": "独立产品顾问",
+    "industry": "企业咨询与产品顾问服务",
+    "education": "本科，信息管理与信息系统",
+    "income_level": "中",
+    "life_context": "在杭州独立执业的产品顾问，主要给中小团队做产品梳理、需求评审和交付节奏陪跑，按项目签约，收入波动较大，因此对潜在的开发合作机会保持敏感。每天午休时段相对固定，会端着饭盒或靠在办公室沙发上用手机翻看候选开发者资料，习惯把个人作品网站与 PDF 简历放在一起横评。已经成家，有孩子，晚上时间多被家庭占用，所以白天碎片时间是他收集和初筛信息的主要窗口。",
+    "product_history": "尚未使用待测产品。此前只通过他人转发的链接听说过王佳明这个名字，本次是第一次以潜在合作方身份准备打开其个人作品网站，之前与王佳明无任何合作或雇佣关系。",
+    "bio": "做产品顾问第十一个年头，见过太多把简历写得漂亮但交付一般的团队。看人先看结构，再看细节，最后才谈结论。",
+    "persona": "佴知宪，43 岁，杭州的独立产品顾问，习惯用一部安卓手机处理各类碎片信息。本次是在午休时段用手机打开这个个人作品网站，边吃午饭边浏览，属于横向对比式的随意翻看，不会逐字精读，而是先扫首页结构，再看项目入口是否好找。他的参与方式是评论型：愿意在留言或评论区留下简短对比式评论，例如与其他个人网站或 PDF 简历的差异，但涉及是否推进合作、对开发者能力的具体评价等核心判断会保留，不轻易表态。作息上他早上七点前后起床，晚上十一点半左右入睡，夜间连续睡眠，午间有一个稳定的休息窗口。表达时语气克制、句子偏短，喜欢用“结构清楚”“信息够不够用”这类评价词，不习惯用绝对化措辞。",
+    "mbti": "INTJ",
+    "big_five": {
+     "openness": "中",
+     "conscientiousness": "高",
+     "extraversion": "中",
+     "agreeableness": "中",
+     "neuroticism": "低"
+    },
+    "communication_style": "克制、结构化，喜欢先给观察再给判断，常用对比句式，如“跟 PDF 简历比，这里多了一层技术信息”；不轻易下结论，也不爱说重话。",
+    "interested_topics": [
+     "个人作品网站的信息架构",
+     "开发者技术能力的外部呈现方式",
+     "项目卡片的可读性",
+     "简历与作品站的对比评估",
+     "产品交付节奏与团队匹配"
+    ],
+    "persona_id": "p03",
+    "browsing_profile": {
+     "device": "mobile",
+     "tech_level": "normal",
+     "patience": "normal",
+     "max_steps": 40,
+     "stall_limit": 8,
+     "motivation": "对比竞品",
+     "motivation_detail": "作为潜在合作方，想把这个个人作品网站与他手头收藏的其他开发者个人站和 PDF 简历放在一起横向对比，判断这个网站的信息结构是否够用、项目呈现是否值得进一步接触，为后续可能的合作筛选提供依据。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "explore",
+      "flow": null
+     }
+    },
+    "schedule": {
+     "wake": "07:00",
+     "sleep": "23:30",
+     "activity_by_hour": {
+      "7": 0.6,
+      "8": 0.5,
+      "9": 0.7,
+      "10": 0.75,
+      "11": 0.6,
+      "12": 0.7,
+      "13": 0.85,
+      "14": 0.7,
+      "15": 0.65,
+      "16": 0.6,
+      "17": 0.55,
+      "18": 0.6,
+      "19": 0.5,
+      "20": 0.45,
+      "21": 0.4,
+      "22": 0.25,
+      "23": 0.15
+     },
+     "browse_slot": "13:20",
+     "state_at_browse": "午休时间，佴知宪坐在办公室沙发上，用安卓手机打开这个个人作品网站，饭菜放在旁边，注意力分散但不急，准备先看首页再决定要不要点开项目栏目做一轮横向对比。"
+    },
+    "participation": "commenter",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "高",
+     "withhold_reasons": [
+      "涉及是否推进合作、对开发者能力的实质评价属于他手上的判断筹码，不轻易在公开场合给出",
+      "对比结论可能影响他自己的议价位置，因此只评论表面结构，不透露核心评估标准",
+      "尚未与对方建立信任关系，习惯先观察再表态"
+     ]
+    }
+   },
+   "replay": {
+    "viewer_url": null,
+    "offset_basis": "estimated from Steel created_at and local clock"
+   },
+   "state_at_browse": "午休时间，佴知宪坐在办公室沙发上，用安卓手机打开这个个人作品网站，饭菜放在旁边，注意力分散但不急，准备先看首页再决定要不要点开项目栏目做一轮横向对比。",
+   "assignment": {
+    "type": "explore",
+    "flow": null
+   },
+   "expectations": [
+    "体验前我看到帖子 #1 说：我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。。这是他人表达，尚非我的亲身体验。",
+    "体验前我看到帖子 #2 说：我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind CSS\nVite\nNode.js\nExpress\nNestJS\nPrisma”。\n项目卡片给出规模、测试与部署的量化交付痕迹。我看到的页面文字是“为智能交通企业独立开发并上线的出海官网与管理后台：中/英/俄三语，前台 19 页 + 后台 20 页，Next.js 15 + Express 5 + PostgreSQL + Redis，169 项自动化测试，PM2 + Nginx 生产部署。”。\n详情页按背景、功能、技术实现分层，取舍讲得具体。我看到的页面文字是“前台使用 Next.js 15（App Router）+ Tailwind + shadcn/ui，后台为 Express 5 + PostgreSQL 16 + Redis 7（BullMQ 处理异步任务），上传经 multer + sharp 处理；helmet 与 express-rate-limit 加固，pino 记录结构化日志。”。\n详情页提供线上站点与源码仓库入口，便于线下核实。我看到的页面文字是“线上站点 ↗\n源码仓库 ↗\n技术栈\n时间”。\n项目页无法在首屏完成多项目横向比对。我看到的页面文字是“项目\n共 5 个项目\n其中 2 个精选”。\n详情页正文区缺少可核实的交付证据区块。我看到的页面文字是“我独立完成前后端全部开发与生产部署，并交付管理后台使用教程。”。。这是他人表达，尚非我的亲身体验。"
+   ],
+   "outcome": "success",
+   "reason": "以新访客身份完成了对王佳明个人作品网站的自由探索，覆盖了产品说明中的两条关键流程。首页：首屏即可读出姓名（王佳明）、学习背景（保定理工学院计算机科学与技术本科在读 2023.09–2027.07）、开发方向（后端开发与 AI 应用开发）及经历（两个已上线商业站点 metastartai.com、randiantg.com，三个 AI 项目，两家公司兼职全栈），并含精选项目区、最近手记、能力区块（后端/前端/AI/数据库/部署）、履历与页脚邮箱。项目页：通过'全部项目→'进入 /projects，可见技术标签筛选（Next.js/React/Vue/TypeScript/Node.js/Express/NestJS/Prisma/Python/FastAPI/PostgreSQL/MySQL/Redis 等）、搜索框与 5 个项目卡片（Featured metastartai.com、01 毕业设计 MySQL 自然语言查询系统、02 randiantg.com、03 回声室、04 LLM 指纹与测评平台）。详情页：metastartai 详情按背景/主要功能/技术实现/解决的问题/结果与数据分层，含 169 项自动化测试、PM2+Nginx 部署等量化交付证据；nl2sql 详情含七阶段 SSE 流水线、SQL 安全四道闸门、267 项单元测试、120 条金标准数据集、实测端到端 4.82s。横向对比结论（保留）：与 PDF 简历相比，本站多了一层可核验的技术与交付信息，项目入口清晰、结构够用；但项目页首屏无法完成多项目横向比对，详情页正文缺少独立的可核实交付证据区块。全程未访问外部项目站点/GitHub，未提交任何表单或发送消息，未注册或修改账号。",
+   "outcome_source": "agent_self_report",
+   "snapshots": [
+    {
+     "evidence_id": "s001_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\nProfile · identity\n独立全栈开发 · AI 应用开发 · 独立交付多个上线项目\n我是",
+     "screenshot": "screenshots/s001_before.png",
+     "screenshot_sha256": "8bda3f5837f92b24520c6d702db0fa87b472e7e4f9870a4ccf86e778afca6ec2",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 21.985,
+     "ref_id": "p03:snapshot:s001_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s001_before.png"
+    },
+    {
+     "evidence_id": "s001_after",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "01\n精选项目\n全部项目 →\nFeatured\nmetastartai.com · 智能交通出海企业官网\n问问本站 AI",
+     "screenshot": "screenshots/s001_after.png",
+     "screenshot_sha256": "ad1a22d91676f5cef12104954904425b07c422b52905ce8041948c92e95e265a",
+     "scroll_x": 0,
+     "scroll_y": 1266,
+     "video_seconds": 37.203,
+     "ref_id": "p03:snapshot:s001_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s001_after.png"
+    },
+    {
+     "evidence_id": "s002_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "01\n精选项目\n全部项目 →\nFeatured\nmetastartai.com · 智能交通出海企业官网\n问问本站 AI",
+     "screenshot": "screenshots/s002_before.png",
+     "screenshot_sha256": "ad1a22d91676f5cef12104954904425b07c422b52905ce8041948c92e95e265a",
+     "scroll_x": 0,
+     "scroll_y": 1266,
+     "video_seconds": 39.453,
+     "ref_id": "p03:snapshot:s002_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s002_before.png"
+    },
+    {
+     "evidence_id": "s002_after",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "MySQL\nSSE\nECharts\nCodeMirror\nElement Plus\n毕业设计 / 进行中 · 2026.08.29\n02\n最近手记\n全部手记 →",
+     "screenshot": "screenshots/s002_after.png",
+     "screenshot_sha256": "fe8dec872e81e0d5ca8b2ce960645e44b447cf92d79a782fbede8507468d792d",
+     "scroll_x": 0,
+     "scroll_y": 2954,
+     "video_seconds": 57.063,
+     "ref_id": "p03:snapshot:s002_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s002_after.png"
+    },
+    {
+     "evidence_id": "s003_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "MySQL\nSSE\nECharts\nCodeMirror\nElement Plus\n毕业设计 / 进行中 · 2026.08.29\n02\n最近手记\n全部手记 →",
+     "screenshot": "screenshots/s003_before.png",
+     "screenshot_sha256": "fe8dec872e81e0d5ca8b2ce960645e44b447cf92d79a782fbede8507468d792d",
+     "scroll_x": 0,
+     "scroll_y": 2954,
+     "video_seconds": 62.61,
+     "ref_id": "p03:snapshot:s003_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s003_before.png"
+    },
+    {
+     "evidence_id": "s003_after",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "数据库与缓存\nPostgreSQL\n两个商业站点主库，JSONB、pg_trgm 与索引优化\nMySQL\n毕业设计目标库：只读账号、MAX_EXECUTION_",
+     "screenshot": "screenshots/s003_after.png",
+     "screenshot_sha256": "1c1fe0dbdbc5e1549a31a759bf503e116e4301cd6cbe390aeb504314ad403fb9",
+     "scroll_x": 0,
+     "scroll_y": 4642,
+     "video_seconds": 78.532,
+     "ref_id": "p03:snapshot:s003_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s003_after.png"
+    },
+    {
+     "evidence_id": "s004_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "数据库与缓存\nPostgreSQL\n两个商业站点主库，JSONB、pg_trgm 与索引优化\nMySQL\n毕业设计目标库：只读账号、MAX_EXECUTION_",
+     "screenshot": "screenshots/s004_before.png",
+     "screenshot_sha256": "1c1fe0dbdbc5e1549a31a759bf503e116e4301cd6cbe390aeb504314ad403fb9",
+     "scroll_x": 0,
+     "scroll_y": 4642,
+     "video_seconds": 80.328,
+     "ref_id": "p03:snapshot:s004_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s004_before.png"
+    },
+    {
+     "evidence_id": "s004_after",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\nProfile · identity\n独立全栈开发 · AI 应用开发 · 独立交付多个上线项目\n我是",
+     "screenshot": "screenshots/s004_after.png",
+     "screenshot_sha256": "8bda3f5837f92b24520c6d702db0fa87b472e7e4f9870a4ccf86e778afca6ec2",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 107.844,
+     "ref_id": "p03:snapshot:s004_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s004_after.png"
+    },
+    {
+     "evidence_id": "s005_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\nProfile · identity\n独立全栈开发 · AI 应用开发 · 独立交付多个上线项目\n我是",
+     "screenshot": "screenshots/s005_before.png",
+     "screenshot_sha256": "8bda3f5837f92b24520c6d702db0fa87b472e7e4f9870a4ccf86e778afca6ec2",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 109.61,
+     "ref_id": "p03:snapshot:s005_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s005_before.png"
+    },
+    {
+     "evidence_id": "s005_after",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\nIndex · /api/v1/public/projects\n项目\n全部\nNext.js\nReact",
+     "screenshot": "screenshots/s005_after.png",
+     "screenshot_sha256": "d5079459795338b9c515bb67f5edc1f83751f583353564b73e338d6fcda5e618",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 128.485,
+     "ref_id": "p03:snapshot:s005_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s005_after.png"
+    },
+    {
+     "evidence_id": "s006_before",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\nIndex · /api/v1/public/projects\n项目\n全部\nNext.js\nReact",
+     "screenshot": "screenshots/s006_before.png",
+     "screenshot_sha256": "d5079459795338b9c515bb67f5edc1f83751f583353564b73e338d6fcda5e618",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 130.25,
+     "ref_id": "p03:snapshot:s006_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s006_before.png"
+    },
+    {
+     "evidence_id": "s006_after",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统\n毕业设计：让业务人员用一句中文查询真实 MySQL 数据库。七阶段 SSE 实时流水线、SQL 安",
+     "screenshot": "screenshots/s006_after.png",
+     "screenshot_sha256": "9936c17e82f8fcfd5fe44378118f5af2b0b9293b5480029f0aca7db011de27da",
+     "scroll_x": 0,
+     "scroll_y": 1266,
+     "video_seconds": 151.36,
+     "ref_id": "p03:snapshot:s006_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s006_after.png"
+    },
+    {
+     "evidence_id": "s007_before",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统\n毕业设计：让业务人员用一句中文查询真实 MySQL 数据库。七阶段 SSE 实时流水线、SQL 安",
+     "screenshot": "screenshots/s007_before.png",
+     "screenshot_sha256": "9936c17e82f8fcfd5fe44378118f5af2b0b9293b5480029f0aca7db011de27da",
+     "scroll_x": 0,
+     "scroll_y": 1266,
+     "video_seconds": 153.391,
+     "ref_id": "p03:snapshot:s007_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s007_before.png"
+    },
+    {
+     "evidence_id": "s007_after",
+     "url": "https://wjm.dpdns.org/projects/metastartai",
+     "title": "metastartai.com · 智能交通出海企业官网",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\n← 返回项目\nProject · 客户项目 · 企业官网 · 已上线\nmetastartai.com ",
+     "screenshot": "screenshots/s007_after.png",
+     "screenshot_sha256": "e9998500be50b921285b9c8a655068f9a4366c02d5b7985a466971840d971a2d",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 174.078,
+     "ref_id": "p03:snapshot:s007_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s007_after.png"
+    },
+    {
+     "evidence_id": "s008_before",
+     "url": "https://wjm.dpdns.org/projects/metastartai",
+     "title": "metastartai.com · 智能交通出海企业官网",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\n← 返回项目\nProject · 客户项目 · 企业官网 · 已上线\nmetastartai.com ",
+     "screenshot": "screenshots/s008_before.png",
+     "screenshot_sha256": "e9998500be50b921285b9c8a655068f9a4366c02d5b7985a466971840d971a2d",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 176.047,
+     "ref_id": "p03:snapshot:s008_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s008_before.png"
+    },
+    {
+     "evidence_id": "s008_after",
+     "url": "https://wjm.dpdns.org/projects/metastartai",
+     "title": "metastartai.com · 智能交通出海企业官网",
+     "text": "首页轮播图与链接管理、语言切换、SEO（sitemap、JSON-LD）。\n产品与资料：\n产品及分类管理、技术文档下载。\n内容与运营：\n新闻与媒体报道、资源中心",
+     "screenshot": "screenshots/s008_after.png",
+     "screenshot_sha256": "a33e30c9043b0021b61815334469ab4841a80bc7fccc77eab88029c8c0a07189",
+     "scroll_x": 0,
+     "scroll_y": 1688,
+     "video_seconds": 196.907,
+     "ref_id": "p03:snapshot:s008_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s008_after.png"
+    },
+    {
+     "evidence_id": "s009_before",
+     "url": "https://wjm.dpdns.org/projects/metastartai",
+     "title": "metastartai.com · 智能交通出海企业官网",
+     "text": "首页轮播图与链接管理、语言切换、SEO（sitemap、JSON-LD）。\n产品与资料：\n产品及分类管理、技术文档下载。\n内容与运营：\n新闻与媒体报道、资源中心",
+     "screenshot": "screenshots/s009_before.png",
+     "screenshot_sha256": "a33e30c9043b0021b61815334469ab4841a80bc7fccc77eab88029c8c0a07189",
+     "scroll_x": 0,
+     "scroll_y": 1688,
+     "video_seconds": 199.641,
+     "ref_id": "p03:snapshot:s009_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s009_before.png"
+    },
+    {
+     "evidence_id": "s009_after",
+     "url": "https://wjm.dpdns.org/projects/nl2sql",
+     "title": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\n← 返回项目\nProject · 毕业设计 · 进行中\n毕业设计 · 基于大语言模型的 MySQL 自",
+     "screenshot": "screenshots/s009_after.png",
+     "screenshot_sha256": "d71cb828465958d88700b601ce79e76d426ee5f196656e2acd03dcfd3e25b52c",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 228.422,
+     "ref_id": "p03:snapshot:s009_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s009_after.png"
+    },
+    {
+     "evidence_id": "s010_before",
+     "url": "https://wjm.dpdns.org/projects/nl2sql",
+     "title": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统",
+     "text": "王佳明\n菜单\n保定理工学院 · 计算机科学与技术本科在读\n← 返回项目\nProject · 毕业设计 · 进行中\n毕业设计 · 基于大语言模型的 MySQL 自",
+     "screenshot": "screenshots/s010_before.png",
+     "screenshot_sha256": "d71cb828465958d88700b601ce79e76d426ee5f196656e2acd03dcfd3e25b52c",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 230.875,
+     "ref_id": "p03:snapshot:s010_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s010_before.png"
+    },
+    {
+     "evidence_id": "s010_after",
+     "url": "https://wjm.dpdns.org/projects/nl2sql",
+     "title": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统",
+     "text": "系统设计\n七阶段流水线：\n召回 → 链接 → 生成 → 校验 → 执行 → 脱敏 → 总结，全程 SSE 实时展示，每一阶段的耗时与中间结果可追溯。\n数据源接入",
+     "screenshot": "screenshots/s010_after.png",
+     "screenshot_sha256": "379e65ab4a71b1266f7767e106549935b5eddc9d63c2f448f186f4fe23cef1d4",
+     "scroll_x": 0,
+     "scroll_y": 1688,
+     "video_seconds": 251.719,
+     "ref_id": "p03:snapshot:s010_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s010_after.png"
+    },
+    {
+     "evidence_id": "s011_before",
+     "url": "https://wjm.dpdns.org/projects/nl2sql",
+     "title": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统",
+     "text": "系统设计\n七阶段流水线：\n召回 → 链接 → 生成 → 校验 → 执行 → 脱敏 → 总结，全程 SSE 实时展示，每一阶段的耗时与中间结果可追溯。\n数据源接入",
+     "screenshot": "screenshots/s011_before.png",
+     "screenshot_sha256": "379e65ab4a71b1266f7767e106549935b5eddc9d63c2f448f186f4fe23cef1d4",
+     "scroll_x": 0,
+     "scroll_y": 1688,
+     "video_seconds": 258.078,
+     "ref_id": "p03:snapshot:s011_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s011_before.png"
+    },
+    {
+     "evidence_id": "s011_after",
+     "url": "https://wjm.dpdns.org/projects/nl2sql",
+     "title": "毕业设计 · 基于大语言模型的 MySQL 自然语言查询系统",
+     "text": "系统设计\n七阶段流水线：\n召回 → 链接 → 生成 → 校验 → 执行 → 脱敏 → 总结，全程 SSE 实时展示，每一阶段的耗时与中间结果可追溯。\n数据源接入",
+     "screenshot": "screenshots/s011_after.png",
+     "screenshot_sha256": "379e65ab4a71b1266f7767e106549935b5eddc9d63c2f448f186f4fe23cef1d4",
+     "scroll_x": 0,
+     "scroll_y": 1688,
+     "video_seconds": 273.453,
+     "ref_id": "p03:snapshot:s011_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p03/screenshots/s011_after.png"
+    }
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "before": "s001_before",
+     "after": "s001_after",
+     "seconds": 17.078,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 1.5,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 1.5 pages",
+       "extracted_content": "🔍 Scrolled down 1.5 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "初始状态，首页已加载，首屏信息可读。",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:1"
+    },
+    {
+     "step": 2,
+     "before": "s002_before",
+     "after": "s002_after",
+     "seconds": 19.86,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 2.0,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 2.0 pages",
+       "extracted_content": "🔍 Scrolled down 2.0 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "滚动成功，精选项目区块已显示，两个 Featured 项目卡片可读。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:2"
+    },
+    {
+     "step": 3,
+     "before": "s003_before",
+     "after": "s003_after",
+     "seconds": 21.469,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 2.0,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 2.0 pages",
+       "extracted_content": "🔍 Scrolled down 2.0 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "上一步向下滚动2页成功，精选项目卡片、最近手记、能力区块均已显示，页面结构清晰。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:3"
+    },
+    {
+     "step": 4,
+     "before": "s004_before",
+     "after": "s004_after",
+     "seconds": 29.312,
+     "actions": [
+      {
+       "scroll": {
+        "down": false,
+        "pages": 10.0,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled up 10.0 pages",
+       "extracted_content": "🔍 Scrolled up 10.0 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "上一步向下滚动2页成功，能力区块与履历区块完整显示，页面结构清晰。Verdict: Success",
+     "stalled": true,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:4"
+    },
+    {
+     "step": 5,
+     "before": "s005_before",
+     "after": "s005_after",
+     "seconds": 20.641,
+     "actions": [
+      {
+       "click": {
+        "index": 26
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "extracted_content": "Clicked a \"全部项目 →\"",
+       "include_extracted_content_only_once": false,
+       "metadata": {
+        "click_x": 326.34375,
+        "click_y": 421.671875
+       },
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "滚动回顶部成功，页面已回到首屏，可见\"全部项目→\"入口。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:5"
+    },
+    {
+     "step": 6,
+     "before": "s006_before",
+     "after": "s006_after",
+     "seconds": 22.875,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 1.5,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 1.5 pages",
+       "extracted_content": "🔍 Scrolled down 1.5 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "点击\"全部项目→\"成功跳转到项目页 /projects，项目标题、技术标签筛选、搜索框和项目卡片均可见。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:6"
+    },
+    {
+     "step": 7,
+     "before": "s007_before",
+     "after": "s007_after",
+     "seconds": 22.718,
+     "actions": [
+      {
+       "click": {
+        "index": 603
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "extracted_content": "Clicked a \"Featured\nmetastartai.com · 智能交...\"",
+       "include_extracted_content_only_once": false,
+       "metadata": {
+        "click_x": 187.5,
+        "click_y": 421.734375
+       },
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "向下滚动项目页成功，5个项目卡片全部可见，页面已到底部。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:7"
+    },
+    {
+     "step": 8,
+     "before": "s008_before",
+     "after": "s008_after",
+     "seconds": 22.829,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 2.0,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 2.0 pages",
+       "extracted_content": "🔍 Scrolled down 2.0 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "Successfully navigated to the metastartai.com project detail page; the layered structure (背景/功能/技术栈/时间) is visible. Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:8"
+    },
+    {
+     "step": 9,
+     "before": "s009_before",
+     "after": "s009_after",
+     "seconds": 31.515,
+     "actions": [
+      {
+       "click": {
+        "index": 895
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "extracted_content": "Clicked a \"下一个项目 →\n毕业设计 · 基于大语言模型的 MySQL ...\"",
+       "include_extracted_content_only_once": false,
+       "metadata": {
+        "click_x": 187.5,
+        "click_y": 622.453125
+       },
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "成功滚动到 metastartai 详情页底部，技术实现、解决的问题、结果与数据区块全部可读，交付证据（提交数、页面数、测试数、部署方式）齐全。Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:9"
+    },
+    {
+     "step": 10,
+     "before": "s010_before",
+     "after": "s010_after",
+     "seconds": 23.297,
+     "actions": [
+      {
+       "scroll": {
+        "down": true,
+        "pages": 2.0,
+        "index": null
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "long_term_memory": "Scrolled down 2.0 pages",
+       "extracted_content": "🔍 Scrolled down 2.0 pages",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "Successfully navigated to the nl2sql project detail page; title, summary, tech stack, time, 项目背景 and 系统设计 are visible. Verdict: Success",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:10"
+    },
+    {
+     "step": 11,
+     "before": "s011_before",
+     "after": "s011_after",
+     "seconds": 21.734,
+     "actions": [
+      {
+       "done": {
+        "data": {
+         "outcome": "success",
+         "reason": "以新访客身份完成了对王佳明个人作品网站的自由探索，覆盖了产品说明中的两条关键流程。首页：首屏即可读出姓名（王佳明）、学习背景（保定理工学院计算机科学与技术本科在读 2023.09–2027.07）、开发方向（后端开发与 AI 应用开发）及经历（两个已上线商业站点 metastartai.com、randiantg.com，三个 AI 项目，两家公司兼职全栈），并含精选项目区、最近手记、能力区块（后端/前端/AI/数据库/部署）、履历与页脚邮箱。项目页：通过'全部项目→'进入 /projects，可见技术标签筛选（Next.js/React/Vue/TypeScript/Node.js/Express/NestJS/Prisma/Python/FastAPI/PostgreSQL/MySQL/Redis 等）、搜索框与 5 个项目卡片（Featured metastartai.com、01 毕业设计 MySQL 自然语言查询系统、02 randiantg.com、03 回声室、04 LLM 指纹与测评平台）。详情页：metastartai 详情按背景/主要功能/技术实现/解决的问题/结果与数据分层，含 169 项自动化测试、PM2+Nginx 部署等量化交付证据；nl2sql 详情含七阶段 SSE 流水线、SQL 安全四道闸门、267 项单元测试、120 条金标准数据集、实测端到端 4.82s。横向对比结论（保留）：与 PDF 简历相比，本站多了一层可核验的技术与交付信息，项目入口清晰、结构够用；但项目页首屏无法完成多项目横向比对，详情页正文缺少独立的可核实交付证据区块。全程未访问外部项目站点/GitHub，未提交任何表单或发送消息，未注册或修改账号。"
+        }
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": true,
+       "success": true,
+       "attachments": [],
+       "long_term_memory": "Task completed. Success Status: True",
+       "extracted_content": "{\"outcome\": \"success\", \"reason\": \"以新访客身份完成了对王佳明个人作品网站的自由探索，覆盖了产品说明中的两条关键流程。首页：首屏即可读出姓名（王佳明）、学习背景（保定理工学院计算机科学与技术本科在读 2023.09–2027.07）、开发方向（后端开发与 AI 应用开发）及经历（两个已上线商业站点 metastartai.com、randiantg.com，三个 AI 项目，两家公司兼职全栈），并含精选项目区、最近手记、能力区块（后端/前端/AI/数据库/部署）、履历与页脚邮箱。项目页：通过'全部项目→'进入 /projects，可见技术标签筛选（Next.js/React/Vue/TypeScript/Node.js/Express/NestJS/Prisma/Python/FastAPI/PostgreSQL/MySQL/Redis 等）、搜索框与 5 个项目卡片（Featured metastartai.com、01 毕业设计 MySQL 自然语言查询系统、02 randiantg.com、03 回声室、04 LLM 指纹与测评平台）。详情页：metastartai 详情按背景/主要功能/技术实现/解决的问题/结果与数据分层，含 169 项自动化测试、PM2+Nginx 部署等量化交付证据；nl2sql 详情含七阶段 SSE 流水线、SQL 安全四道闸门、267 项单元测试、120 条金标准数据集、实测端到端 4.82s。横向对比结论（保留）：与 PDF 简历相比，本站多了一层可核验的技术与交付信息，项目入口清晰、结构够用；但项目页首屏无法完成多项目横向比对，详情页正文缺少独立的可核实交付证据区块。全程未访问外部项目站点/GitHub，未提交任何表单或发送消息，未注册或修改账号。\"}",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "Successfully scrolled the nl2sql detail page to the bottom; all sections (系统设计, 安全与脱敏, 评估子系统, 解决的问题, 实测数据) are readable. Verdict: Success",
+     "stalled": true,
+     "page_structure_degraded": false,
+     "ref_id": "p03:step:11"
+    }
+   ],
+   "assessment": {
+    "emotions": [
+     {
+      "step": 1,
+      "satisfaction": 4,
+      "confusion": 1,
+      "reason": "首屏就能读出姓名、在读背景、方向与两个上线站点，信息够用，符合他先扫结构的习惯。"
+     },
+     {
+      "step": 2,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "滚动后看到精选项目区，项目入口位置清楚，但卡片本身信息偏少，需要再点进去才能比对。"
+     },
+     {
+      "step": 3,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "最近手记与能力区块连续排布，结构读得下去，但一次性铺开的标签较多，扫读略费神。"
+     },
+     {
+      "step": 4,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "数据库、部署与工程能力按类分组，量化用例数可见，符合他对可核验信息的偏好。"
+     },
+     {
+      "step": 5,
+      "satisfaction": 4,
+      "confusion": 1,
+      "reason": "\"全部项目→\"入口明确，点击后顺利进入项目列表页，路径没有绕弯。"
+     },
+     {
+      "step": 6,
+      "satisfaction": 3,
+      "confusion": 3,
+      "reason": "项目页筛选项很多，但没有一步到位的多项目横向对照，要逐个点开才能形成对比。"
+     },
+     {
+      "step": 7,
+      "satisfaction": 3,
+      "confusion": 3,
+      "reason": "点进metastartai详情后，卡片的量化信息被拆散到各区块，首屏无法直接完成横向比对。"
+     },
+     {
+      "step": 8,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "详情页按功能与技术实现分层，取舍讲得具体，技术栈与部署方式可核。"
+     },
+     {
+      "step": 9,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "顺着下一个项目跳到nl2sql详情，导航连贯，没有迷路。"
+     },
+     {
+      "step": 10,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "七阶段流水线与安全闸门写得具体，但正文区块是叙述性的，缺一个独立的交付证据区。"
+     },
+     {
+      "step": 11,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "整站扫完，结论保留：结构清楚、项目入口清晰，与PDF简历比多了一层技术与交付信息。"
+     }
+    ],
+    "findings": [
+     {
+      "kind": "highlight",
+      "title": "首屏一次给出身份、方向与上线经历",
+      "description": "访客无需下滚即可读出姓名、在读院校专业与时间、开发方向，以及两个已上线商业站点和三个AI项目的概要，信息密度足以支撑初筛。",
+      "evidence_ids": [
+       "s001_before"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。",
+      "ref_id": "p03:f001"
+     },
+     {
+      "kind": "highlight",
+      "title": "项目入口在首屏区块内位置清楚",
+      "description": "首页精选项目区带有明确的列表页入口，不需要在长页里翻找，符合他先看结构再点开的浏览节奏。",
+      "evidence_ids": [
+       "s001_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "全部项目 →",
+      "ref_id": "p03:f002"
+     },
+     {
+      "kind": "highlight",
+      "title": "能力区块把技术栈与工程实践分组呈现",
+      "description": "后端、数据库与缓存、部署与工程按类分组，并给出可核验的自动化用例数量，便于与PDF简历做横向对照。",
+      "evidence_ids": [
+       "s003_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "累计 400+ 自动化用例：267 + 96 + 53 项",
+      "ref_id": "p03:f003"
+     },
+     {
+      "kind": "highlight",
+      "title": "详情页按功能与技术实现分层，取舍说得具体",
+      "description": "metastartai详情把功能清单与技术实现分开叙述，并解释慢查询治理来自提交记录，属于可核实的交付痕迹。",
+      "evidence_ids": [
+       "s008_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "慢查询治理：",
+      "ref_id": "p03:f004"
+     },
+     {
+      "kind": "highlight",
+      "title": "详情页提供线上站点与源码入口",
+      "description": "详情页顶部同时给出线上站点和源码仓库入口，为其后续线下核实留了路径。",
+      "evidence_ids": [
+       "s007_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "线上站点 ↗",
+      "ref_id": "p03:f005"
+     },
+     {
+      "kind": "pain",
+      "title": "项目页首屏无法完成多项目横向比对",
+      "description": "项目列表首屏只有筛选标签和一个Featured卡片，其余项目要下滚并逐个点开详情才能形成对比，与他一贯的横向初筛方式不贴合。",
+      "evidence_ids": [
+       "s005_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "Featured",
+      "ref_id": "p03:f006"
+     },
+     {
+      "kind": "pain",
+      "title": "详情页正文缺少独立的可核实交付证据区块",
+      "description": "量化交付信息散落在背景、技术实现与结果叙述中，正文没有单独的可核实证据区块，核对成本被推给读者。",
+      "evidence_ids": [
+       "s009_after"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "评估基于 120 条人工金标准数据集",
+      "ref_id": "p03:f007"
+     }
+    ],
+    "summary": "佴知宪以新访客身份在午休时段用手机完成了对王佳明个人作品站的一次横向扫读：首屏就能读出名、在读背景、方向与上线经历，项目入口清楚，能力区块与两个项目详情都给出了可核验的技术与交付信息，作为与PDF简历并列比较的材料基本够用。主要不足在于项目页首屏无法一次完成多项目横向比对，以及详情页正文没有独立的可核实交付证据区块；两条都来自页面文案本身，未涉及任何技术连接问题。"
+   },
+   "infrastructure_errors": []
+  },
+  "p05": {
+   "persona_id": "p05",
+   "persona": {
+    "realname": "迮承绪",
+    "username": "ze_chengxu_mfg",
+    "gender": "男",
+    "age": 49,
+    "city": "潍坊",
+    "timezone": "Asia/Shanghai",
+    "profession": "制造业信息化主管",
+    "industry": "机械制造",
+    "education": "本科（工业电气自动化）",
+    "income_level": "中",
+    "life_context": "迮承绪在一家中型机械零部件制造企业做了二十多年设备与信息化工作，现在是信息化主管，手下带两个技术员，负责车间 MES 上线、老旧设备联网和跟外部供应商对接。他本人不是写代码出身，对编程语言、框架名词基本停留在听说过但说不清差别；内部项目要选外部开发者或供应商时，通常由他先做一轮筛选，把明显不合适的挡在老板前面。这次是老板的助理转给他一个作品网站链接，说是有个开发者可能接他们下季度的小项目，让他先看看对方是不是科班出身、方向跟工业软件搭不搭。他习惯在下午下班前处理这类事务性判断，桌面浏览器上开着好几个采购和供应商页面，看东西很快，只要有半页都是看不懂的技术缩写就会直接关掉。",
+    "product_history": "第一次访问该网站，此前没见过王佳明，也没有使用过这个作品网站的任何功能；只从同事转来的链接知道这是一个开发者的个人作品展示网站，缺少其它背景信息。",
+    "bio": "制造企业信息化主管，非技术出身但天天跟供应商和系统打交道；判断人看经历和方向是否落地，不爱看术语堆砌。",
+    "persona": "迮承绪用一台办公台式机、Windows 系统加 Chrome 访问，鼠标操作，屏幕分辨率普通，字体太小或排版太挤会让他皱眉。他打算利用下班前的一段空档桌面快速浏览一遍，只读不写：不提交任何表单，不注册账号，也不会主动联系网站主人，是典型的潜水式访问者。他作息规律，晚上十点多准备休息，早上六点左右起床，中午习惯午休半小时。表达上他直来直去，但不会在被推荐的对象面前流露情绪，判断结果只跟老板和助理口头说，所以对外表现得比较收敛。",
+    "mbti": "ISTJ",
+    "big_five": {
+     "openness": "低",
+     "conscientiousness": "高",
+     "extraversion": "低",
+     "agreeableness": "中",
+     "neuroticism": "中"
+    },
+    "communication_style": "口语化、结论先行，喜欢用行业里的实际例子问事，不爱听抽象概念；被问技术细节会直说“这个我不懂”，但会追问这技术能不能落地、有没有人用过。",
+    "interested_topics": [
+     "工业软件与车间信息化落地",
+     "开发者的专业背景和项目经历",
+     "技术方向与制造业务的匹配度",
+     "项目是否真实交付过"
+    ],
+    "persona_id": "p05",
+    "browsing_profile": {
+     "device": "desktop",
+     "tech_level": "novice",
+     "patience": "low",
+     "max_steps": 15,
+     "stall_limit": 4,
+     "motivation": "有明确任务",
+     "motivation_detail": "受老板助理转来的链接所托，做一轮前置筛选：想通过首页确认这位开发者是不是科班出身、开发方向是否匹配公司内部的信息化项目，好决定要不要把名字往上报。",
+     "account_role": "new_visitor",
+     "tools": [],
+     "assignment": {
+      "type": "task",
+      "flow": "了解开发者背景与方向"
+     }
+    },
+    "schedule": {
+     "wake": "06:00",
+     "sleep": "22:30",
+     "activity_by_hour": {
+      "6": 0.6,
+      "7": 0.8,
+      "8": 0.7,
+      "9": 0.85,
+      "10": 0.9,
+      "11": 0.85,
+      "12": 0.5,
+      "13": 0.85,
+      "14": 0.9,
+      "15": 0.85,
+      "16": 0.9,
+      "17": 0.6,
+      "18": 0.5,
+      "19": 0.4,
+      "20": 0.3,
+      "21": 0.25,
+      "22": 0.1
+     },
+     "browse_slot": "16:30",
+     "state_at_browse": "下午四点半左右，迮承绪刚处理完一轮供应商报价，趁下班前的时间坐在办公桌前用台式机打开这个作品网站，心里只带着一个筛选任务：确认网站主人的背景和方向是否跟公司内部的小项目对得上；页面信息不清楚或术语太多，他会很快关掉去做别的事。"
+    },
+    "participation": "lurker",
+    "disclosure": {
+     "candor": "中",
+     "withhold_tendency": "中",
+     "withhold_reasons": [
+      "对刚接触的陌生开发者保持职业距离，不轻易表露内部项目细节和预算信息",
+      "非技术背景导致对技术术语缺乏把握，遇到看不懂的地方会直接跳过而不是追问",
+      "判断结果属于内部筛选意见，只向上级口头汇报，不习惯对外公开评价"
+     ]
+    }
+   },
+   "replay": {
+    "viewer_url": null,
+    "offset_basis": "estimated from Steel created_at and local clock"
+   },
+   "state_at_browse": "下午四点半左右，迮承绪刚处理完一轮供应商报价，趁下班前的时间坐在办公桌前用台式机打开这个作品网站，心里只带着一个筛选任务：确认网站主人的背景和方向是否跟公司内部的小项目对得上；页面信息不清楚或术语太多，他会很快关掉去做别的事。",
+   "assignment": {
+    "type": "task",
+    "flow": "了解开发者背景与方向"
+   },
+   "expectations": [
+    "体验前我看到帖子 #1 说：我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。。这是他人表达，尚非我的亲身体验。",
+    "体验前我看到帖子 #2 说：我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind CSS\nVite\nNode.js\nExpress\nNestJS\nPrisma”。\n项目卡片给出规模、测试与部署的量化交付痕迹。我看到的页面文字是“为智能交通企业独立开发并上线的出海官网与管理后台：中/英/俄三语，前台 19 页 + 后台 20 页，Next.js 15 + Express 5 + PostgreSQL + Redis，169 项自动化测试，PM2 + Nginx 生产部署。”。\n详情页按背景、功能、技术实现分层，取舍讲得具体。我看到的页面文字是“前台使用 Next.js 15（App Router）+ Tailwind + shadcn/ui，后台为 Express 5 + PostgreSQL 16 + Redis 7（BullMQ 处理异步任务），上传经 multer + sharp 处理；helmet 与 express-rate-limit 加固，pino 记录结构化日志。”。\n详情页提供线上站点与源码仓库入口，便于线下核实。我看到的页面文字是“线上站点 ↗\n源码仓库 ↗\n技术栈\n时间”。\n项目页无法在首屏完成多项目横向比对。我看到的页面文字是“项目\n共 5 个项目\n其中 2 个精选”。\n详情页正文区缺少可核实的交付证据区块。我看到的页面文字是“我独立完成前后端全部开发与生产部署，并交付管理后台使用教程。”。。这是他人表达，尚非我的亲身体验。",
+    "体验前我看到帖子 #3 说：我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。。这是他人表达，尚非我的亲身体验。",
+    "体验前我看到帖子 #4 说：我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。。这是他人表达，尚非我的亲身体验。"
+   ],
+   "outcome": "success",
+   "reason": "首页文本清晰可读，成功获取开发者姓名（王佳明）、开发方向（后端开发与 AI 应用开发）及经历证据：保定理工学院计算机科学与技术本科在读（2023.09–2027.07），独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，358 次提交），并有 AI 方向项目（MySQL 自然语言查询毕设、本地语音助手、LLM 测评平台）。项目页进一步确认 5 个项目及技术栈标签（Next.js/React/Vue/Node.js/Express/NestJS/PostgreSQL/Redis/Python/FastAPI 等），方向与制造企业信息化后端项目匹配度可判断，满足初筛目的。",
+   "outcome_source": "agent_self_report",
+   "snapshots": [
+    {
+     "evidence_id": "s001_before",
+     "url": "https://wjm.dpdns.org/",
+     "title": "JiaMingWang-CN",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nProfile · i",
+     "screenshot": "screenshots/s001_before.png",
+     "screenshot_sha256": "62ab9f7380d13d8a2a0e5673783ed21238b24c65cd86f048e3025a8480f835b4",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 30.75,
+     "ref_id": "p05:snapshot:s001_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p05/screenshots/s001_before.png"
+    },
+    {
+     "evidence_id": "s001_after",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nIndex · /ap",
+     "screenshot": "screenshots/s001_after.png",
+     "screenshot_sha256": "6726eecd4fd057319492500825f236e288a466a95077a8174cc5670efddfe9f1",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 60.954,
+     "ref_id": "p05:snapshot:s001_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p05/screenshots/s001_after.png"
+    },
+    {
+     "evidence_id": "s002_before",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nIndex · /ap",
+     "screenshot": "screenshots/s002_before.png",
+     "screenshot_sha256": "6726eecd4fd057319492500825f236e288a466a95077a8174cc5670efddfe9f1",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 64.735,
+     "ref_id": "p05:snapshot:s002_before",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p05/screenshots/s002_before.png"
+    },
+    {
+     "evidence_id": "s002_after",
+     "url": "https://wjm.dpdns.org/projects",
+     "title": "项目 · 个人站点",
+     "text": "王佳明\n保定理工学院 · 计算机科学与技术本科在读\n01\n首页\n02\n项目\n03\n手记\n04\n联系\nElsewhere\nGitHub ↗\nIndex · /ap",
+     "screenshot": "screenshots/s002_after.png",
+     "screenshot_sha256": "6726eecd4fd057319492500825f236e288a466a95077a8174cc5670efddfe9f1",
+     "scroll_x": 0,
+     "scroll_y": 0,
+     "video_seconds": 85.25,
+     "ref_id": "p05:snapshot:s002_after",
+     "screenshot_url": "/api/runs/phase4-20261003T071619710132Z/files/p05/screenshots/s002_after.png"
+    }
+   ],
+   "steps": [
+    {
+     "step": 1,
+     "before": "s001_before",
+     "after": "s001_after",
+     "seconds": 33.282,
+     "actions": [
+      {
+       "click": {
+        "index": 34
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": false,
+       "extracted_content": "Clicked a \"02\n项目\"",
+       "include_extracted_content_only_once": false,
+       "metadata": {
+        "click_x": 143.5,
+        "click_y": 245.59375
+       },
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "首页成功加载，首屏文本清晰可读，已能读出姓名、方向和经历。",
+     "stalled": false,
+     "page_structure_degraded": false,
+     "ref_id": "p05:step:1"
+    },
+    {
+     "step": 2,
+     "before": "s002_before",
+     "after": "s002_after",
+     "seconds": 24.296,
+     "actions": [
+      {
+       "done": {
+        "data": {
+         "outcome": "success",
+         "reason": "首页文本清晰可读，成功获取开发者姓名（王佳明）、开发方向（后端开发与 AI 应用开发）及经历证据：保定理工学院计算机科学与技术本科在读（2023.09–2027.07），独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，358 次提交），并有 AI 方向项目（MySQL 自然语言查询毕设、本地语音助手、LLM 测评平台）。项目页进一步确认 5 个项目及技术栈标签（Next.js/React/Vue/Node.js/Express/NestJS/PostgreSQL/Redis/Python/FastAPI 等），方向与制造企业信息化后端项目匹配度可判断，满足初筛目的。"
+        }
+       }
+      }
+     ],
+     "results": [
+      {
+       "is_done": true,
+       "success": true,
+       "attachments": [],
+       "long_term_memory": "Task completed. Success Status: True",
+       "extracted_content": "{\"outcome\": \"success\", \"reason\": \"首页文本清晰可读，成功获取开发者姓名（王佳明）、开发方向（后端开发与 AI 应用开发）及经历证据：保定理工学院计算机科学与技术本科在读（2023.09–2027.07），独立交付两个已上线商业站点 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与 randiantg.com（Vue 3 + NestJS 11 + Prisma，358 次提交），并有 AI 方向项目（MySQL 自然语言查询毕设、本地语音助手、LLM 测评平台）。项目页进一步确认 5 个项目及技术栈标签（Next.js/React/Vue/Node.js/Express/NestJS/PostgreSQL/Redis/Python/FastAPI 等），方向与制造企业信息化后端项目匹配度可判断，满足初筛目的。\"}",
+       "include_extracted_content_only_once": false,
+       "include_in_memory": false
+      }
+     ],
+     "agent_observation": "成功点击“项目”导航，项目页加载，显示 5 个项目卡片及技术栈标签，方向匹配度可判断。Verdict: Success",
+     "stalled": true,
+     "page_structure_degraded": false,
+     "ref_id": "p05:step:2"
+    }
+   ],
+   "assessment": {
+    "emotions": [
+     {
+      "step": 1,
+      "satisfaction": 4,
+      "confusion": 2,
+      "reason": "首页首屏就能读出姓名、学校、专业在读时间和开发方向，还有两个已上线站点的名称与交付闭环描述，符合他“先看经历和方向是否落地”的初筛习惯；但页面里 Next.js、Express、Prisma 这类框架名词他并不真懂，只能靠“已上线”“三语”“358 次提交”这类落地字眼判断。"
+     },
+     {
+      "step": 2,
+      "satisfaction": 4,
+      "confusion": 3,
+      "reason": "项目页确认了共 5 个项目、2 个精选，卡片上有类型“客户项目 · 企业官网”、阶段“已上线”以及前台 19 页加后台 20 页这类规模数字，能支撑他判断方向匹配；但页面顶部的技术栈标签一大排堆在一起，大量缩写他分不清差别，按他的习惯这类内容再看下去就会关掉。"
+     }
+    ],
+    "findings": [
+     {
+      "kind": "highlight",
+      "title": "首屏一次给出姓名、专业在读情况与开发方向",
+      "description": "首页首段直接写明姓名、学校专业与在读时间，并点明方向是后端开发与 AI 应用开发，非技术背景的初筛者不需要翻找就能拿到判断依据。",
+      "evidence_ids": [
+       "s001_before"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。",
+      "ref_id": "p05:f001"
+     },
+     {
+      "kind": "highlight",
+      "title": "上线项目附带可核对的交付痕迹",
+      "description": "首页给出两个已上线商业站点的域名、所用技术组合与提交量，并说明覆盖开发、部署、安全加固与运维交接的完整闭环，符合他“项目是否真实交付过”的判断标准。",
+      "evidence_ids": [
+       "s001_before"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。两者都覆盖了开发、部署、安全加固与运维交接的完整闭环。",
+      "ref_id": "p05:f002"
+     },
+     {
+      "kind": "highlight",
+      "title": "项目卡片带类型、阶段与规模数字，方向匹配度可判断",
+      "description": "项目页在卡片上标注类型为“客户项目 · 企业官网”、阶段为“已上线”，并给出页面数量和测试与部署方式，使不熟悉框架名词的人也能用落地指标比对方向。",
+      "evidence_ids": [
+       "s002_before"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "为智能交通企业独立开发并上线的出海官网与管理后台：中/英/俄三语，前台 19 页 + 后台 20 页，Next.js 15 + Express 5 + PostgreSQL + Redis，169 项自动化测试，PM2 + Nginx 生产部署。",
+      "ref_id": "p05:f003"
+     },
+     {
+      "kind": "pain",
+      "title": "项目页技术栈标签成排堆叠，非技术访客读不下去",
+      "description": "项目页在筛选区一次性铺开二十多个技术标签，全是框架与中间件缩写，像迮承绪这类自认“听说过但说不清差别”的访客无法从中获得有效信息，容易按习惯直接关闭页面。",
+      "evidence_ids": [
+       "s002_before"
+      ],
+      "technical_event_ids": [],
+      "observed_quote": "全部\nNext.js\nReact\nVue\nTypeScript\nTailwind CSS\nVite\nNode.js\nExpress\nNestJS\nPrisma\nPython\nFastAPI\nSQLAlchemy\nPostgreSQL\nMySQL\nSQLite\nRedis\nBullMQ\nNginx\nPM2\nSSE\nWebSocket\nPyTorch\nFunASR\nCosyVoice2\nECharts\nCodeMirror\nElement Plus",
+      "ref_id": "p05:f004"
+     }
+    ],
+    "summary": "迮承绪受老板助理所托做一轮前置筛选，两次执行都成功：首页第一屏就拿到了姓名、保定理工学院计算机科学与技术本科在读（2023.09–2027.07）、方向为后端开发与 AI 应用开发，以及两个已上线商业站点的域名、技术组合、多语言与提交量等落地证据；第二步进入项目页后看到共 5 个项目、2 个精选，卡片上有类型“客户项目 · 企业官网”、阶段“已上线”和页面规模、测试与部署说明，方向与制造企业信息化后端项目的匹配度可以判断，整体满足初筛目的。主要摩擦在于项目页顶部成排堆叠的技术栈标签，对低技术熟悉度的访客属于无效信息，按他“看不懂就关掉”的习惯存在流失风险。本次未查询任何技术工具，故无技术事件可引用。"
+   },
+   "infrastructure_errors": []
+  }
+ },
+ "community": {
+  "posts": [
+   {
+    "post_id": 1,
+    "user_id": 0,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。",
+    "created_at": "2026-10-03 01:00:00",
+    "ref_id": "post:1",
+    "persona_id": "p01",
+    "comments": []
+   },
+   {
+    "post_id": 3,
+    "user_id": 0,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。",
+    "created_at": "2026-10-03 03:00:00",
+    "ref_id": "post:3",
+    "persona_id": "p01",
+    "comments": []
+   },
+   {
+    "post_id": 4,
+    "user_id": 0,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。",
+    "created_at": "2026-10-03 05:00:00",
+    "ref_id": "post:4",
+    "persona_id": "p01",
+    "comments": []
+   },
+   {
+    "post_id": 6,
+    "user_id": 0,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。",
+    "created_at": "2026-10-03 09:00:00",
+    "ref_id": "post:6",
+    "persona_id": "p01",
+    "comments": []
+   }
+  ],
+  "reads": [
+   {
+    "ref_id": "read:1",
+    "persona_id": "p01",
+    "slice_index": 2,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:3",
+    "persona_id": "p03",
+    "slice_index": 2,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:5",
+    "persona_id": "p05",
+    "slice_index": 2,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:9",
+    "persona_id": "p01",
+    "slice_index": 3,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:10",
+    "persona_id": "p01",
+    "slice_index": 3,
+    "post_id": 2,
+    "before_experience": false,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:13",
+    "persona_id": "p03",
+    "slice_index": 3,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:14",
+    "persona_id": "p03",
+    "slice_index": 3,
+    "post_id": 2,
+    "before_experience": true,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:15",
+    "persona_id": "p05",
+    "slice_index": 3,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:16",
+    "persona_id": "p05",
+    "slice_index": 3,
+    "post_id": 2,
+    "before_experience": true,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:25",
+    "persona_id": "p01",
+    "slice_index": 4,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:26",
+    "persona_id": "p01",
+    "slice_index": 4,
+    "post_id": 2,
+    "before_experience": false,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:27",
+    "persona_id": "p01",
+    "slice_index": 4,
+    "post_id": 3,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:34",
+    "persona_id": "p05",
+    "slice_index": 4,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:35",
+    "persona_id": "p05",
+    "slice_index": 4,
+    "post_id": 2,
+    "before_experience": true,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:36",
+    "persona_id": "p05",
+    "slice_index": 4,
+    "post_id": 3,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:40",
+    "persona_id": "p01",
+    "slice_index": 5,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:41",
+    "persona_id": "p01",
+    "slice_index": 5,
+    "post_id": 2,
+    "before_experience": false,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:42",
+    "persona_id": "p01",
+    "slice_index": 5,
+    "post_id": 3,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:43",
+    "persona_id": "p03",
+    "slice_index": 5,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:44",
+    "persona_id": "p03",
+    "slice_index": 5,
+    "post_id": 2,
+    "before_experience": false,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:45",
+    "persona_id": "p03",
+    "slice_index": 5,
+    "post_id": 3,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:49",
+    "persona_id": "p05",
+    "slice_index": 5,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:50",
+    "persona_id": "p05",
+    "slice_index": 5,
+    "post_id": 2,
+    "before_experience": true,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:51",
+    "persona_id": "p05",
+    "slice_index": 5,
+    "post_id": 3,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:64",
+    "persona_id": "p01",
+    "slice_index": 6,
+    "post_id": 1,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:65",
+    "persona_id": "p01",
+    "slice_index": 6,
+    "post_id": 2,
+    "before_experience": false,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   },
+   {
+    "ref_id": "read:66",
+    "persona_id": "p01",
+    "slice_index": 6,
+    "post_id": 3,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:67",
+    "persona_id": "p01",
+    "slice_index": 6,
+    "post_id": 4,
+    "before_experience": false,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:76",
+    "persona_id": "p05",
+    "slice_index": 6,
+    "post_id": 1,
+    "before_experience": true,
+    "content": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–202"
+   },
+   {
+    "ref_id": "read:77",
+    "persona_id": "p05",
+    "slice_index": 6,
+    "post_id": 2,
+    "before_experience": true,
+    "content": "我这次用下来：\n项目页技术标签可直接用于比对技术栈匹配度。我看到的页面文字是“全部\nNext.js\nReact\nVue\nTypeScript\nTailwind "
+   }
+  ],
+  "withheld": [
+   {
+    "ref_id": "disclosure:1",
+    "persona_id": "p01",
+    "slice_index": 1,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:2",
+    "persona_id": "p01",
+    "slice_index": 2,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:5",
+    "persona_id": "p01",
+    "slice_index": 3,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:7",
+    "persona_id": "p01",
+    "slice_index": 4,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:8",
+    "persona_id": "p01",
+    "slice_index": 5,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:9",
+    "persona_id": "p03",
+    "slice_index": 5,
+    "shared": [
+     "p03:f001",
+     "p03:f002",
+     "p03:f003",
+     "p03:f005",
+     "p03:f006"
+    ],
+    "withheld": [
+     {
+      "finding_id": "p03:f004",
+      "reason": "涉及对交付痕迹与工程实现质量的实质判断，属于他手里用于后续筛选与议价的评估结论，尚未建立信任前不在公开场合给出。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "这条指向可核实证据的缺口，直接关系到他是否会推进接触的核心评估标准，提前公开等于亮出底牌。"
+     }
+    ],
+    "public_body": "使用感受：\n首屏一次给出身份、方向与上线经历。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\n项目入口在首屏区块内位置清楚。我看到的页面文字是“全部项目 →”。\n能力区块把技术栈与工程实践分组呈现。我看到的页面文字是“累计 400+ 自动化用例：267 + 96 + 53 项”。\n详情页提供线上站点与源码入口。我看到的页面文字是“线上站点 ↗”。\n项目页首屏无法完成多项目横向比对。我看到的页面文字是“Featured”。"
+   },
+   {
+    "ref_id": "disclosure:11",
+    "persona_id": "p01",
+    "slice_index": 6,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:14",
+    "persona_id": "p01",
+    "slice_index": 7,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:15",
+    "persona_id": "p05",
+    "slice_index": 8,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:18",
+    "persona_id": "p03",
+    "slice_index": 8,
+    "shared": [
+     "p03:f001",
+     "p03:f002",
+     "p03:f003",
+     "p03:f006"
+    ],
+    "withheld": [
+     {
+      "finding_id": "p03:f004",
+      "reason": "涉及对技术实现与交付痕迹的实质评估，属于他预留的合作判断筹码，未建立信任前不公开表态。"
+     },
+     {
+      "finding_id": "p03:f005",
+      "reason": "是否核验线上与源码入口、是否推进下一步接触，会暴露他的筛选动作和议价位置，选择保留。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "对可核实交付证据缺口的判断接近能力评价，比 surface 结构评论更靠内层，公开会给出他评估标准的线索。"
+     }
+    ],
+    "public_body": "使用感受：\n首屏一次给出身份、方向与上线经历。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\n项目入口在首屏区块内位置清楚。我看到的页面文字是“全部项目 →”。\n能力区块把技术栈与工程实践分组呈现。我看到的页面文字是“累计 400+ 自动化用例：267 + 96 + 53 项”。\n项目页首屏无法完成多项目横向比对。我看到的页面文字是“Featured”。"
+   },
+   {
+    "ref_id": "disclosure:19",
+    "persona_id": "p05",
+    "slice_index": 9,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:20",
+    "persona_id": "p01",
+    "slice_index": 9,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:22",
+    "persona_id": "p05",
+    "slice_index": 10,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:23",
+    "persona_id": "p01",
+    "slice_index": 10,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:26",
+    "persona_id": "p03",
+    "slice_index": 10,
+    "shared": [
+     "p03:f001",
+     "p03:f002",
+     "p03:f006"
+    ],
+    "withheld": [
+     {
+      "finding_id": "p03:f003",
+      "reason": "技术栈与自动化用例数量属于他评估交付能力的核心参照，涉及对开发者能力的实质判断，倾向保留不公开表态。"
+     },
+     {
+      "finding_id": "p03:f004",
+      "reason": "他对详情页取舍叙述的评价直接关联是否推进合作的判断筹码，尚未建立信任前不愿给出。"
+     },
+     {
+      "finding_id": "p03:f005",
+      "reason": "线上站点与源码入口是他后续线下核查的路径，公开提及等于暴露自己的核实方法，因此留下不表。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "证据区块缺失这类批评性结论会影响他后续沟通的议价位置，习惯先观察再表态，不公开。"
+     }
+    ],
+    "public_body": "使用感受：\n首屏一次给出身份、方向与上线经历。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\n项目入口在首屏区块内位置清楚。我看到的页面文字是“全部项目 →”。\n项目页首屏无法完成多项目横向比对。我看到的页面文字是“Featured”。"
+   },
+   {
+    "ref_id": "disclosure:30",
+    "persona_id": "p03",
+    "slice_index": 11,
+    "shared": [
+     "p03:f001",
+     "p03:f002",
+     "p03:f003",
+     "p03:f006"
+    ],
+    "withheld": [
+     {
+      "finding_id": "p03:f004",
+      "reason": "涉及对技术实现深度的实质判断，属于他手里用于评估是否推进合作的判断筹码，不轻易公开表态。"
+     },
+     {
+      "finding_id": "p03:f005",
+      "reason": "线上站点与源码入口会牵涉他的后续核实路径与议价节奏，先保留，不透露自己会怎样验证交付。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "对交付证据区块的评价接近对开发者能力的核心判断，尚未建立信任关系，只评论表面结构，不展开这一层。"
+     }
+    ],
+    "public_body": "使用感受：\n首屏一次给出身份、方向与上线经历。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\n项目入口在首屏区块内位置清楚。我看到的页面文字是“全部项目 →”。\n能力区块把技术栈与工程实践分组呈现。我看到的页面文字是“累计 400+ 自动化用例：267 + 96 + 53 项”。\n项目页首屏无法完成多项目横向比对。我看到的页面文字是“Featured”。"
+   },
+   {
+    "ref_id": "disclosure:33",
+    "persona_id": "p05",
+    "slice_index": 13,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:36",
+    "persona_id": "p01",
+    "slice_index": 13,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:38",
+    "persona_id": "p05",
+    "slice_index": 14,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:45",
+    "persona_id": "p05",
+    "slice_index": 23,
+    "shared": [],
+    "withheld": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f002",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "本次参与方式不公开文字体验"
+     },
+     {
+      "finding_id": "p05:f004",
+      "reason": "本次参与方式不公开文字体验"
+     }
+    ],
+    "public_body": ""
+   },
+   {
+    "ref_id": "disclosure:46",
+    "persona_id": "p01",
+    "slice_index": 23,
+    "shared": [
+     "p01:f001",
+     "p01:f002"
+    ],
+    "withheld": [],
+    "public_body": "我这次用下来：\n首屏即可读出姓名、方向与经历，初筛可一次性成结论。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\n上线项目附带可核验的交付成果信息。我看到的页面文字是“过去几个月，我独立交付了两个已上线的商业站点：智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiantg.com（Vue 3 + NestJS 11 + Prisma，累计 358 次提交）。”。"
+   },
+   {
+    "ref_id": "disclosure:48",
+    "persona_id": "p03",
+    "slice_index": 23,
+    "shared": [
+     "p03:f001",
+     "p03:f002",
+     "p03:f003",
+     "p03:f006"
+    ],
+    "withheld": [
+     {
+      "finding_id": "p03:f004",
+      "reason": "涉及对开发者交付痕迹与工程实现深度的实质评价，属于他手上用来判断是否推进合作的筹码，公开场合不轻易给出。"
+     },
+     {
+      "finding_id": "p03:f005",
+      "reason": "是否据此做线下核实、以及核实结果如何影响合作判断，会牵动他自己的议价位置，因此不透露这一层后续动作。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "这是他对交付可信度的核心评估标准之一，说出去等于亮出自己的筛选尺子，尚未建立信任关系前先保留。"
+     }
+    ],
+    "public_body": "使用感受：\n首屏一次给出身份、方向与上线经历。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\n项目入口在首屏区块内位置清楚。我看到的页面文字是“全部项目 →”。\n能力区块把技术栈与工程实践分组呈现。我看到的页面文字是“累计 400+ 自动化用例：267 + 96 + 53 项”。\n项目页首屏无法完成多项目横向比对。我看到的页面文字是“Featured”。"
+   }
+  ],
+  "surveys": [
+   {
+    "persona_id": "p01",
+    "has_experience": true,
+    "nps": 9,
+    "continue_using": "yes",
+    "would_pay": "unsure",
+    "biggest_issue": null,
+    "favorite": "p01:f001",
+    "unsaid": [
+     {
+      "finding_id": "p01:f001",
+      "reason": "招聘岗位、候选池和公司名称属于内部信息，不方便在公开场合透露具体是给哪个岗位做初筛。"
+     },
+     {
+      "finding_id": "p01:f002",
+      "reason": "技术栈匹配度的判断会同步给技术负责人复核，涉及内部用人标准和同事判断，不会全说。"
+     }
+    ],
+    "opinion_changed": false,
+    "influencing_post_ids": [],
+    "explanation": "第一次打开这个网站，只做了首页的一次浏览就读完了初筛需要的信息，姓名、方向、上线经历都在首屏，几十秒内能形成“值得放进初筛清单”的结论，所以体验给 9 分，不用再翻二级页面这件事对我这种节奏紧的人最有用。我最看重的是首屏一次给全（p01:f001），上线项目的域名和交付落点也够具体（p01:f002），但页面没给技术判断以外的信息，我自己不懂代码，代码好坏不在我评估范围，所以没有“最大问题”可报。会继续用是因为以后别人发我这类链接我会照样先扫首页；是否付费不是我能决定的，招聘工具采购要走公司流程，我不好说。没有读其他帖子，结论都是我自己看页面得出的。",
+    "flags": [
+     "unsaid_item_was_publicly_expressed_requires_review"
+    ]
+   },
+   {
+    "persona_id": "p05",
+    "has_experience": true,
+    "nps": 7,
+    "continue_using": "unsure",
+    "would_pay": "unsure",
+    "biggest_issue": "p05:f004",
+    "favorite": "p05:f002",
+    "unsaid": [
+     {
+      "finding_id": "p05:f001",
+      "reason": "内部筛选意见只向老板和助理口头汇报，不习惯对外公开评价这位初次接触的开发者"
+     },
+     {
+      "finding_id": "p05:f003",
+      "reason": "公司内部项目预算、下季度小项目的具体需求和方向属于内部信息，不方便对外透露"
+     }
+    ],
+    "opinion_changed": false,
+    "influencing_post_ids": [],
+    "explanation": "下午四点半用办公室台式机 Chrome 打开这个网站，本来就是给老板助理转来的链接做一轮前置筛选，只看不写、不注册也不联系站长。首页第一屏就写清了姓名、保定理工学院计算机科学与技术本科在读（2023.09–2027.07）、方向是后端开发与 AI 应用开发，还带两个已上线站点的域名、技术组合和 358 次提交这类落地数字，符合我先看经历和方向落不落地的习惯；项目页确认 5 个项目、2 个精选，卡片上有“客户项目 · 企业官网”“已上线”和页面规模、测试与部署说明，方向跟我们要做的小项目能对上，初筛目的达到了。扣分主要在项目页顶部那一大排技术标签，Next.js、Prisma、BullMQ 这些我本来就分不清差别，堆在一起对低技术熟悉度的人就是无效信息，按我的习惯再往下看就想关掉；另外网站只看到在读学生身份，没有更多企业项目交付的第三方佐证，只能先记个名字往上报，所以留用和付费都说不上，得先看后面有没有更实的交付材料。整体是新人作品站，谈不上个人负担付费。本次是潜水式只读访问，没提交表单、没注册，也没读站内任何帖子，所以讨论影响不引用帖子编号；未说出口的部分按职业习惯保留，内部项目细节和判断口径不对外说。",
+    "flags": []
+   },
+   {
+    "persona_id": "p03",
+    "has_experience": true,
+    "nps": 8,
+    "continue_using": "unsure",
+    "would_pay": "unsure",
+    "biggest_issue": "p03:f006",
+    "favorite": "p03:f001",
+    "unsaid": [
+     {
+      "finding_id": "p03:f004",
+      "reason": "涉及对交付痕迹与工程实现深度的实质评价，属于他手上用来判断是否推进合作的筹码，尚未建立信任前不在公开场合给出。"
+     },
+     {
+      "finding_id": "p03:f005",
+      "reason": "是否据此做线下核实、以及核实结果如何影响合作判断，会牵动他自己的议价位置，因此不透露这一层后续动作。"
+     },
+     {
+      "finding_id": "p03:f007",
+      "reason": "对交付证据区块的评价接近对开发者能力的核心判断，说出去等于亮出自己的筛选尺子，先保留。"
+     }
+    ],
+    "opinion_changed": false,
+    "influencing_post_ids": [],
+    "explanation": "作为潜在合作方，我第一次以新访客身份在午休时段用手机横扫了这个个人作品网站，没有注册、没有提交任何表单，也没有点开外部站点或源码。首页首屏的信息结构符合我先扫结构的习惯：姓名、在读院校专业与时间、开发方向，以及两个已上线商业站点和三个 AI 项目的概要一次给出，初筛基本够用；'全部项目→'入口清楚，点开后能看到技术标签筛选与 5 个项目卡片；metastartai 与 nl2sql 两个详情页按背景、功能、技术实现分层，取舍讲得具体，还带提交数、页面数、自动化测试数与部署方式这类可核验信息。跟 PDF 简历比，这里确实多了一层可核验的技术与交付信息。主要不足是结构层面的：项目页首屏只有一个 Featured 卡片，其余项目要逐个点开才能形成对比，无法一步完成多项目横向比对；详情页正文的量化交付信息散落在叙述里，没有独立的可核实证据区块。这两条直接推高了我的核对成本。整站扫完我不轻言结论，是否继续使用与是否付费都取决于后续会不会真的进入合作接触，目前先持保留。读帖方面，体验前我对帖子 #1 与 #2 所述的页面文案有印象，但这次的核心判断全部来自自己的实际浏览，原有预期没有被帖子改变，因此不把任何帖子列为改变看法的影响来源，也不把别人的话当作自己的体验。",
+    "flags": [
+     "unsaid_item_was_publicly_expressed_requires_review"
+    ]
+   }
+  ]
+ },
+ "report": {
+  "id": "phase5-20261003-mimo-r2",
+  "result": {
+   "passed": true,
+   "errors": [],
+   "model_used": true,
+   "source_run": "C:\\Programs\\muchhuman\\runs\\phase4-20261003T071619710132Z",
+   "source_context_sha256": "dd846ac5c8b6cad7d23580796ff8e33f7bc90790ce1b6cbb0a60eb5495d72776",
+   "source_files_unchanged": true,
+   "issues": 5,
+   "highlights": 4,
+   "rejected_claims": 0,
+   "silence_signals": 47,
+   "source_provider": "deepseek",
+   "source_phase4_passed": true
+  },
+  "report": {
+   "overview": {
+    "personas": 10,
+    "task_outcomes": {
+     "success": 10
+    },
+    "no_experience": 0,
+    "outcome_sources": {
+     "agent_self_report": 10
+    },
+    "success_rate": 1.0,
+    "nps": 10,
+    "nps_counts": {
+     "promoters": 1,
+     "passives": 9,
+     "detractors": 0
+    },
+    "continue_using": {
+     "yes": 7,
+     "unsure": 3
+    },
+    "would_pay": {
+     "unsure": 7,
+     "no": 3
+    },
+    "coverage_notes": [
+     "问题与亮点由 mimo / mimo-v2.6-pro 在证据门禁下撰写。",
+     "服务端时间无法模拟：只设置了浏览器端的时区和语言区域，与时间相关的服务端内容以真实时间为准。",
+     "Scout 侦察未执行：说明书与实际产品的不一致之处没有被系统核对。",
+     "样本为 10 个合成 Persona 在一次运行中的行为，不是真实用户统计。",
+     "任务成功/失败主要来自 Agent 自述（agent_self_report 10），不是独立判定。",
+     "社区公开文字由阶段 4 控制器按“已选结论标题 + 页面原文”模板生成，措辞单一、重复度高，不代表真实用户的自由表达。",
+     "体验记忆晚于其计划时间片才通过校验的 Persona：p06；其体验后发言权限未覆盖原计划时间。",
+     "问卷含恢复补录目录（p06_survey_recovery），可能混用了不同模型，不是纯单模型对照。"
+    ]
+   },
+   "sections": {
+    "issues": [
+     {
+      "title": "项目页首屏难以横向比对多个项目",
+      "detail": "项目页首屏只展开一个精选卡片，其余项目需滚动，缺少可用的筛选呈现，横向比对成本偏高。",
+      "severity": 3,
+      "affected_personas": [
+       "p02",
+       "p03",
+       "p04",
+       "p10"
+      ],
+      "evidence_strength": 1.5,
+      "score": 18.0,
+      "review_flags": [],
+      "evidence": [
+       {
+        "ref_id": "p02:f005",
+        "quote": "项目\n共 5 个项目\n其中 2 个精选",
+        "category": "experience",
+        "persona_id": "p02",
+        "path": "p02/experience.json",
+        "steps": [
+         1,
+         2
+        ],
+        "screenshots": [
+         "p02/screenshots/s001_after.png",
+         "p02/screenshots/s002_before.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s001_after",
+          "seconds": 51.75,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s002_before",
+          "seconds": 53.953,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p03:f006",
+        "quote": "Featured",
+        "category": "experience",
+        "persona_id": "p03",
+        "path": "p03/experience.json",
+        "steps": [
+         5
+        ],
+        "screenshots": [
+         "p03/screenshots/s005_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s005_after",
+          "seconds": 128.485,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p04:f002",
+        "quote": "Featured\nmetastartai.com · 智能交通出海企业官网",
+        "category": "experience",
+        "persona_id": "p04",
+        "path": "p04/experience.json",
+        "steps": [
+         2
+        ],
+        "screenshots": [
+         "p04/screenshots/s002_before.png",
+         "p04/screenshots/s002_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s002_before",
+          "seconds": 48.875,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s002_after",
+          "seconds": 68.125,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       }
+      ]
+     },
+     {
+      "title": "详情页正文缺少独立的可核实交付证据区块",
+      "detail": "详情页正文以文字描述为主，缺提交记录、测试清单等可核验信息，真实交付程度需站外核实。",
+      "severity": 3,
+      "affected_personas": [
+       "p02",
+       "p03"
+      ],
+      "evidence_strength": 1.5,
+      "score": 9.0,
+      "review_flags": [],
+      "evidence": [
+       {
+        "ref_id": "p02:f006",
+        "quote": "我独立完成前后端全部开发与生产部署，并交付管理后台使用教程。",
+        "category": "experience",
+        "persona_id": "p02",
+        "path": "p02/experience.json",
+        "steps": [
+         3,
+         4
+        ],
+        "screenshots": [
+         "p02/screenshots/s003_after.png",
+         "p02/screenshots/s004_before.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s003_after",
+          "seconds": 107.578,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s004_before",
+          "seconds": 111.0,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p03:f007",
+        "quote": "评估基于 120 条人工金标准数据集",
+        "category": "experience",
+        "persona_id": "p03",
+        "path": "p03/experience.json",
+        "steps": [
+         9
+        ],
+        "screenshots": [
+         "p03/screenshots/s009_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s009_after",
+          "seconds": 228.422,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       }
+      ]
+     }
+    ],
+    "highlights": [
+     {
+      "title": "详情页按背景、功能与技术实现分层叙述",
+      "detail": "详情页把背景、功能与技术实现拆开讲，取舍具体，便于评估工程规范。",
+      "severity": 2,
+      "affected_personas": [
+       "p02",
+       "p04",
+       "p08",
+       "p10"
+      ],
+      "evidence_strength": 1.5,
+      "score": 12.0,
+      "review_flags": [],
+      "evidence": [
+       {
+        "ref_id": "p02:f003",
+        "quote": "前台使用 Next.js 15（App Router）+ Tailwind + shadcn/ui，后台为 Express 5 + PostgreSQL 16",
+        "category": "experience",
+        "persona_id": "p02",
+        "path": "p02/experience.json",
+        "steps": [
+         3,
+         4
+        ],
+        "screenshots": [
+         "p02/screenshots/s003_after.png",
+         "p02/screenshots/s004_before.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s003_after",
+          "seconds": 107.578,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s004_before",
+          "seconds": 111.0,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p04:f004",
+        "quote": "召回 → 链接 → 生成 → 校验 → 执行 → 脱敏 → 总结，全程 SSE 实时展示，每一阶段的耗时与中间结果可追溯。",
+        "category": "experience",
+        "persona_id": "p04",
+        "path": "p04/experience.json",
+        "steps": [
+         3,
+         4,
+         5
+        ],
+        "screenshots": [
+         "p04/screenshots/s003_after.png",
+         "p04/screenshots/s004_after.png",
+         "p04/screenshots/s005_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s003_after",
+          "seconds": 93.828,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s004_after",
+          "seconds": 114.297,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         },
+         {
+          "evidence_id": "s005_after",
+          "seconds": 133.672,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p08:f002",
+        "quote": "面向海外市场的智能交通（ITS）设备企业官网，需要中/英/俄三语内容，以及产品、新闻、资源下载、招聘、公司信息等多栏目的持续运营。我独立完成前后端全部开发与生产",
+        "category": "experience",
+        "persona_id": "p08",
+        "path": "p08/experience.json",
+        "steps": [
+         3
+        ],
+        "screenshots": [
+         "p08/screenshots/s003_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s003_after",
+          "seconds": 93.25,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       }
+      ]
+     },
+     {
+      "title": "项目卡片与详情页给出量化交付痕迹",
+      "detail": "项目卡片写明三语站点、页数、测试与生产部署，详情页给出提交与唯一贡献者记录，便于核验。",
+      "severity": 2,
+      "affected_personas": [
+       "p02",
+       "p05",
+       "p06",
+       "p08"
+      ],
+      "evidence_strength": 1.5,
+      "score": 12.0,
+      "review_flags": [],
+      "evidence": [
+       {
+        "ref_id": "p02:f002",
+        "quote": "为智能交通企业独立开发并上线的出海官网与管理后台：中/英/俄三语，前台 19 页 + 后台 20 页，Next.js 15 + Express 5 + Post",
+        "category": "experience",
+        "persona_id": "p02",
+        "path": "p02/experience.json",
+        "steps": [
+         1
+        ],
+        "screenshots": [
+         "p02/screenshots/s001_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s001_after",
+          "seconds": 51.75,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p05:f003",
+        "quote": "为智能交通企业独立开发并上线的出海官网与管理后台：中/英/俄三语，前台 19 页 + 后台 20 页，Next.js 15 + Express 5 + Post",
+        "category": "experience",
+        "persona_id": "p05",
+        "path": "p05/experience.json",
+        "steps": [
+         2
+        ],
+        "screenshots": [
+         "p05/screenshots/s002_before.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s002_before",
+          "seconds": 64.735,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       },
+       {
+        "ref_id": "p06:f002",
+        "quote": "独立开发：40 次提交、唯一贡献者，2026-06-08 至 2026-07-28 完成并上线。",
+        "category": "experience",
+        "persona_id": "p06",
+        "path": "p06/experience.json",
+        "steps": [
+         6
+        ],
+        "screenshots": [
+         "p06/screenshots/s006_after.png"
+        ],
+        "video": [
+         {
+          "evidence_id": "s006_after",
+          "seconds": 174.953,
+          "viewer_url": null,
+          "offset_basis": "estimated from Steel created_at and local clock"
+         }
+        ],
+        "trace_event_ids": []
+       }
+      ]
+     }
+    ]
+   },
+   "silence_signals": [
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "withheld",
+     "finding_id": "p03:f003",
+     "kind": "highlight",
+     "title": "能力区块把技术栈与工程实践分组呈现",
+     "reason": "技术栈与自动化用例数量属于他评估交付能力的核心参照，涉及对开发者能力的实质判断，倾向保留不公开表态。",
+     "reasons": [
+      "技术栈与自动化用例数量属于他评估交付能力的核心参照，涉及对开发者能力的实质判断，倾向保留不公开表态。"
+     ],
+     "also_public": true,
+     "refs": [
+      "p03:f003",
+      "disclosure:26"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "withheld",
+     "finding_id": "p03:f004",
+     "kind": "highlight",
+     "title": "详情页按功能与技术实现分层，取舍说得具体",
+     "reason": "涉及对交付痕迹与工程实现质量的实质判断，属于他手里用于后续筛选与议价的评估结论，尚未建立信任前不在公开场合给出。",
+     "reasons": [
+      "涉及对交付痕迹与工程实现质量的实质判断，属于他手里用于后续筛选与议价的评估结论，尚未建立信任前不在公开场合给出。",
+      "涉及对技术实现与交付痕迹的实质评估，属于他预留的合作判断筹码，未建立信任前不公开表态。",
+      "他对详情页取舍叙述的评价直接关联是否推进合作的判断筹码，尚未建立信任前不愿给出。",
+      "涉及对技术实现深度的实质判断，属于他手里用于评估是否推进合作的判断筹码，不轻易公开表态。",
+      "涉及对开发者交付痕迹与工程实现深度的实质评价，属于他手上用来判断是否推进合作的筹码，公开场合不轻易给出。"
+     ],
+     "also_public": false,
+     "refs": [
+      "p03:f004",
+      "disclosure:9",
+      "disclosure:18",
+      "disclosure:26",
+      "disclosure:30",
+      "disclosure:48"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "withheld",
+     "finding_id": "p03:f005",
+     "kind": "highlight",
+     "title": "详情页提供线上站点与源码入口",
+     "reason": "是否核验线上与源码入口、是否推进下一步接触，会暴露他的筛选动作和议价位置，选择保留。",
+     "reasons": [
+      "是否核验线上与源码入口、是否推进下一步接触，会暴露他的筛选动作和议价位置，选择保留。",
+      "线上站点与源码入口是他后续线下核查的路径，公开提及等于暴露自己的核实方法，因此留下不表。",
+      "线上站点与源码入口会牵涉他的后续核实路径与议价节奏，先保留，不透露自己会怎样验证交付。",
+      "是否据此做线下核实、以及核实结果如何影响合作判断，会牵动他自己的议价位置，因此不透露这一层后续动作。"
+     ],
+     "also_public": true,
+     "refs": [
+      "p03:f005",
+      "disclosure:18",
+      "disclosure:26",
+      "disclosure:30",
+      "disclosure:48"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "withheld",
+     "finding_id": "p03:f007",
+     "kind": "pain",
+     "title": "详情页正文缺少独立的可核实交付证据区块",
+     "reason": "这条指向可核实证据的缺口，直接关系到他是否会推进接触的核心评估标准，提前公开等于亮出底牌。",
+     "reasons": [
+      "这条指向可核实证据的缺口，直接关系到他是否会推进接触的核心评估标准，提前公开等于亮出底牌。",
+      "对可核实交付证据缺口的判断接近能力评价，比 surface 结构评论更靠内层，公开会给出他评估标准的线索。",
+      "证据区块缺失这类批评性结论会影响他后续沟通的议价位置，习惯先观察再表态，不公开。",
+      "对交付证据区块的评价接近对开发者能力的核心判断，尚未建立信任关系，只评论表面结构，不展开这一层。",
+      "这是他对交付可信度的核心评估标准之一，说出去等于亮出自己的筛选尺子，尚未建立信任关系前先保留。"
+     ],
+     "also_public": false,
+     "refs": [
+      "p03:f007",
+      "disclosure:9",
+      "disclosure:18",
+      "disclosure:26",
+      "disclosure:30",
+      "disclosure:48"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "lurker",
+     "finding_id": "p05:f001",
+     "kind": "highlight",
+     "title": "首屏一次给出姓名、专业在读情况与开发方向",
+     "reason": "本次参与方式不公开文字体验",
+     "reasons": [
+      "本次参与方式不公开文字体验"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f001",
+      "disclosure:15",
+      "disclosure:19",
+      "disclosure:22",
+      "disclosure:33",
+      "disclosure:38",
+      "disclosure:45"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "lurker",
+     "finding_id": "p05:f002",
+     "kind": "highlight",
+     "title": "上线项目附带可核对的交付痕迹",
+     "reason": "本次参与方式不公开文字体验",
+     "reasons": [
+      "本次参与方式不公开文字体验"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f002",
+      "disclosure:15",
+      "disclosure:19",
+      "disclosure:22",
+      "disclosure:33",
+      "disclosure:38",
+      "disclosure:45"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "lurker",
+     "finding_id": "p05:f003",
+     "kind": "highlight",
+     "title": "项目卡片带类型、阶段与规模数字，方向匹配度可判断",
+     "reason": "本次参与方式不公开文字体验",
+     "reasons": [
+      "本次参与方式不公开文字体验"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f003",
+      "disclosure:15",
+      "disclosure:19",
+      "disclosure:22",
+      "disclosure:33",
+      "disclosure:38",
+      "disclosure:45"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "lurker",
+     "finding_id": "p05:f004",
+     "kind": "pain",
+     "title": "项目页技术栈标签成排堆叠，非技术访客读不下去",
+     "reason": "本次参与方式不公开文字体验",
+     "reasons": [
+      "本次参与方式不公开文字体验"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f004",
+      "disclosure:15",
+      "disclosure:19",
+      "disclosure:22",
+      "disclosure:33",
+      "disclosure:38",
+      "disclosure:45"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p01",
+     "participation": "poster",
+     "source": "survey_unsaid",
+     "finding_id": "p01:f001",
+     "kind": "highlight",
+     "title": "首屏即可读出姓名、方向与经历，初筛可一次性成结论",
+     "reason": "招聘岗位、候选池和公司名称属于内部信息，不方便在公开场合透露具体是给哪个岗位做初筛。",
+     "reasons": [
+      "招聘岗位、候选池和公司名称属于内部信息，不方便在公开场合透露具体是给哪个岗位做初筛。"
+     ],
+     "also_public": true,
+     "refs": [
+      "p01:f001",
+      "p01:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p01",
+     "participation": "poster",
+     "source": "survey_unsaid",
+     "finding_id": "p01:f002",
+     "kind": "highlight",
+     "title": "上线项目附带可核验的交付成果信息",
+     "reason": "技术栈匹配度的判断会同步给技术负责人复核，涉及内部用人标准和同事判断，不会全说。",
+     "reasons": [
+      "技术栈匹配度的判断会同步给技术负责人复核，涉及内部用人标准和同事判断，不会全说。"
+     ],
+     "also_public": true,
+     "refs": [
+      "p01:f002",
+      "p01:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "survey_unsaid",
+     "finding_id": "p05:f001",
+     "kind": "highlight",
+     "title": "首屏一次给出姓名、专业在读情况与开发方向",
+     "reason": "内部筛选意见只向老板和助理口头汇报，不习惯对外公开评价这位初次接触的开发者",
+     "reasons": [
+      "内部筛选意见只向老板和助理口头汇报，不习惯对外公开评价这位初次接触的开发者"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f001",
+      "p05:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p05",
+     "participation": "lurker",
+     "source": "survey_unsaid",
+     "finding_id": "p05:f003",
+     "kind": "highlight",
+     "title": "项目卡片带类型、阶段与规模数字，方向匹配度可判断",
+     "reason": "公司内部项目预算、下季度小项目的具体需求和方向属于内部信息，不方便对外透露",
+     "reasons": [
+      "公司内部项目预算、下季度小项目的具体需求和方向属于内部信息，不方便对外透露"
+     ],
+     "also_public": false,
+     "refs": [
+      "p05:f003",
+      "p05:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "survey_unsaid",
+     "finding_id": "p03:f004",
+     "kind": "highlight",
+     "title": "详情页按功能与技术实现分层，取舍说得具体",
+     "reason": "涉及对交付痕迹与工程实现深度的实质评价，属于他手上用来判断是否推进合作的筹码，尚未建立信任前不在公开场合给出。",
+     "reasons": [
+      "涉及对交付痕迹与工程实现深度的实质评价，属于他手上用来判断是否推进合作的筹码，尚未建立信任前不在公开场合给出。"
+     ],
+     "also_public": false,
+     "refs": [
+      "p03:f004",
+      "p03:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "survey_unsaid",
+     "finding_id": "p03:f005",
+     "kind": "highlight",
+     "title": "详情页提供线上站点与源码入口",
+     "reason": "是否据此做线下核实、以及核实结果如何影响合作判断，会牵动他自己的议价位置，因此不透露这一层后续动作。",
+     "reasons": [
+      "是否据此做线下核实、以及核实结果如何影响合作判断，会牵动他自己的议价位置，因此不透露这一层后续动作。"
+     ],
+     "also_public": true,
+     "refs": [
+      "p03:f005",
+      "p03:survey:unsaid"
+     ],
+     "review_flags": []
+    },
+    {
+     "persona_id": "p03",
+     "participation": "commenter",
+     "source": "survey_unsaid",
+     "finding_id": "p03:f007",
+     "kind": "pain",
+     "title": "详情页正文缺少独立的可核实交付证据区块",
+     "reason": "对交付证据区块的评价接近对开发者能力的核心判断，说出去等于亮出自己的筛选尺子，先保留。",
+     "reasons": [
+      "对交付证据区块的评价接近对开发者能力的核心判断，说出去等于亮出自己的筛选尺子，先保留。"
+     ],
+     "also_public": false,
+     "refs": [
+      "p03:f007",
+      "p03:survey:unsaid"
+     ],
+     "review_flags": []
+    }
+   ],
+   "consistency": [
+    {
+     "persona_id": "p01",
+     "outcome": "success",
+     "nps": 9,
+     "continue_using": "yes",
+     "would_pay": "unsure",
+     "public_items": 6,
+     "flags": [
+      "unsaid_item_was_publicly_expressed_requires_review"
+     ],
+     "flag_notes": [
+      "问卷称“没说出口”的内容，本人已公开表达过，需复核"
+     ],
+     "refs": [
+      "p01:survey:flags",
+      "p01:outcome"
+     ]
+    },
+    {
+     "persona_id": "p05",
+     "outcome": "success",
+     "nps": 7,
+     "continue_using": "unsure",
+     "would_pay": "unsure",
+     "public_items": 0,
+     "flags": [],
+     "flag_notes": [],
+     "refs": [
+      "p05:survey:flags",
+      "p05:outcome"
+     ]
+    },
+    {
+     "persona_id": "p03",
+     "outcome": "success",
+     "nps": 8,
+     "continue_using": "unsure",
+     "would_pay": "unsure",
+     "public_items": 4,
+     "flags": [
+      "unsaid_item_was_publicly_expressed_requires_review"
+     ],
+     "flag_notes": [
+      "问卷称“没说出口”的内容，本人已公开表达过，需复核"
+     ],
+     "refs": [
+      "p03:survey:flags",
+      "p03:outcome"
+     ]
+    }
+   ],
+   "scout": {
+    "executed": false,
+    "discrepancies": [],
+    "note": "Scout 未执行，无法列出说明书与实际产品的不一致。"
+   }
+  }
+ }
+}

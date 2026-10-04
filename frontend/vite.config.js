@@ -1,7 +1,11 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
+// 前端只通过 /api 访问后端；后端默认监听 127.0.0.1:8000（见 docs/phase6.md）。
 export default defineConfig({
   plugins: [vue()],
-  server: { port: 5180 },
+  server: {
+    port: 5180,
+    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false } },
+  },
 })

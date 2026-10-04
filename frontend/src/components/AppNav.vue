@@ -1,22 +1,19 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { run } from '../mock/data.js'
+import { product, live } from '../lib/data.js'
 import { ui, toggleTheme } from '../lib/store.js'
-import { History, Plus, FileText, Radio, Users, MessagesSquare, Mic, ClipboardCheck, Sun, Moon } from 'lucide-vue-next'
+import { History, Plus, FileText, Radio, Users, MessagesSquare, Mic, Sun, Moon } from 'lucide-vue-next'
 
 const route = useRoute()
-const runId = computed(() => route.params.runId || run.id)
-const isReviewRun = computed(() => runId.value === 'run-20261003-c')
-const runLinks = computed(() => isReviewRun.value
-  ? [{ name: 'review', label: '运行前审核', icon: ClipboardCheck }]
-  : [
-      { name: 'report', label: '报告', icon: FileText },
-      { name: 'live', label: '运行现场', icon: Radio },
-      { name: 'personas', label: '人物', icon: Users },
-      { name: 'community', label: '社区', icon: MessagesSquare },
-      { name: 'interview', label: '采访', icon: Mic },
-    ])
+const runId = computed(() => route.params.runId)
+const runLinks = [
+  { name: 'report', label: '报告', icon: FileText },
+  { name: 'live', label: '运行现场', icon: Radio },
+  { name: 'personas', label: '人物', icon: Users },
+  { name: 'community', label: '社区', icon: MessagesSquare },
+  { name: 'interview', label: '采访', icon: Mic },
+]
 const keepQuery = (name) => (['live', 'community'].includes(name) && route.query.t ? { t: route.query.t } : {})
 </script>
 
@@ -36,7 +33,7 @@ const keepQuery = (name) => (['live', 'community'].includes(name) && route.query
     <div class="grp" v-if="route.params.runId">
       <div class="gl">当前运行</div>
       <div class="cur">
-        <span class="ct">{{ isReviewRun ? '青檀表单 v2.5-rc' : '青檀表单 v2.4' }}</span>
+        <span class="ct">{{ live.id === runId && product.name ? product.name : '加载中…' }}</span>
         <span class="cs num">{{ runId }}</span>
       </div>
       <RouterLink v-for="l in runLinks" :key="l.name" :to="{ name: l.name, params: { runId }, query: keepQuery(l.name) }"
@@ -44,7 +41,7 @@ const keepQuery = (name) => (['live', 'community'].includes(name) && route.query
     </div>
 
     <div class="foot">
-      <div class="demo"><span class="dot"></span><span>演示数据 · 非真实运行</span></div>
+      <div class="demo"><span class="dot"></span><span>真实运行数据 · 只读</span></div>
       <button class="it themebtn" type="button" @click="toggleTheme" :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
         <component :is="ui.theme === 'dark' ? Sun : Moon" /><span>{{ ui.theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
       </button>

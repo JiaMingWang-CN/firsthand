@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { steps, surveys, reads, posts, reactions } from '../mock/data.js'
-import { P, label, fmt, assignmentLabel, withheldFor, browseStart, postById } from '../lib/sim.js'
+import { useRoute, useRouter } from 'vue-router'
+import { steps, surveys, reads, posts, reactions } from '../lib/data.js'
+import { P, label, fmt, assignmentLabel, withheldFor, postById } from '../lib/sim.js'
 import { openDrawer, closeAllDrawers } from '../lib/store.js'
 import { Mic } from 'lucide-vue-next'
 import PersonaCard from './PersonaCard.vue'
@@ -13,6 +13,7 @@ import SimTime from './SimTime.vue'
 
 const props = defineProps({ pid: String, tab: String })
 const router = useRouter()
+const route = useRoute()
 const p = computed(() => P[props.pid])
 const tab = ref(props.tab || 'record')
 const sv = computed(() => surveys[props.pid])
@@ -25,14 +26,14 @@ const bigFive = { O: '开放性', C: '尽责性', E: '外向性', A: '宜人性'
 const lvl = { 低: 1, 中: 2, 高: 3 }
 const targetName = (id) => postById[id]?.title || posts.flatMap((x) => x.comments).find((c) => c.id === id)?.body.slice(0, 18) + '…'
 
-function interview() { closeAllDrawers(); router.push({ name: 'interview', params: { runId: 'run-20261003-b' }, query: { pid: props.pid } }) }
+function interview() { closeAllDrawers(); router.push({ name: 'interview', params: { runId: route.params.runId }, query: { pid: props.pid } }) }
 </script>
 
 <template>
   <div>
     <PersonaCard :pid="pid" />
     <div class="row actions">
-      <StatusDot :status="p.outcome === 'quit' ? 'quit' : 'done'" />
+      <StatusDot :status="p.outcome === 'quit' ? 'quit' : p.outcome === 'error' ? 'err' : 'done'" />
       <span class="faint oc">{{ p.outcomeReason }}</span>
     </div>
     <button class="btn btn-secondary sm" type="button" @click="interview"><Mic />采访 {{ p.realname }}</button>
@@ -51,7 +52,7 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
         <dt>体验时</dt><dd><SimTime :m="p.slot" /> {{ p.state }}</dd>
         <dt>约束</dt><dd class="num">最多 {{ p.maxSteps }} 步 · 连续 {{ p.stall }} 步无进展即放弃</dd>
       </dl>
-      <div v-for="r in myReads.filter((r) => r.t < browseStart(pid))" :key="r.post" class="expect">
+      <div v-for="r in myReads.filter((r) => r.before && r.expectation)" :key="r.post" class="expect">
         <div class="label">体验前的预期 · 来自看帖 <SimTime :m="r.t" /></div>
         <p>{{ r.expectation }}</p>
         <span v-if="r.verdict === 'confirmed'" class="tag confused">体验后：预期被印证</span>
@@ -82,8 +83,8 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
         <div class="label">看帖记录 {{ myReads.length }} 条</div>
         <div v-for="r in myReads" :key="r.post" class="li">
           <SimTime :m="r.t" />
-          <button type="button" class="lnk" @click="openDrawer({ type: 'post', id: r.post }, { fromDrawer: true })">{{ postById[r.post].title }}</button>
-          <span class="faint">{{ r.t < browseStart(pid) ? '体验前' : '体验后' }}</span>
+          <button type="button" class="lnk" @click="openDrawer({ type: 'post', id: r.post }, { fromDrawer: true })">{{ postById[r.post]?.title }}</button>
+          <span class="faint">{{ r.before ? '体验前' : '体验后' }}</span>
         </div>
         <p v-if="!myReads.length" class="faint small">没有看帖记录。</p>
       </div>
@@ -94,7 +95,9 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
     <div v-else-if="tab === 'unsaid'" class="stack">
       <VoiceCard v-for="(w, i) in wh" :key="i" kind="withheld" :pid="pid" :t="w.t" :text="w.item" :reason="w.reason" :evidence="w.evidence" />
       <p v-if="!wh.length" class="faint small">表达过滤中没有未说出的记录。</p>
-      <VoiceCard kind="private" :pid="pid" :text="sv.unspoken" :extra="`NPS ${sv.nps}`" :reason="sv.unspokenWhy" />
+      <p v-if="!sv" class="faint small">没有这个人物的离场问卷。</p>
+      <template v-else>
+      <VoiceCard kind="private" :pid="pid" :text="sv.unspoken" :extra="sv.nps == null ? undefined : `NPS ${sv.nps}`" :reason="sv.unspokenWhy" />
       <div class="panel tight">
         <div class="label">离场问卷（私下作答）</div>
         <dl class="kv">
@@ -106,6 +109,7 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
           <dt>讨论的影响</dt><dd>{{ sv.changed }}</dd>
         </dl>
       </div>
+      </template>
     </div>
 
     <!-- 档案 -->

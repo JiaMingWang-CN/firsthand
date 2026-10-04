@@ -1,11 +1,10 @@
-import {
-  personas, steps, findings, posts, reactions, reads, withheld, flows, run, RECORDING_SEC_PER_SIM_MIN,
-} from '../mock/data.js'
+import { reactive } from 'vue'
+import { personas, steps, findings, posts, reads, withheld, flows, timeline } from './data.js'
 
 export const DAY = 1440
 export const pad = (n) => String(n).padStart(2, '0')
 
-/** 模拟分钟 → "D1 21:10" */
+/** 模拟分钟（距运行起点）→ "D1 21:10" */
 export function fmt(m) {
   if (m > 0 && m % DAY === 0) return `D${m / DAY} 24:00`
   const day = Math.floor(m / DAY) + 1
@@ -18,11 +17,39 @@ export const parseSim = (str) => {
   return r ? (Number(r[1]) - 1) * DAY + Number(r[2]) * 60 + Number(r[3]) : null
 }
 export const mmss = (sec) => `${pad(Math.floor(sec / 60))}:${pad(Math.round(sec % 60))}`
+/** 当天分钟数 → "09:40" */
+export const clockOf = (min) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`
 
-export const P = Object.fromEntries(personas.map((p, i) => [p.id, { ...p, index: i }]))
-export const F = Object.fromEntries(flows.map((f) => [f.id, f]))
-export const findingById = Object.fromEntries(findings.map((f) => [f.id, f]))
-export const postById = Object.fromEntries(posts.map((p) => [p.id, p]))
+// 派生容器：加载新运行后由 rebuild() 原地重建，引用不变
+export const P = reactive({})
+export const F = reactive({})
+export const findingById = reactive({})
+export const postById = reactive({})
+export const socialEvents = reactive([])
+export const tasked = reactive([])
+export const taskedDone = reactive([])
+
+const refill = (target, entries) => {
+  for (const key of Object.keys(target)) delete target[key]
+  Object.assign(target, entries)
+}
+
+export function rebuild() {
+  refill(P, Object.fromEntries(personas.map((p, i) => [p.id, { ...p, index: i }])))
+  refill(F, Object.fromEntries(flows.map((f) => [f.id, f])))
+  refill(findingById, Object.fromEntries(findings.map((f) => [f.id, f])))
+  refill(postById, Object.fromEntries(posts.map((p) => [p.id, p])))
+  const events = []
+  for (const p of posts) {
+    events.push({ kind: 'post', pid: p.author, t: p.t, ref: p.id })
+    for (const c of p.comments) events.push({ kind: 'comment', pid: c.author, t: c.t, ref: c.id, post: p.id })
+  }
+  for (const r of reads) events.push({ kind: 'read', pid: r.pid, t: r.t, ref: r.post })
+  socialEvents.splice(0, socialEvents.length, ...events.sort((a, b) => a.t - b.t))
+  const assigned = personas.filter((p) => p.assignment !== 'explore')
+  tasked.splice(0, tasked.length, ...assigned)
+  taskedDone.splice(0, taskedDone.length, ...assigned.filter((p) => p.outcome === 'success'))
+}
 
 export const label = {
   device: { mobile: '手机', desktop: '桌面' },
@@ -34,23 +61,14 @@ export const label = {
   status: { wait: '等待中', browse: '体验中', social: '在社区', done: '已完成', quit: '已放弃', err: '出错' },
   account: { new_visitor: '新访客', free_user: '免费用户', paid_user: '付费用户' },
 }
-export const assignmentLabel = (p) => (p.assignment === 'explore' ? '自由探索' : F[p.assignment].name)
+export const assignmentLabel = (p) => (p.assignment === 'explore' || !F[p.assignment] ? '自由探索' : F[p.assignment].name)
 
 // —— 时间与状态 ——
 export const browseStart = (pid) => P[pid].slot
-export const browseEnd = (pid) => steps[pid][steps[pid].length - 1].t + 1
-
-/** 人物在全天中的社区行为（发帖、评论、点赞、看帖） */
-export const socialEvents = (() => {
-  const out = []
-  for (const p of posts) {
-    out.push({ kind: 'post', pid: p.author, t: p.t, ref: p.id })
-    for (const c of p.comments) out.push({ kind: 'comment', pid: c.author, t: c.t, ref: c.id, post: p.id })
-  }
-  for (const r of reactions) out.push({ kind: 'react', pid: r.pid, t: r.t, ref: r.target })
-  for (const r of reads) out.push({ kind: 'read', pid: r.pid, t: r.t, ref: r.post })
-  return out.sort((a, b) => a.t - b.t)
-})()
+export const browseEnd = (pid) => {
+  const list = steps[pid]
+  return list.length ? list[list.length - 1].t + 1 : P[pid].slot
+}
 
 export function statusAt(pid, t) {
   const start = browseStart(pid)
@@ -59,7 +77,7 @@ export function statusAt(pid, t) {
   if (socialEvents.some((e) => e.pid === pid && e.kind !== 'read' && t >= e.t && t < e.t + 6)) return 'social'
   if (socialEvents.some((e) => e.pid === pid && e.kind === 'read' && t >= e.t && t < e.t + 3)) return 'social'
   if (t < start) return 'wait'
-  return P[pid].outcome === 'quit' ? 'quit' : 'done'
+  return P[pid].outcome === 'quit' ? 'quit' : P[pid].outcome === 'error' ? 'err' : 'done'
 }
 
 /** 当前正在执行的步骤索引（0 基），未开始返回 -1 */
@@ -70,7 +88,8 @@ export function stepIndexAt(pid, t) {
   return idx
 }
 
-export const videoSec = (pid, stepNo) => (steps[pid][stepNo - 1].t - P[pid].slot) * RECORDING_SEC_PER_SIM_MIN + 30
+/** 录像秒数：该步骤开始时截图在 Steel 录像中的位置 */
+export const videoSec = (pid, stepNo) => steps[pid][stepNo - 1]?.video ?? 0
 
 // —— 证据 ——
 const kindLabel = { step: '步骤', video: '录像', shots: '截图', console: 'Console', network: 'Network' }
@@ -108,47 +127,26 @@ export function flowStats() {
     return { ...f, people: ps, done: ps.filter((p) => p.outcome === 'success') }
   })
 }
-export const tasked = personas.filter((p) => p.assignment !== 'explore')
-export const taskedDone = tasked.filter((p) => p.outcome === 'success')
 
 export function npsOf(list) {
+  if (!list.length) return { score: null, promoters: 0, detractors: 0, passives: 0 }
   const promoters = list.filter((n) => n >= 9).length
   const detractors = list.filter((n) => n <= 6).length
   return { score: Math.round(((promoters - detractors) / list.length) * 100), promoters, detractors, passives: list.length - promoters - detractors }
 }
 
-export function priorityScore(f) {
-  const sevW = { 1: 4, 2: 3, 3: 2, 4: 1 }[f.sev] || 0
-  return (f.affected.length / f.denominator) * f.affected.length * sevW * (f.strength || 0.5)
-}
+/** 证据强度（后端）：仅文字 1，有截图 1.5，再有技术事件 2；页面结构受损时减半 */
+export const strengthLabel = (s) => (s >= 2 ? '强' : s >= 1.5 ? '中' : s >= 1 ? '弱' : '待复核')
+
+/** 报告已按「影响人数 × 严重度 × 证据强度」算好 score，直接沿用 */
+export const priorityScore = (f) => f.score ?? 0
 
 export const withheldFor = (pid) => withheld.filter((w) => w.pid === pid)
 export const issueCount = (sev) => findings.filter((f) => f.kind === 'issue' && f.sev === sev).length
-
-// —— 费用：按事件累计，最后归一到实际花费 ——
-const costEvents = (() => {
-  const ev = []
-  for (const pid of Object.keys(steps)) for (const st of steps[pid]) ev.push({ t: st.t, w: P[pid].tech === 'developer' ? 1.3 : 1 })
-  for (const e of socialEvents) ev.push({ t: e.t, w: e.kind === 'read' ? 0.15 : 0.45 })
-  for (let h = 0; h < 24; h++) ev.push({ t: h * 60, w: 0.6 }) // 每个时间片的 OASIS 推进
-  ev.sort((a, b) => a.t - b.t)
-  const total = ev.reduce((s, e) => s + e.w, 0)
-  let acc = 0
-  return ev.map((e) => ({ t: e.t, c: (acc += e.w) / total }))
-})()
-export function costAt(t) {
-  let frac = 0
-  for (const e of costEvents) { if (e.t <= t) frac = e.c; else break }
-  return run.actual.cny * frac
-}
-export function callsAt(t) { return Math.round((costAt(t) / run.actual.cny) * run.actual.calls) }
 
 /** 到 t 为止发生的社区动态（只含说出的内容） */
 export function feedUntil(t) {
   return socialEvents.filter((e) => e.t <= t && e.kind !== 'read').slice().reverse()
 }
 
-export function votesOf(target, t = DAY) {
-  return reactions.filter((r) => r.target === target && r.t <= t && r.kind === 'up').length -
-    reactions.filter((r) => r.target === target && r.t <= t && r.kind === 'down').length
-}
+export const span = () => timeline.total

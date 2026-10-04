@@ -1,17 +1,19 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { personas, steps, surveys, interviewScripts, defaultQuestions } from '../mock/data.js'
-import { P, assignmentLabel, withheldFor } from '../lib/sim.js'
+import { personas } from '../lib/data.js'
+import { P } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
+import { api } from '../api/client.js'
 import { Send, Info, BookOpen } from 'lucide-vue-next'
 import PersonaCard from '../components/PersonaCard.vue'
 import Avatar from '../components/Avatar.vue'
-import EvTag from '../components/EvTag.vue'
+import InterviewEvidence from '../components/InterviewEvidence.vue'
 
 const route = useRoute()
 const router = useRouter()
-const pid = computed(() => (P[route.query.pid] ? route.query.pid : 'p1'))
+const runId = computed(() => String(route.params.runId))
+const pid = computed(() => (P[route.query.pid] ? route.query.pid : personas[0]?.id))
 const p = computed(() => P[pid.value])
 const threads = ref({})
 const draft = ref('')
@@ -20,57 +22,44 @@ const scroller = ref(null)
 const msgs = computed(() => threads.value[pid.value] || [])
 const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-function answerFor(q) {
-  const script = interviewScripts[pid.value]?.find((x) => x.q === q)
-  if (script) return { text: script.a, ev: script.ev }
-  const s = steps[pid.value], sv = surveys[pid.value], me = p.value
-  if (/放弃/.test(q)) {
-    if (me.outcome !== 'quit') return { text: `我没放弃啊。${me.outcomeReason}`, ev: [{ pid: pid.value, step: s.length, kind: 'step' }] }
-    return { text: me.outcomeReason, ev: [{ pid: pid.value, step: s.length, kind: 'step' }] }
-  }
-  if (/困惑|卡|难/.test(q)) {
-    const i = s.reduce((bi, x, k) => (x.conf > s[bi].conf ? k : bi), 0)
-    return { text: `第 ${i + 1} 步吧，${s[i].act}。${s[i].think ? '当时就觉得：' + s[i].think : ''}`, ev: [{ pid: pid.value, step: i + 1, kind: 'step' }] }
-  }
-  if (/没说|没在社区/.test(q)) {
-    const w = withheldFor(pid.value)
-    if (!w.length) return { text: '没有，想说的都说了。', ev: [] }
-    if (me.withhold === '高') return { text: '也没什么特别的吧……就是整体用下来还行。', ev: [] }
-    return { text: `有一点。${w[0].item}当时没好意思说。`, ev: w[0].evidence }
-  }
-  if (/推荐/.test(q)) {
-    return { text: sv.nps >= 9 ? `会，${sv.best}确实好用。` : sv.nps >= 7 ? `可能会，不过${sv.worst}得先改改。` : `暂时不会。主要是${sv.worst}。`, ev: [] }
-  }
-  return { text: `这个我没太留意。我这次主要是在「${assignmentLabel(me)}」，印象最深的是${sv.worst}。`, ev: [] }
+const STANCE = { declined: '按人设回避', no_experience: '没有亲身体验' }
+const defaultQuestions = ['整个体验里你最困惑的是哪一步？为什么？', '有没有什么想说但没在社区里说的？', '你会推荐给别人吗？为什么？', '你是怎么决定结束这次体验的？']
+
+// 服务端不保存会话：把最近几轮已得到回答的问答带上，最多 6 轮
+const historyOf = (list) => {
+  const turns = []
+  for (let i = 0; i + 1 < list.length; i++) if (list[i].role === 'me' && list[i + 1].role === 'them' && list[i + 1].done && !list[i + 1].error) turns.push({ question: list[i].text, answer: list[i + 1].text })
+  return turns.slice(-6)
 }
 
 async function ask(q) {
   q = (q || draft.value).trim()
   if (!q || busy.value) return
   draft.value = ''
-  const list = (threads.value[pid.value] ||= [])
+  const who = pid.value
+  const list = (threads.value[who] ||= [])
+  const history = historyOf(list)
   list.push({ role: 'me', text: q })
-  const ans = answerFor(q)
-  const msg = { role: 'them', text: '', full: ans.text, ev: ans.ev, done: false }
-  list.push(msg)
+  list.push({ role: 'them', text: '', done: false, refs: [], stance: null, error: null })
+  const msg = list[list.length - 1]
   busy.value = true
   await scrollDown()
-  const m = list[list.length - 1]
-  if (reduce) { m.text = m.full } else {
-    await new Promise((r) => setTimeout(r, 450))
-    for (let i = 1; i <= m.full.length; i += 2) { m.text = m.full.slice(0, i); await new Promise((r) => setTimeout(r, 18)) }
-    m.text = m.full
+  try {
+    const res = await api.interview(runId.value, who, { question: q, history })
+    msg.text = res.answer
+    msg.refs = res.evidence
+    msg.stance = res.stance
+  } catch (e) {
+    msg.error = e.status === 503 ? `采访暂不可用：${e.message}` : e.status === 502 ? `模型这次没有给出合格的回答，可以换个问法再试。（${e.message}）` : e.message
+    msg.text = msg.error
   }
-  m.done = true
+  msg.done = true
   busy.value = false
   scrollDown()
 }
 async function scrollDown() { await nextTick(); scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }) }
 const pick = (id) => router.replace({ query: { ...route.query, pid: id } })
-const suggestions = computed(() => {
-  const own = (interviewScripts[pid.value] || []).map((x) => x.q)
-  return [...new Set([...own, ...defaultQuestions])].filter((q) => !msgs.value.some((m) => m.text === q)).slice(0, 4)
-})
+const suggestions = computed(() => defaultQuestions.filter((q) => !msgs.value.some((m) => m.text === q)).slice(0, 4))
 watch(pid, scrollDown)
 </script>
 
@@ -95,7 +84,7 @@ watch(pid, scrollDown)
       <section class="panel flush chat">
         <div class="ch">
           <PersonaCard :pid="pid" compact />
-          <div class="notice"><Info />模拟人物 · 回答由模型基于体验记录生成，不代表真实用户</div>
+          <div class="notice"><Info />模拟人物 · 回答由模型只依据该人物自己的记录生成，不代表真实用户；回答是否被所引记录支持请自行对照</div>
           <button class="btn btn-secondary sm full" type="button" @click="openDrawer({ type: 'persona', pid, tab: 'record' })"><BookOpen />打开完整体验记录对照</button>
         </div>
         <div class="msgs" ref="scroller" aria-live="polite">
@@ -105,7 +94,9 @@ watch(pid, scrollDown)
             <div class="bubble">
               <span v-if="m.role === 'them' && !m.text" class="typing"><i></i><i></i><i></i></span>
               {{ m.text }}
-              <div v-if="m.role === 'them' && m.done && m.ev.length" class="row evs"><span class="faint">引用的体验</span><EvTag v-for="(e, k) in m.ev" :key="k" :ev="e" /></div>
+              <div v-if="m.role === 'them' && m.stance && STANCE[m.stance]" class="row evs"><span class="tag">{{ STANCE[m.stance] }}</span></div>
+              <InterviewEvidence v-if="m.role === 'them' && m.done && m.refs.length" :run-id="runId" :refs="m.refs" />
+              <p v-if="m.role === 'them' && m.done && !m.error && !m.refs.length && m.stance === 'answered'" class="faint noev">这条回答没有引用证据。</p>
             </div>
           </div>
         </div>

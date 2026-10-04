@@ -1,10 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { useRouter } from 'vue-router'
 import { product, flows, capability } from '../mock/data.js'
+import { toast } from '../lib/store.js'
+import MockNotice from '../components/MockNotice.vue'
 import { Upload, Check, X, AlertTriangle, FileText, Cpu, Users, Loader } from 'lucide-vue-next'
 
-const router = useRouter()
 const step = ref(1)
 const manual = ref(null) // 'ok' | 'bad'
 const dragging = ref(false)
@@ -38,7 +38,8 @@ const gen = ref(0)
 const genLabels = ['解析说明书 → 产品模型', '侦察：用 1 个浏览会话核对网站', '维度矩阵：覆盖设备、技术、耐心、参与方式', '补全 10 名人物的身份、背景、性格与作息', '生成运行配置并校验分布约束']
 async function generate() {
   for (let i = 1; i <= genLabels.length; i++) { gen.value = i; await new Promise((r) => setTimeout(r, 520)) }
-  router.push({ name: 'review', params: { runId: 'run-20261003-c' } })
+  gen.value = 0
+  toast('演示结束：新建运行尚未接入后端，没有创建任何运行')
 }
 function onDrop(e) { dragging.value = false; manual.value = 'ok'; e.preventDefault() }
 </script>
@@ -52,6 +53,7 @@ function onDrop(e) { dragging.value = false; manual.value = 'ok'; e.preventDefau
         <p class="page-sub">上传规定格式的使用说明。主 Agent 会先校验必填项，再探测模型能力、侦察网站并生成人物。到运行前审核之前，只会产生少量模型费用。</p>
       </div>
     </header>
+    <MockNotice what="新建运行" />
 
     <ol class="stepper">
       <li v-for="(s, i) in [['使用说明', FileText], ['能力探测', Cpu], ['生成人物', Users]]" :key="i" :class="{ on: step === i + 1, done: step > i + 1 }">

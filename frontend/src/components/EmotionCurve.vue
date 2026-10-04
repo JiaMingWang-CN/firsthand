@@ -1,7 +1,7 @@
 <script setup>
 // 情绪曲线：横轴步骤，纵轴受挫 → 满意，零线居中；困惑度用点的大小表示（设计语言第 13 节）
 import { computed, ref, inject } from 'vue'
-import { steps } from '../mock/data.js'
+import { steps } from '../lib/data.js'
 import { P, fmt } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
 

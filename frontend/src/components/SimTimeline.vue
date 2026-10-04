@@ -1,35 +1,39 @@
 <script setup>
 // 全局唯一的模拟时间轴（设计语言 8.4）。rows 模式下展开为每人一行。
 import { computed, ref } from 'vue'
-import { personas } from '../mock/data.js'
-import { P, DAY, fmt, browseStart, browseEnd, socialEvents } from '../lib/sim.js'
+import { personas, timeline } from '../lib/data.js'
+import { P, fmt, browseStart, browseEnd, socialEvents } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
 import Avatar from './Avatar.vue'
 
 const props = defineProps({
-  modelValue: { type: Number, default: DAY },
+  modelValue: { type: Number, default: () => timeline.total },
   rows: Boolean,
   showActivity: Boolean,
   scrub: { type: Boolean, default: true },
   pids: { type: Array, default: () => personas.map((p) => p.id) },
-  slots: { type: Object, default: null }, // 审核页可传入修改后的体验时段
 })
 const emit = defineEmits(['update:modelValue', 'scrub-start'])
 const track = ref(null)
-const pct = (m) => `${(m / DAY) * 100}%`
-const slotOf = (pid) => (props.slots ? props.slots[pid] : browseStart(pid))
-const endOf = (pid) => (props.slots ? props.slots[pid] + (browseEnd(pid) - browseStart(pid)) : browseEnd(pid))
+const pct = (m) => `${(m / timeline.total) * 100}%`
+const slotOf = (pid) => browseStart(pid)
+const endOf = (pid) => browseEnd(pid)
 
 const events = computed(() => {
   const by = {}
   for (const e of socialEvents) if (e.kind !== 'read') (by[e.pid] ||= []).push(e)
   return by
 })
-const kindName = { post: '发帖', comment: '评论', react: '点赞' }
+const kindName = { post: '发帖', comment: '评论' }
+const ticks = computed(() => {
+  const step = timeline.total <= 1440 ? 180 : 360
+  return Array.from({ length: Math.floor(timeline.total / step) + 1 }, (_, i) => i * step)
+})
+const tickLabel = (t) => (t > 0 && t % 1440 === 0 ? `D${t / 1440} 24:00` : t >= 1440 ? fmt(t) : fmt(t).slice(3))
 
 function toMinute(clientX) {
   const r = track.value.getBoundingClientRect()
-  return Math.round(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * DAY)
+  return Math.round(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * timeline.total)
 }
 function down(e) {
   if (!props.scrub) return
@@ -42,7 +46,7 @@ function down(e) {
 }
 function key(e) {
   const step = e.shiftKey ? 60 : 10
-  if (e.key === 'ArrowRight') { emit('update:modelValue', Math.min(DAY, props.modelValue + step)); e.preventDefault() }
+  if (e.key === 'ArrowRight') { emit('update:modelValue', Math.min(timeline.total, props.modelValue + step)); e.preventDefault() }
   if (e.key === 'ArrowLeft') { emit('update:modelValue', Math.max(0, props.modelValue - step)); e.preventDefault() }
 }
 function openEvent(e) {
@@ -66,9 +70,7 @@ function openEvent(e) {
 
       <div class="plot">
         <div class="track" ref="track" @pointerdown="down" :style="rows ? { '--rows': pids.length } : null">
-          <div class="night" :style="{ left: 0, width: pct(360) }"></div>
-          <div class="night" :style="{ left: pct(1380), right: 0 }"></div>
-          <div v-for="h in 25" :key="h" class="hline" :class="{ major: (h - 1) % 6 === 0 }" :style="{ left: pct((h - 1) * 60) }"></div>
+          <div v-for="h in timeline.total / 60 + 1" :key="h" class="hline" :class="{ major: (h - 1) % 6 === 0 }" :style="{ left: pct((h - 1) * 60) }"></div>
 
           <!-- 折叠模式：头像标在体验起点 -->
           <template v-if="!rows">
@@ -81,7 +83,7 @@ function openEvent(e) {
           <template v-else>
             <div class="rowlane" v-for="(pid, i) in pids" :key="pid" :style="{ top: `${22 + i * 30}px` }">
               <template v-if="showActivity">
-                <i v-for="(v, h) in P[pid].activity" :key="h" class="heat" :style="{ left: pct(h * 60), width: pct(60), opacity: v * 0.55 }"></i>
+                <i v-for="h in P[pid].heat" :key="h.t" class="heat" :style="{ left: pct(h.t), width: pct(60), opacity: h.v * 0.55 }"></i>
               </template>
               <i class="browse" :style="{ left: pct(slotOf(pid)), width: `max(6px, ${pct(endOf(pid) - slotOf(pid))})`, background: P[pid].color }" :title="`体验 ${fmt(slotOf(pid))}–${fmt(endOf(pid))}`"></i>
               <button v-for="e in events[pid] || []" :key="e.ref + e.t" class="sdot" :class="e.kind" type="button"
@@ -92,11 +94,11 @@ function openEvent(e) {
           </template>
 
           <div class="ticks">
-            <span v-for="h in [0, 3, 6, 9, 12, 15, 18, 21, 24]" :key="h" class="tick" :style="{ left: pct(h * 60) }">{{ String(h).padStart(2, '0') }}:00</span>
+            <span v-for="t in ticks" :key="t" class="tick" :style="{ left: pct(t) }">{{ tickLabel(t) }}</span>
           </div>
 
           <div v-if="scrub" class="playhead" :style="{ left: pct(modelValue) }" tabindex="0" role="slider"
-               aria-label="模拟时间播放头" :aria-valuetext="fmt(modelValue)" :aria-valuemin="0" :aria-valuemax="DAY" :aria-valuenow="Math.round(modelValue)"
+               aria-label="模拟时间播放头" :aria-valuetext="fmt(modelValue)" :aria-valuemin="0" :aria-valuemax="timeline.total" :aria-valuenow="Math.round(modelValue)"
                @keydown="key">
             <span class="ph-label">{{ fmt(modelValue) }}</span>
           </div>
@@ -107,9 +109,7 @@ function openEvent(e) {
       <span><i class="lg-browse"></i>体验时段</span>
       <span><i class="lg post"></i>发帖</span>
       <span><i class="lg comment"></i>评论</span>
-      <span><i class="lg react"></i>点赞</span>
       <span v-if="showActivity"><i class="lg-heat"></i>刷社区概率</span>
-      <span><i class="lg-night"></i>夜间 00–06 · 23–24</span>
     </div>
   </div>
 </template>

@@ -1,58 +1,53 @@
 <script setup>
 import { computed } from 'vue'
-import { personas, run } from '../mock/data.js'
-import { DAY, fmt, statusAt, costAt, callsAt } from '../lib/sim.js'
-import { clock, SPEEDS, togglePlay, askConfirm, toast, pause } from '../lib/store.js'
-import { Play, Pause, Square } from 'lucide-vue-next'
+import { personas, run, timeline } from '../lib/data.js'
+import { fmt, statusAt } from '../lib/sim.js'
+import { clock, SPEEDS, togglePlay } from '../lib/store.js'
+import { Play, Pause } from 'lucide-vue-next'
 
-const progress = computed(() => clock.t / DAY)
+const progress = computed(() => clock.t / timeline.total)
 const counts = computed(() => {
-  const c = { browse: 0, social: 0, done: 0, quit: 0, wait: 0 }
+  const c = { browse: 0, social: 0, done: 0, quit: 0, err: 0, wait: 0 }
   for (const p of personas) c[statusAt(p.id, clock.t)]++
   return c
 })
-const cost = computed(() => costAt(clock.t))
-async function stop() {
-  pause()
-  const ok = await askConfirm({
-    title: `终止运行？已经产生的 ¥${cost.value.toFixed(2)} 费用不会退回`,
-    body: `正在体验的 ${counts.value.browse} 名人物会立即结束，已采集的体验记录会保留，报告将标注为“部分完成”。`,
-    confirmText: '终止运行', danger: true,
-  })
-  if (ok) { clock.stopped = true; toast('运行已终止（演示）') }
-}
+const total = computed(() => run.usage?.total ?? {})
+const num = (n) => (n ?? 0).toLocaleString('zh-CN')
+const usageTip = computed(() => (run.usage?.models ?? [])
+  .map((m) => `${m.model}：输入 ${num(m.input_tokens)}（缓存 ${num(m.cached_input_tokens)}）· 输出 ${num(m.output_tokens)}`)
+  .join(String.fromCharCode(10)))
 </script>
 
 <template>
   <div class="runbar" role="region" aria-label="运行状态栏">
     <div class="clock">
-      <span class="lbl">模拟时钟</span>
+      <span class="lbl">模拟时钟（UTC，距运行起点）</span>
       <span class="simtime big">◷ {{ fmt(clock.t) }}</span>
     </div>
-    <div class="prog" :aria-label="`整体进度 ${Math.round(progress * 100)}%（模拟时间 ${fmt(clock.t)} / D1 24:00）`">
+    <div class="prog" :aria-label="`整体进度 ${Math.round(progress * 100)}%（模拟时间 ${fmt(clock.t)} / ${fmt(timeline.total)}）`">
       <div class="bar"><i :style="{ width: progress * 100 + '%' }"></i></div>
       <div class="pl">
         <span class="status st-browse" v-if="counts.browse"><i></i>体验中 {{ counts.browse }}</span>
         <span class="status st-social" v-if="counts.social"><i></i>在社区 {{ counts.social }}</span>
         <span class="status st-done"><i></i>已完成 {{ counts.done }}</span>
-        <span class="status st-quit"><i></i>已放弃 {{ counts.quit }}</span>
+        <span class="status st-quit" v-if="counts.quit"><i></i>已放弃 {{ counts.quit }}</span>
+        <span class="status st-err" v-if="counts.err"><i></i>出错 {{ counts.err }}</span>
         <span class="status st-wait"><i></i>等待中 {{ counts.wait }}</span>
       </div>
     </div>
-    <div class="cost">
-      <span class="lbl">已花费</span>
-      <span class="num cv">¥{{ cost.toFixed(2) }}<small> / 预估 ¥{{ run.estimate.min }}–{{ run.estimate.max }}</small></span>
-      <span class="num calls">{{ callsAt(clock.t) }} 次模型调用</span>
+    <div class="cost" :title="usageTip">
+      <span class="lbl">模型用量 · 全程</span>
+      <span class="num cv">{{ num(total.requests) }}<small> 次请求</small></span>
+      <span class="num calls">输入 {{ num(total.input_tokens) }}（缓存 {{ num(total.cached_input_tokens) }}）· 输出 {{ num(total.output_tokens) }}</span>
     </div>
     <div class="ctl">
-      <span class="replay">{{ clock.stopped ? '已终止' : '回放' }}</span>
+      <span class="replay">回放</span>
       <div class="seg" role="group" aria-label="回放速度">
         <button v-for="s in SPEEDS" :key="s.id" type="button" :aria-pressed="clock.speed === s.id" @click="clock.speed = s.id">{{ s.label }}</button>
       </div>
-      <button class="btn btn-secondary icon" type="button" :disabled="clock.stopped" @click="togglePlay" :aria-label="clock.playing ? '暂停（空格）' : '播放（空格）'">
+      <button class="btn btn-secondary icon" type="button" @click="togglePlay" :aria-label="clock.playing ? '暂停（空格）' : '播放（空格）'">
         <component :is="clock.playing ? Pause : Play" />
       </button>
-      <button class="btn btn-danger sm" type="button" :disabled="clock.stopped" @click="stop"><Square />终止</button>
     </div>
   </div>
 </template>

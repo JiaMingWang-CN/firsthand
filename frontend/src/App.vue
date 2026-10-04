@@ -1,8 +1,10 @@
 <script setup>
-import { watch, onMounted, onBeforeUnmount } from 'vue'
+import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clock, drawers, closeDrawer, confirmState, settleConfirm, togglePlay, seek } from './lib/store.js'
 import { fmt, parseSim } from './lib/sim.js'
+import { live } from './lib/data.js'
+import { ensureRun } from './lib/live.js'
 import AppNav from './components/AppNav.vue'
 import RunBar from './components/RunBar.vue'
 import DrawerHost from './components/DrawerHost.vue'
@@ -11,6 +13,11 @@ import ToastHost from './components/ToastHost.vue'
 
 const route = useRoute()
 const router = useRouter()
+
+// 带 runId 的页面先加载对应运行；演示页（meta.mock）不读后端
+const needsRun = computed(() => Boolean(route.params.runId) && !route.meta.mock)
+watch(() => [route.params.runId, route.meta.mock], () => { if (needsRun.value) ensureRun(String(route.params.runId)) }, { immediate: true })
+const gate = computed(() => (!needsRun.value ? 'open' : live.id !== route.params.runId ? 'loading' : live.status))
 
 // 时间联动：选中的模拟时刻同步到 URL（?t=D1-21:10）
 watch(() => route.query.t, (q) => {
@@ -49,10 +56,19 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
   <div class="app">
     <AppNav />
     <div class="main">
-      <RunBar v-if="route.meta.runBar" />
-      <RouterView v-slot="{ Component }">
-        <Transition name="fade" mode="out-in"><component :is="Component" :key="route.name" /></Transition>
-      </RouterView>
+      <template v-if="gate === 'open' || gate === 'ready'">
+        <RunBar v-if="route.meta.runBar" />
+        <RouterView v-slot="{ Component }">
+          <Transition name="fade" mode="out-in"><component :is="Component" :key="route.name" /></Transition>
+        </RouterView>
+      </template>
+      <div v-else-if="gate === 'error'" class="page gate" role="alert">
+        <h1 class="page-title">无法打开这次运行</h1>
+        <p class="gate-msg">{{ live.error }}</p>
+        <div class="row"><button class="btn btn-secondary" type="button" @click="ensureRun(String(route.params.runId))">重试</button>
+          <RouterLink class="btn btn-ghost" to="/runs">返回运行列表</RouterLink></div>
+      </div>
+      <div v-else class="page gate" role="status" aria-live="polite"><p class="faint">正在读取运行数据…</p></div>
     </div>
     <DrawerHost />
     <ConfirmDialog />
@@ -61,6 +77,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 </template>
 
 <style>
+.gate { max-width: 640px; }
+.gate-msg { color: var(--text-2); line-height: 1.7; word-break: break-word; }
 .app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
 .main { min-width: 0; transition: margin-right var(--dur-slow) var(--ease); }
 @media (min-width: 1280px) { body.has-drawer .main { margin-right: var(--drawer-w, 480px); } }

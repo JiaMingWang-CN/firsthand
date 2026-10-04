@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed } from 'vue'
-import { personas, steps, surveys } from '../mock/data.js'
+import { personas, steps, surveys } from '../lib/data.js'
 import { label, statusAt, assignmentLabel, withheldFor, fmt } from '../lib/sim.js'
 import { clock, openDrawer } from '../lib/store.js'
 import { Search, LayoutGrid, Rows3 } from 'lucide-vue-next'
@@ -21,16 +21,17 @@ const match = (p) => ({
 }[filt.value])
 const list = computed(() => personas.filter((p) => match(p) && (!q.value || [p.realname, p.profession, p.city, p.username].join(' ').includes(q.value.trim()))))
 const count = (fn) => personas.filter(fn).length
-const dist = [
-  { k: '开发者', v: count((p) => p.tech === 'developer'), need: '≥ 2' },
-  { k: '手机用户', v: count((p) => p.device === 'mobile'), need: '≥ 4' },
-  { k: '低耐心', v: count((p) => p.patience === 'low'), need: '≥ 3' },
-  { k: '明显的未说出倾向', v: count((p) => p.withhold === '高'), need: '≥ 2' },
-]
+// 10 人样本的分布要求（plan 4.4）；是否满足由实际人数算出
+const dist = computed(() => [
+  { k: '开发者', v: count((p) => p.tech === 'developer'), min: 2 },
+  { k: '手机用户', v: count((p) => p.device === 'mobile'), min: 4 },
+  { k: '低耐心', v: count((p) => p.patience === 'low'), min: 3 },
+  { k: '明显的未说出倾向', v: count((p) => p.withhold === '高'), min: 2 },
+].map((d) => ({ ...d, ok: d.v >= d.min })))
 const parts = ['poster', 'commenter', 'reactor', 'lurker'].map((k) => ({ k, v: count((p) => p.participation === k) }))
 const spark = (pid) => {
   const s = steps[pid]
-  return s.map((x, i) => `${(i / (s.length - 1)) * 100},${(1 - x.sat) * 14 + 2}`).join(' ')
+  return s.map((x, i) => `${s.length > 1 ? (i / (s.length - 1)) * 100 : 50},${(1 - x.sat) * 14 + 2}`).join(' ')
 }
 </script>
 
@@ -38,7 +39,7 @@ const spark = (pid) => {
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">人物 · 10 名模拟人物</div>
+        <div class="eyebrow">人物 · {{ personas.length }} 名模拟人物</div>
         <h1 class="page-title">人物</h1>
         <p class="page-sub">主 Agent 先用维度矩阵保证覆盖面，再补全身份、背景和性格。人设被换算成硬约束：设备、步数上限、停滞上限、体验时段和动作集合。</p>
       </div>
@@ -46,7 +47,7 @@ const spark = (pid) => {
 
     <div class="grid dist">
       <div v-for="d in dist" :key="d.k" class="panel tight kpi">
-        <div class="k">{{ d.k }}</div><div class="v">{{ d.v }}<small>/10</small></div><div class="d">要求 {{ d.need }} · 已满足</div>
+        <div class="k">{{ d.k }}</div><div class="v">{{ d.v }}<small>/{{ personas.length }}</small></div><div class="d">要求 ≥ {{ d.min }} · {{ d.ok ? '已满足' : '未满足' }}</div>
       </div>
       <div class="panel tight kpi parts">
         <div class="k">参与方式</div>
