@@ -64,7 +64,7 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
             <span class="num sn">#{{ i + 1 }}</span>
             <span class="num st">{{ fmt(s.t).slice(3) }}</span>
             <span class="bar" :style="{ background: s.sat >= .3 ? 'var(--pos)' : s.sat <= -.3 ? 'var(--neg)' : 'var(--border-strong)' }"></span>
-            <span class="a">{{ s.act }}<span v-if="s.trace" class="tr num">轨迹 {{ s.trace.length }}</span></span>
+            <span class="a">{{ s.act }}<span v-if="s.trace.length" class="tr num">轨迹 {{ s.trace.length }}</span></span>
           </button>
         </li>
       </ol>

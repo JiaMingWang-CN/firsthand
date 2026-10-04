@@ -2,7 +2,7 @@
 //
 // 时间轴：模拟分钟 = 距 run_config.start_time 的分钟数（UTC 时刻）。人物的本地时刻单独保存在 localSlot。
 // 点赞：后端有意不提供（报告不按点赞排序），所以没有 reactions。
-// 技术事件（Console/Network）：目前样本里没有，步骤的 trace 恒为空。
+// 技术事件：后端按步骤给出旁路采集的 Console 输出、失败请求与 HTTP 错误摘要（不含请求头），人物本身未必看得到。
 
 const DAY = 1440
 const LEVEL = { yes: '会', no: '不会', unsure: '不确定' }
@@ -79,20 +79,24 @@ function adaptSteps(exp, slot) {
       think: e?.reason ?? '', observation: s.agent_observation,
       stalled: s.stalled, degraded: s.page_structure_degraded,
       shots: { before: before?.screenshot_url ?? null, after: after?.screenshot_url ?? null },
-      video: before?.video_seconds ?? null, trace: [],
+      snaps: { before: s.before, after: s.after },
+      videoAt: { [s.before]: before?.video_seconds ?? null, [s.after]: after?.video_seconds ?? null },
+      video: before?.video_seconds ?? null, trace: s.trace ?? [],
     }
   })
 }
 
-/** 证据条目：每个引用最多生成 步骤 / 录像 / 截图 三种入口，指向其首个步骤 */
-function evidenceOf(pid, stepNumbers, shotCount, hasVideo = true) {
+/** 证据条目：每个引用最多生成 步骤 / 录像 / 截图 三种入口，指向其首个步骤；snapshot 是所引的截图，录像据此定位 */
+function evidenceOf(pid, stepNumbers, shotCount, snapshot, hasVideo = true) {
   const step = stepNumbers[0]
   if (step == null) return []
-  const out = [{ pid, step, kind: 'step' }]
-  if (hasVideo) out.push({ pid, step, kind: 'video' })
-  if (shotCount) out.push({ pid, step, kind: 'shots', count: shotCount })
+  const out = [{ pid, step, kind: 'step', snapshot }]
+  if (hasVideo) out.push({ pid, step, kind: 'video', snapshot })
+  if (shotCount) out.push({ pid, step, kind: 'shots', count: shotCount, snapshot })
   return out
 }
+/** 该步骤里被引用的那张截图，优先操作前 */
+const citedSnapshot = (step, ids) => (step ? [step.before, step.after].find((id) => ids.has(id)) : undefined)
 
 /** 每个人物的体验结论：ref → {title, kind, steps, evidence} */
 function findingIndex(experiences) {
@@ -100,8 +104,9 @@ function findingIndex(experiences) {
   for (const [pid, exp] of Object.entries(experiences)) {
     for (const f of exp.assessment?.findings ?? []) {
       const ids = new Set(f.evidence_ids)
-      const steps = exp.steps.filter((s) => ids.has(s.before) || ids.has(s.after)).map((s) => s.step)
-      index[f.ref_id] = { pid, title: f.title, kind: f.kind, steps, evidence: evidenceOf(pid, steps, ids.size) }
+      const cited = exp.steps.filter((s) => ids.has(s.before) || ids.has(s.after))
+      const steps = cited.map((s) => s.step)
+      index[f.ref_id] = { pid, title: f.title, kind: f.kind, steps, evidence: evidenceOf(pid, steps, ids.size, citedSnapshot(cited[0], ids)) }
     }
   }
   return index
@@ -157,7 +162,11 @@ export function adapt({ overview, personas: rows, experiences, community, report
   const findings = []
   const sections = report?.report?.sections ?? { issues: [], highlights: [] }
   const toFinding = (kind, item, n) => {
-    const evidence = item.evidence.flatMap((e) => evidenceOf(e.persona_id, e.steps, e.screenshots.length, e.video.length > 0))
+    const evidence = item.evidence.flatMap((e) => {
+      const first = experiences[e.persona_id]?.steps.find((s) => s.step === e.steps[0])
+      const ids = new Set(e.video.map((v) => v.evidence_id))
+      return evidenceOf(e.persona_id, e.steps, e.screenshots.length, citedSnapshot(first, ids), e.video.length > 0)
+    })
     return {
       id: `${kind === 'issue' ? 'I' : 'H'}-${String(n + 1).padStart(2, '0')}`, kind, sev: kind === 'issue' ? severityOf(item.severity) : 3,
       severity: item.severity, flow: null, title: item.title, summary: item.detail, cause: '',

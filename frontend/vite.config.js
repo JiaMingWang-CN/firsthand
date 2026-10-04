@@ -8,4 +8,6 @@ export default defineConfig({
     port: 5180,
     proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: false } },
   },
+  // 组件测试（vitest + happy-dom）；适配层的纯函数测试仍用 node --test（test/adapt.test.mjs）
+  test: { environment: 'happy-dom', include: ['test/**/*.spec.js'] },
 })

@@ -263,11 +263,21 @@ def test_allowed_cross_site_iframe_cannot_navigate_outside_domains(tmp_path, mon
             await browser.cdp_client.send.Runtime.evaluate(params={"expression":
                 f"const f=document.createElement('iframe');f.src='http://127.0.0.1:{server.server_port}/frame';document.body.append(f)"},
                 session_id=session.session_id)
+            async def frame_ready(frame):
+                # The server seeing /frame does not mean the iframe document exists yet; under load the
+                # evaluate below raced it and failed with "Cannot find default execution context".
+                try:
+                    result = await browser.cdp_client.send.Runtime.evaluate(
+                        params={"expression": "document.readyState", "returnByValue": True}, session_id=frame.session_id)
+                except RuntimeError:
+                    return False
+                return result["result"].get("value") == "complete"
+
             async with asyncio.timeout(10):
                 while True:
                     frames = [s for s in browser.session_manager._sessions.values()
                               if browser.session_manager.get_target(s.target_id).target_type == "iframe"]
-                    if frames and ("127.0.0.1", "/frame") in received:
+                    if frames and ("127.0.0.1", "/frame") in received and await frame_ready(frames[0]):
                         break
                     await asyncio.sleep(0.02)
             forbidden = f"http://127.0.0.2:{outside.server_port}/forbidden"

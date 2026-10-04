@@ -1,17 +1,19 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { steps } from '../lib/data.js'
-import { resolveEvidence, findingsCiting, fmt, mmss, label } from '../lib/sim.js'
+import { steps, run } from '../lib/data.js'
+import { resolveEvidence, findingsCiting, fmt, label } from '../lib/sim.js'
 import { openDrawer, toast } from '../lib/store.js'
 import { Copy, Film, Terminal, Globe, EyeOff, Eye, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-vue-next'
 import PersonaChip from './PersonaChip.vue'
 import SimTime from './SimTime.vue'
 import Shot from './Shot.vue'
 import SevTag from './SevTag.vue'
+import Recording from './Recording.vue'
 
 const props = defineProps({ ev: Object })
 const stepNo = ref(props.ev.step)
-const r = computed(() => resolveEvidence({ ...props.ev, step: stepNo.value }))
+// 翻到别的步骤时，录像改为定位该步骤操作前的截图
+const r = computed(() => resolveEvidence({ ...props.ev, step: stepNo.value, snapshot: stepNo.value === props.ev.step ? props.ev.snapshot : undefined }))
 const p = computed(() => r.value.persona)
 const st = computed(() => r.value.step)
 const canSeeTrace = computed(() => p.value.tools.length > 0)
@@ -73,14 +75,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <!-- 录像片段 -->
     <section class="blk" :class="{ focus: focusKind === 'video' }">
-      <div class="bh"><Film /><b>录像片段</b><span class="faint num">{{ mmss(Math.max(0, r.video - 5)) }} – {{ mmss(r.video + 5) }}</span><span class="sp"></span>
+      <div class="bh"><Film /><b>录像片段</b><span class="sp"></span>
         <a v-if="p.replay?.url" class="btn btn-ghost sm" :href="p.replay.url" target="_blank" rel="noopener"><ExternalLink />打开 Steel 回放</a>
       </div>
-      <div class="row faint pl">
-        <span class="num">请在回放中定位到 {{ mmss(r.video) }}，前后各留 5 秒。</span>
-        <span v-if="p.replay?.basis">秒数为估算：{{ p.replay.basis }}。</span>
-        <span v-if="!p.replay?.url">这次体验没有保存回放链接。</span>
-      </div>
+      <Recording :run-id="run.id" :pid="p.id" :snapshot="r.snapshot" :estimate="r.video" />
     </section>
 
     <!-- 轨迹 -->
@@ -95,7 +93,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           <span class="tx">{{ t.text }}</span>
         </div>
       </div>
-      <p v-else class="faint empty">没有这一步的 Console / Network 记录（该人物无权查看技术工具，或记录里没有错误与警告）。</p>
+      <p v-else class="faint empty">旁路采集里这一步没有 Console 输出、失败请求或 HTTP 错误。</p>
       <p v-if="r.trace.length && !canSeeTrace" class="faint empty">这些数据由旁路采集记录，人物本身在体验时看不到。</p>
     </section>
 
@@ -145,7 +143,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .bh { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); margin-bottom: var(--sp-2); }
 .bh svg { width: 16px; height: 16px; stroke-width: 1.5; color: var(--text-2); }
 .bh .faint { font-size: var(--fs-xs); }
-.pl { font-size: var(--fs-xs); }
 .trace { background: var(--surface-2); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-xs); overflow-x: auto; }
 .tl { display: flex; gap: var(--sp-2); padding: 3px 0; white-space: nowrap; }
 .tl .ty { color: var(--text-3); }

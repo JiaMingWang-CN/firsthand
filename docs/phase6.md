@@ -7,6 +7,7 @@
 - [x] 6.1 只读接口层（本文档）
 - [x] 6.2 采访接口（本文档）
 - [x] 6.3 前端接入接口，替换 mock 数据（本文档）
+- [x] 6.4 修复 6.3 记下的限制：技术轨迹、录像定位、时间轴缩放、组件测试、偶发失败的导航测试（本文档）
 
 ## 6.1 只读接口层
 
@@ -18,7 +19,7 @@
 .venv-browsing/Scripts/python.exe -m api --runs runs --capability-run <能力文件目录> --port 8000
 ```
 
-`--capability-run` 只在采访时需要（同阶段 5：目录须含与当前提供商、模型、协议、思考配置匹配的 `capability_profile.json`）；不给时其余接口照常，采访返回 503。
+录像接口用 `config/.env` 里的 `STEEL_API_KEY` 向 Steel 取播放列表，密钥不出服务器；没有密钥时录像返回 503，其余照常。`--capability-run` 只在采访时需要（同阶段 5：目录须含与当前提供商、模型、协议、思考配置匹配的 `capability_profile.json`）；不给时其余接口照常，采访返回 503。
 
 默认只监听 `127.0.0.1`。运行产物含私有会话与连接信息，不要对外网开放。交互式文档在 `/api/docs`。依赖 `fastapi`、`uvicorn`、`httpx`（测试用 `TestClient`）已写入 `browsing/requirements.txt` 与锁文件。
 
@@ -29,11 +30,13 @@
 | `GET /api/runs` | 所有阶段 4 运行：状态、产品名、模型、人数、起止时间、已有报告。不构建证据库，中断的运行也能列出 |
 | `GET /api/runs/{id}` | 总览：验收结果与限制、产品模型、运行配置、模型配置（不含地址和密钥）、按模型的用量、审计、覆盖说明、报告列表 |
 | `GET /api/runs/{id}/personas` | 每个人物：完整设定、计划时间、任务结果、结论数量、问卷摘要与复核标记 |
-| `GET /api/runs/{id}/personas/{pid}/experience` | 体验记录：步骤、截图（含访问地址）、情绪曲线、结论、技术事件、回放链接；证据编号与报告一致 |
+| `GET /api/runs/{id}/personas/{pid}/experience` | 体验记录：步骤（每步附 Console / Network 摘要 `trace`）、截图（含访问地址）、情绪曲线、结论、回放链接；证据编号与报告一致 |
+| `GET /api/runs/{id}/personas/{pid}/recording` | Steel 录像：播放列表地址，以及每张截图在录像里的播放位置 `seek`（按录像自带时间戳换算） |
+| `GET /api/runs/{id}/personas/{pid}/recording.m3u8` | 代取的 HLS 播放列表（分段链接由 Steel 预签名，数小时内有效） |
 | `POST /api/runs/{id}/personas/{pid}/interview` | 采访，见下文 |
 | `GET /api/runs/{id}/community` | 公开帖子与评论（含评论归属）、看帖记录、表达过滤中被隐瞒的内容、私下问卷。不含点赞数 |
 | `GET /api/runs/{id}/report?report_id=` | 阶段 5 报告；不指定时取最新一份 |
-| `GET /api/runs/{id}/evidence/{ref}` | 单条证据的定位信息与文件地址，用于从报告结论跳转 |
+| `GET /api/runs/{id}/evidence/{ref}` | 单条证据的定位信息与文件地址，用于从报告结论跳转；轨迹事件只给摘要 |
 | `GET /api/runs/{id}/files/{path}` | 只提供 `pNN/screenshots/*.png` |
 
 ### 安全约束
@@ -41,6 +44,7 @@
 - `run_id` 只接受 `[A-Za-z0-9._-]`，且目录必须含 `phase4_result.json` 与 `run.db`。
 - 文件接口用白名单正则限定为截图，并再核对解析后的真实路径仍在运行目录内。`session.json`、`raw_trace.jsonl`、数据库等不会外送。
 - 响应不含 `base_url`、密钥；体验记录里的 `session` 不原样返回，只提取回放链接和时间偏移依据。
+- 原始 CDP 事件含完整请求 / 响应头（包括 Cookie），不外送：体验记录与 `/evidence/{pid}:trace:*` 都只给摘要（类型、级别、`方法 源+路径 状态或错误`），URL 去掉查询串。
 
 ### 历史运行目录里的绝对路径
 
@@ -96,7 +100,7 @@ POST /api/runs/{id}/personas/{pid}/interview
 .venv-browsing/Scripts/python.exe -m api --capability-run runs/phase0-mimo-chat-runtime-20261004 --port 8000
 # 前端，在 frontend/ 下
 npm run dev      # http://localhost:5180，/api 由 Vite 代理到 127.0.0.1:8000
-npm test         # 适配层单测（node --test，无额外依赖）
+npm test         # 适配层单测（node --test）+ 组件测试（vitest + happy-dom）
 ```
 
 ### 结构
@@ -110,6 +114,7 @@ npm test         # 适配层单测（node --test，无额外依赖）
 | `src/lib/sim.js` | 派生数据（`P`、`F`、`socialEvents`……）改为加载后重建，不再是模块加载时的常量 |
 | `src/components/Shot.vue` | 真实截图（替换了画假页面的 `MockScreen`）：浏览器外壳、真实 URL、操作前/后切换 |
 | `src/components/InterviewEvidence.vue` | 采访回答所引证据的原文展开 |
+| `src/components/Recording.vue` | 页内播放 Steel 录像（hls.js，按需加载），定位到所引截图前后各 5 秒 |
 
 带 `runId` 的页面在 `App.vue` 里先过加载闸门：加载中、失败（显示后端给的原因，可重试）、就绪。
 
@@ -128,7 +133,7 @@ npm test         # 适配层单测（node --test，无额外依赖）
 ### 数据映射的决定
 
 - **时间轴**：模拟分钟 = 距 `run_config.start_time` 的分钟数（后端的运行时钟是 UTC）。人物的本地时刻另存（`localSlot`），用于“分时段”分析和卡片上的“本地 09:40”；刷社区概率按人物时区平移到运行时钟上。时间轴总长取 `duration_days × 1440`，刻度动态生成。原有的全局“夜间”阴影因此去掉。
-- **步骤时刻**：人物体验开始时刻 + 各步骤的真实耗时累加。真实会话只有几分钟，所以时间轴上的“体验时段”很窄。
+- **步骤时刻**：人物体验开始时刻 + 各步骤的真实耗时累加。真实会话只有几分钟，全天视图里“体验时段”很窄；运行现场的时间轴可缩放到 2 小时 / 30 分钟（以播放头为中心），缩放后显示步骤刻度。
 - **严重度**：后端 1–5（越大越严重）翻转为 S1–S4（S1 致命）。**证据强度**：后端数值映射为 强 / 中 / 弱 / 待复核。
 - **沉默信号**：有报告时以报告为准；同一体验可能在多个时间片被反复隐瞒，界面按（人物，结论）去重，所以样本里是 33 条体验，对应报告里的 47 次表达决定，并在界面注明。
 - **点赞**：后端有意不提供（报告不按点赞排序），帖子页相应去掉票数，“最多赞”排序改为“被看最多”，时间轴图例去掉“点赞”。
@@ -142,16 +147,32 @@ npm test         # 适配层单测（node --test，无额外依赖）
 
 ### 已知限制
 
-- 没有 Console / Network 轨迹：样本里没有捕获到技术事件，步骤的轨迹恒为空，界面如实说明。
-- 回放只有 Steel 链接，不能直接跳到秒数（后端的偏移是估算，界面已注明）。
 - 社区帖子是阶段 4 的模板化投影，重复度高，页面如实反映这一点。
 - 新建运行与运行前审核未接入；从界面发起运行和审批属于后续工作。
-- 没有前端组件级测试，只有适配层的单测；页面用浏览器手工核对。
+
+## 6.4 限制修复
+
+6.3 记下的限制逐条核实后处理如下。
+
+| 限制 | 核实结果 | 处理 |
+|---|---|---|
+| 没有 Console / Network 轨迹 | **说法不对**。旁路采集一直在记：10 人样本有 1880 次请求、56 条 Console 输出，以及真实的 HTTP 503（`/_nuxt/*.js`、`/projects`）。前端把轨迹写死成空数组，界面又把“为空”解释成没有错误 | 后端按步骤给出摘要（`api/media.py`：Console 输出、页面异常、失败请求、≥400 响应；同一请求的重复事件只留一条；Browser Use 注入脚本自己的日志不算产品输出），前端证据视图直接显示 |
+| 回放不能跳到秒数，偏移是估算 | 属实；而且旧界面用的是该步骤“操作前”截图的秒数，不是所引的那张（报告 I-01 显示 00:29，所引截图实际约在 00:51） | Steel 提供 HLS 录像（`GET /v1/sessions/{id}/hls`），播放列表的 `PROGRAM-DATE-TIME` 是录像自己的时钟。后端据此把每张截图换算成播放位置（样本里比旧估算早约 0.8–1.3 秒），前端在页内播放并定位到**所引截图**前后各 5 秒。拿不到录像时退回估算秒数并说明原因 |
+| 体验条很窄 | 属实，是数据如实（会话只有几分钟），不是错误 | 时间轴加缩放（全天 / 2 小时 / 30 分钟）和步骤刻度 |
+| 只有适配层单测 | 属实 | `test/ui.spec.js` 11 项组件测试，走真实加载路径（App 闸门 → `ensureRun` → `adapt` → 页面），只替换 HTTP 层与 hls.js |
+| 导航测试偶发失败 | 属实。单独跑 30 次、整套跑 11 次都通过；CPU 占满时整套跑能复现：`test_allowed_cross_site_iframe_cannot_navigate_outside_domains` 报 `Cannot find default execution context` | 测试的竞态，与导航拦截无关：服务器收到 `/frame` 请求时 iframe 文档还没建好执行上下文，测试就在里面执行脚本。改为等到 iframe 的 `document.readyState` 为 `complete` 再继续 |
+
+### 验证
+
+- `tests/test_media.py`：轨迹摘要保留错误、去掉请求头 / Cookie / 查询串与 Agent 日志；事件按步骤归属；播放位置按播放列表时钟换算（含录像空档与范围外）；体验记录带轨迹；`/evidence` 的轨迹只给摘要；录像接口的定位、播放列表转发与 404 / 503。把 `/evidence` 的摘要处理拿掉，对应测试失败。
+- `frontend/test/ui.spec.js`：五个页面用样本渲染且无 Vue 警告；422 显示原因、重试恢复；从报告问题打开录像定位到所引截图（而非操作前截图）；录像不可用时的降级；证据视图显示轨迹；缩放后体验条变宽并出现步骤刻度；采访带上历史并展开证据。把轨迹透传、所引截图定位、缩放分别拿掉，对应测试失败。
+- 浏览器实测（10 人样本）：报告 I-01 的录像入口显示 00:52，打开后页内播放 Steel 录像，定位到 00:51（播放 00:46–00:56），下方列出该步骤的 503；运行现场缩放到 30 分钟后体验条清晰可见并带步骤刻度；控制台无错误。
+- CPU 占满时循环跑：修复前整套测试 2 次全部复现该失败；修复后整套 5 次、导航测试单独 15 次全部通过。
 
 ## 回归
 
 ```powershell
-.venv-browsing/Scripts/python.exe -m pytest tests/test_api.py tests/test_interview.py -q
+.venv-browsing/Scripts/python.exe -m pytest tests/test_api.py tests/test_interview.py tests/test_media.py -q
 ```
 
 覆盖：运行列表与产品名解析（含失效的绝对路径）；总览不含凭据；人物摘要；截图可取而会话文件不可取；路径穿越与编码绕过（`../`、`%2F`、反斜杠、非白名单文件）；公开与私密记录分开且不含点赞；报告与证据解析；未知运行、非阶段 4 目录、无报告；损坏数据返回 422。在真实样本 `phase4-20261003T071619710132Z` 上手工核对：10 人、4 份报告，首次加载约 0.9 秒；中断的样本 `phase4-20261003T070353556759Z`（缺 `social_audit.json`）在列表中可见，详情返回 422。

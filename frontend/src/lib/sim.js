@@ -88,14 +88,17 @@ export function stepIndexAt(pid, t) {
   return idx
 }
 
-/** 录像秒数：该步骤开始时截图在 Steel 录像中的位置 */
-export const videoSec = (pid, stepNo) => steps[pid][stepNo - 1]?.video ?? 0
+/** 录像秒数（按会话创建时间估算）：所引截图的时刻，未指定截图时取该步骤操作前的截图 */
+export const videoSec = (pid, stepNo, snapshot) => {
+  const st = steps[pid][stepNo - 1]
+  return (snapshot && st?.videoAt?.[snapshot]) ?? st?.video ?? 0
+}
 
 // —— 证据 ——
 const kindLabel = { step: '步骤', video: '录像', shots: '截图', console: 'Console', network: 'Network' }
 export function evLabel(ev) {
   if (ev.kind === 'step') return `步骤 #${ev.step}`
-  if (ev.kind === 'video') return `录像 ${mmss(videoSec(ev.pid, ev.step))}`
+  if (ev.kind === 'video') return `录像 ${mmss(videoSec(ev.pid, ev.step, ev.snapshot))}`
   if (ev.kind === 'shots') return `截图 ×${ev.count || 1}`
   if (ev.kind === 'console') return `Console · #${ev.step}`
   if (ev.kind === 'network') return `Network · #${ev.step}`
@@ -104,16 +107,8 @@ export function evLabel(ev) {
 export function resolveEvidence(ev) {
   const p = P[ev.pid]
   const st = steps[ev.pid][ev.step - 1]
-  const trace = (st.trace || []).map((line) => {
-    const [type, ...rest] = line.split(':')
-    const body = rest.join(':')
-    if (type === 'console') {
-      const [level, ...msg] = body.split(' ')
-      return { type, level, text: msg.join(' ') }
-    }
-    return { type, level: / (4|5)\d\d /.test(body) ? 'error' : 'info', text: body }
-  })
-  return { persona: p, step: st, stepNo: ev.step, total: steps[ev.pid].length, trace, video: videoSec(ev.pid, ev.step) }
+  const snapshot = ev.snapshot ?? st.snaps?.before
+  return { persona: p, step: st, stepNo: ev.step, total: steps[ev.pid].length, trace: st.trace || [], snapshot, video: videoSec(ev.pid, ev.step, snapshot) }
 }
 export const evKey = (ev) => `${ev.pid}#${ev.step}`
 export function findingsCiting(pid, stepNo) {

@@ -33,6 +33,7 @@ export const api = {
   community: (id) => request(`${run(id)}/community`),
   report: (id, reportId) => request(`${run(id)}/report${reportId ? `?report_id=${enc(reportId)}` : ''}`),
   evidence: (id, ref) => request(`${run(id)}/evidence/${enc(ref)}`),
+  recording: (id, pid) => request(`${run(id)}/personas/${enc(pid)}/recording`),
   interview: (id, pid, body) => request(`${run(id)}/personas/${enc(pid)}/interview`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   }),

@@ -2,18 +2,19 @@
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from api.interview import Ask, InterviewFailed, InterviewUnavailable, Interviewer, llm_generate
+from api.media import RecordingUnavailable
 from api.runs import NotFound, RunInvalid, list_runs
 from api.service import Reader
 
-STATUS = {NotFound: 404, RunInvalid: 422, InterviewUnavailable: 503, InterviewFailed: 502}
+STATUS = {NotFound: 404, RunInvalid: 422, InterviewUnavailable: 503, InterviewFailed: 502, RecordingUnavailable: 503}
 
 
-def create_app(runs_root, interviewer=None):
+def create_app(runs_root, interviewer=None, recordings=None):
     app = FastAPI(title="muchhuman", docs_url="/api/docs", openapi_url="/api/openapi.json")
-    reader = Reader(runs_root)
+    reader = Reader(runs_root, recordings)
     interviewer = interviewer or Interviewer(llm_generate(None))
 
     for error_type, status in STATUS.items():
@@ -34,6 +35,14 @@ def create_app(runs_root, interviewer=None):
     @app.get("/api/runs/{run_id}/personas/{persona_id}/experience")
     def experience(run_id: str, persona_id: str):
         return reader.experience(run_id, persona_id)
+
+    @app.get("/api/runs/{run_id}/personas/{persona_id}/recording")
+    def recording(run_id: str, persona_id: str):
+        return reader.recording(run_id, persona_id)[1]
+
+    @app.get("/api/runs/{run_id}/personas/{persona_id}/recording.m3u8")
+    def playlist(run_id: str, persona_id: str):
+        return Response(reader.recording(run_id, persona_id)[0], media_type="application/vnd.apple.mpegurl")
 
     @app.post("/api/runs/{run_id}/personas/{persona_id}/interview")
     async def interview(run_id: str, persona_id: str, ask: Ask):

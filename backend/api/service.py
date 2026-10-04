@@ -1,9 +1,11 @@
 """Builds the JSON the UI reads from a validated EvidenceStore. Nothing here writes to a run directory."""
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
 
+from api.media import RecordingUnavailable, by_step, media_position, segments, summarize
 from api.runs import NotFound, RunInvalid, SERVED_FILE, job_span, read_json, report_index, run_path, sibling
 from report.evidence import EvidenceStore
 
@@ -35,8 +37,9 @@ def model_usage(run):
 
 
 class Reader:
-    def __init__(self, root):
+    def __init__(self, root, recordings=None):
         self.root = Path(root).resolve()
+        self.recordings = recordings
         self._stores = {}
 
     def store(self, run_id):
@@ -106,12 +109,31 @@ class Reader:
         for snapshot in data["snapshots"]:
             snapshot["ref_id"] = f"{pid}:snapshot:{snapshot['evidence_id']}"
             snapshot["screenshot_url"] = file_url(run_id, f"{pid}/{snapshot['screenshot']}")
+        trace = by_step(data["steps"], {s["evidence_id"]: s for s in data["snapshots"]}, summarize(self.trace_events(store, pid)))
         for step in data["steps"]:
             step["ref_id"] = f"{pid}:step:{step['step']}"
+            step["trace"] = trace[step["step"]]
         if data["assessment"]:
             for index, finding in enumerate(data["assessment"]["findings"]):
                 finding["ref_id"] = f"{pid}:f{index + 1:03d}"
         return {"persona_id": pid, "persona": store.people[pid]["persona"], "replay": replay, **data}
+
+    @staticmethod
+    def trace_events(store, pid):
+        return [record["data"] for ref, record in store.records.items() if ref.startswith(f"{pid}:trace:")]
+
+    def recording(self, run_id, pid):
+        """Steel playlist plus each snapshot's position in the played video, from the playlist's own clock."""
+        memory = self.store(run_id).memories.get(pid)
+        if memory is None or not memory.session.get("id") or not memory.session.get("created_at"):
+            raise NotFound(f"{pid} has no recorded session in {run_id}")
+        if self.recordings is None:
+            raise RecordingUnavailable("recordings are not configured on the API server")
+        playlist = self.recordings.playlist(memory.session["id"])
+        parts, created = segments(playlist), datetime.fromisoformat(memory.session["created_at"])
+        seek = {s.evidence_id: media_position(parts, created + timedelta(seconds=s.video_seconds)) for s in memory.snapshots}
+        return playlist, {"playlist_url": f"/api/runs/{run_id}/personas/{pid}/recording.m3u8", "seek": seek,
+                          "basis": "Steel 录像的 PROGRAM-DATE-TIME 对齐；截图时刻取会话创建时间加本地计时"}
 
     def community(self, run_id):
         store = self.store(run_id)
@@ -147,6 +169,8 @@ class Reader:
         record = self.store(run_id).records.get(ref)
         if record is None:
             raise NotFound(f"Unknown evidence: {ref}")
+        if ":trace:" in ref:  # raw CDP events carry headers and cookies; only the summary leaves the server
+            record = {**record, "data": (summarize([record["data"]]) or [None])[0]}
         files = [record.get("screenshot"), *record.get("screenshots", [])]
         return {**record, "files": [file_url(run_id, path) for path in files if path]}
 
