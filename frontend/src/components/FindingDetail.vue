@@ -40,7 +40,7 @@ const stepOf = (ev) => steps[ev.pid][ev.step - 1]
 
     <div class="panel tight kpis">
       <div><div class="label">受影响</div><DotMatrix :x="f.affected.length" :y="f.denominator" :color="color" /></div>
-      <div v-if="f.quit?.length"><div class="label">因此放弃</div><span class="num">{{ f.quit.length }}/{{ f.affected.length }}</span></div>
+      <div v-if="f.unfinished?.length" title="报告只记录了这些人最终的结果，没有判断是否由这个问题导致"><div class="label">其中最终未完成体验</div><span class="num">{{ f.unfinished.length }}/{{ f.affected.length }}</span></div>
       <div v-if="!hl"><div class="label">证据强度</div><span>{{ strengthLabel(f.strength) }}</span></div>
     </div>
 

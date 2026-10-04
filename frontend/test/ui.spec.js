@@ -11,7 +11,7 @@ const TRACE = [
 ]
 
 const calls = vi.hoisted(() => ({ recording: [], interview: [], hls: [] }))
-const state = vi.hoisted(() => ({ overviewError: null, recording: null }))
+const state = vi.hoisted(() => ({ overviewError: null, recording: null, interviewError: null }))
 
 vi.mock('../src/api/client.js', async (importOriginal) => {
   const { ApiError } = await importOriginal()
@@ -48,6 +48,7 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
       },
       interview: async (id, pid, body) => {
         calls.interview.push({ pid, body })
+        if (state.interviewError) throw state.interviewError
         return { persona_id: pid, stance: 'answered', answer: '第三步我一直找不到按钮。', evidence: ['p03:step:3'] }
       },
     },
@@ -90,6 +91,7 @@ beforeEach(() => {
   data.live.id = null
   data.live.status = 'idle'
   state.overviewError = null
+  state.interviewError = null
   state.recording = { playlist_url: `/api/runs/${RUN}/personas/p03/recording.m3u8`, seek: { s005_before: 70, s005_after: 84 } }
   calls.recording.length = calls.interview.length = calls.hls.length = 0
   store.closeAllDrawers()
@@ -192,4 +194,26 @@ test('采访：带上已答的历史，展示回答与所引证据原文', async
   await w.find('form').trigger('submit')
   for (let i = 0; i < 5; i++) await flushPromises()
   expect(calls.interview[1].body.history).toEqual([{ question: '哪一步最困惑？', answer: '第三步我一直找不到按钮。' }])
+})
+
+describe('采访失败时的提示与原因相符', () => {
+  const cases = [
+    [502, 'invalid_answer', '采访 p03 生成结果在 3 次尝试后仍不合法', '换个问法'],
+    [502, 'provider', '模型服务出错：RateLimitError（HTTP 429）', '稍后再试'],
+    [503, null, '模型服务出错：AuthenticationError（HTTP 401），请检查 config/.env 里的模型密钥与权限', '采访暂不可用'],
+  ]
+  for (const [status, reason, detail, hint] of cases) {
+    test(`${status} ${reason ?? ''}`, async () => {
+      const { ApiError } = await import('../src/api/client.js')
+      state.interviewError = new ApiError(status, detail, reason)
+      const w = await open(`/runs/${RUN}/interview?pid=p03`)
+      await w.find('input[aria-label="输入问题"]').setValue('哪一步最困惑？')
+      await w.find('form').trigger('submit')
+      for (let i = 0; i < 5; i++) await flushPromises()
+      const text = w.find('.msg.them .bubble').text()
+      expect(text).toContain(hint)
+      expect(text).toContain(detail)
+      if (reason !== 'invalid_answer') expect(text).not.toContain('换个问法')
+    })
+  }
 })

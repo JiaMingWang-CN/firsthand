@@ -123,3 +123,12 @@ test('沉默信号以报告为准，没有报告时由表达过滤记录推出',
   const bare = adapt({ ...structuredClone(sample), report: null })
   assert.ok(bare.withheld.length > 0 && bare.withheld.every((w) => w.reason && w.pid))
 })
+
+test('“未完成”只统计结果已知且不是成功的人；报告里出现本次运行没有的人物不算', () => {
+  const input = structuredClone(sample)
+  input.experiences.p03.outcome = 'abandoned'
+  input.report.report.sections.issues[0].affected_personas = ['p01', 'p03', 'p99']
+  const issue = adapt(input).findings.find((f) => f.id === 'I-01')
+  assert.deepEqual(issue.unfinished, ['p03'])
+  assert.equal('quit' in issue, false)
+})

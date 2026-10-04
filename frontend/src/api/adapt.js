@@ -171,7 +171,8 @@ export function adapt({ overview, personas: rows, experiences, community, report
       id: `${kind === 'issue' ? 'I' : 'H'}-${String(n + 1).padStart(2, '0')}`, kind, sev: kind === 'issue' ? severityOf(item.severity) : 3,
       severity: item.severity, flow: null, title: item.title, summary: item.detail, cause: '',
       affected: item.affected_personas, denominator: withExperience,
-      quit: item.affected_personas.filter((pid) => outcomeOf[pid] !== 'success'),
+      // 被影响的人里最终没完成体验的。这只是两件事同时发生，报告并没有证明是这个问题导致的
+      unfinished: item.affected_personas.filter((pid) => outcomeOf[pid] && outcomeOf[pid] !== 'success'),
       evidence: unique(evidence, (e) => `${e.pid}#${e.step}#${e.kind}`),
       quotes: item.evidence.map((e) => ({ ref: e.ref_id, pid: e.persona_id, quote: e.quote })),
       impact: item.affected_personas.length, strength: item.evidence_strength, score: item.score, reviewFlags: item.review_flags,

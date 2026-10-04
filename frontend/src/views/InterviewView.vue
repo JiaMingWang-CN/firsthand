@@ -50,12 +50,19 @@ async function ask(q) {
     msg.refs = res.evidence
     msg.stance = res.stance
   } catch (e) {
-    msg.error = e.status === 503 ? `采访暂不可用：${e.message}` : e.status === 502 ? `模型这次没有给出合格的回答，可以换个问法再试。（${e.message}）` : e.message
+    msg.error = failureText(e)
     msg.text = msg.error
   }
   msg.done = true
   busy.value = false
   scrollDown()
+}
+// 只有模型给出了不合格的回答时，换个问法才可能有用；服务出错、超时或配置问题都与问法无关
+function failureText(e) {
+  if (e.status === 503) return `采访暂不可用：${e.message}`
+  if (e.status === 502 && e.reason === 'invalid_answer') return `模型这次没有给出合格的回答，可以换个问法再试。（${e.message}）`
+  if (e.status === 502) return `模型服务暂时出错，请稍后再试。（${e.message}）`
+  return e.message
 }
 async function scrollDown() { await nextTick(); scroller.value?.scrollTo({ top: scroller.value.scrollHeight, behavior: reduce ? 'auto' : 'smooth' }) }
 const pick = (id) => router.replace({ query: { ...route.query, pid: id } })

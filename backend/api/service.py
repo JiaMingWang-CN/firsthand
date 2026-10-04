@@ -1,6 +1,8 @@
 """Builds the JSON the UI reads from a validated EvidenceStore. Nothing here writes to a run directory."""
 
 import json
+import threading
+from concurrent.futures import Future
 from datetime import datetime, timedelta
 from pathlib import Path
 from urllib.parse import quote
@@ -41,19 +43,37 @@ class Reader:
         self.root = Path(root).resolve()
         self.recordings = recordings
         self._stores = {}
+        self._building = {}
+        self._guard = threading.Lock()
 
     def store(self, run_id):
         path = run_path(self.root, run_id)
         stamp = tuple((path / name).stat().st_mtime_ns for name in ("run.db", "run_context.json") if (path / name).exists())
-        cached = self._stores.get(run_id)
-        if cached and cached[0] == stamp:
-            return cached[1]
-        try:
-            store = EvidenceStore(path)
-        except (ValueError, KeyError, OSError) as error:
-            raise RunInvalid(f"{run_id}: {error}") from error
-        self._stores[run_id] = (stamp, store)
-        return store
+        # Opening a run fires a dozen requests at once and building re-hashes every screenshot, so concurrent
+        # requests share one build and its outcome. A failure is shared but not cached: the next request retries.
+        with self._guard:
+            cached = self._stores.get(run_id)
+            if cached and cached[0] == stamp:
+                return cached[1]
+            build = self._building.get(run_id)
+            owner = build is None
+            if owner:
+                build = self._building[run_id] = Future()
+        if owner:
+            try:
+                store = EvidenceStore(path)
+                self._stores[run_id] = (stamp, store)
+                build.set_result(store)
+            except (ValueError, KeyError, OSError) as error:
+                failure = RunInvalid(f"{run_id}: {error}")
+                failure.__cause__ = error
+                build.set_exception(failure)
+            except BaseException as error:  # anything else must still release the waiters
+                build.set_exception(error)
+            finally:
+                with self._guard:
+                    del self._building[run_id]
+        return build.result()
 
     def context(self, run_id):
         return read_json(run_path(self.root, run_id) / "run_context.json", {})

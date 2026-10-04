@@ -35,7 +35,7 @@ function detail() { openDrawer({ type: 'finding', id: props.f.id }, { fromDrawer
       <div class="frow">
         <span class="k">影响</span>
         <DotMatrix :x="f.affected.length" :y="f.denominator" :color="color" />
-        <span v-if="f.quit?.length" class="faint">其中 {{ f.quit.length }} 人放弃</span>
+        <span v-if="f.unfinished?.length" class="faint" title="报告只记录了这些人最终的结果，没有判断是否由这个问题导致">其中 {{ f.unfinished.length }} 人最终未完成体验</span>
       </div>
       <div class="frow">
         <span class="k">人物</span>

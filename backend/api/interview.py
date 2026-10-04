@@ -4,7 +4,7 @@ import json
 import re
 from typing import Literal
 
-from openai import AsyncOpenAI
+from openai import APIError, AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from pydantic import BaseModel, ConfigDict, Field
 
 from api.runs import NotFound
@@ -23,7 +23,11 @@ class InterviewUnavailable(RuntimeError):
 
 
 class InterviewFailed(RuntimeError):
-    """The model did not produce a valid, grounded answer."""
+    """No valid, grounded answer. reason: 'invalid_answer' (rephrasing may help) or 'provider' (retry later)."""
+
+    def __init__(self, message, reason):
+        super().__init__(message)
+        self.reason = reason
 
 
 class InterviewAnswer(Data):
@@ -129,6 +133,15 @@ def llm_generate(capability_dir):
         try:
             async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
                 return await request_json(client, config, capability, schema, text, validate=validate, label=label)
-        except (ValueError, TimeoutError, OSError) as error:
-            raise InterviewFailed(type(error).__name__ + ": " + str(error)[:300]) from error
+        except APIError as error:
+            # The provider's message can echo the request URL, prompt or credentials, so only type and status leave.
+            status = getattr(error, "status_code", None)
+            message = f"模型服务出错：{type(error).__name__}" + (f"（HTTP {status}）" if status else "")
+            if isinstance(error, (AuthenticationError, PermissionDeniedError)):  # a configuration problem, not a bad answer
+                raise InterviewUnavailable(message + "，请检查 config/.env 里的模型密钥与权限") from error
+            raise InterviewFailed(message, "provider") from error
+        except (TimeoutError, OSError) as error:
+            raise InterviewFailed(type(error).__name__ + ": " + str(error)[:300], "provider") from error
+        except ValueError as error:
+            raise InterviewFailed(type(error).__name__ + ": " + str(error)[:300], "invalid_answer") from error
     return generate

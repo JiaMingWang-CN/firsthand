@@ -105,6 +105,83 @@ def test_default_report_prefers_a_passed_model_report_over_a_newer_check_run(run
     assert client.get("/api/runs/phase4-x/report?report_id=phase5-newer-check").json()["id"] == "phase5-newer-check"
 
 
+def test_first_open_builds_the_evidence_store_once_however_many_requests_race(runs_root, monkeypatch):
+    """The UI opens a run with a dozen parallel requests; each used to miss the cache and rebuild the store."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from api import service
+    built = []
+
+    class Counting(service.EvidenceStore):
+        def __init__(self, root):
+            built.append(threading.get_ident())
+            time.sleep(0.2)  # long enough for every other request to arrive while this one builds
+            super().__init__(root)
+
+    monkeypatch.setattr(service, "EvidenceStore", Counting)
+    reader = service.Reader(runs_root)
+    with ThreadPoolExecutor(12) as pool:
+        stores = list(pool.map(lambda _: reader.store("phase4-x"), range(12)))
+    assert len(built) == 1 and all(store is stores[0] for store in stores)
+
+
+def test_a_failed_build_is_shared_by_concurrent_requests_but_not_cached(runs_root, monkeypatch):
+    """A broken run used to be rebuilt once per waiting request, one after another."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    from api import service
+    (runs_root / "phase4-x" / "p01" / "experience.json").write_text("{}", encoding="utf-8")
+    built = []
+
+    class Counting(service.EvidenceStore):
+        def __init__(self, root):
+            built.append(threading.get_ident())
+            time.sleep(0.2)
+            super().__init__(root)
+
+    monkeypatch.setattr(service, "EvidenceStore", Counting)
+    reader = service.Reader(runs_root)
+
+    def attempt(_):
+        with pytest.raises(service.RunInvalid, match="phase4-x"):
+            reader.store("phase4-x")
+
+    with ThreadPoolExecutor(12) as pool:
+        list(pool.map(attempt, range(12)))
+    assert len(built) == 1
+    attempt(None)  # not cached: once the run is repaired, the next request rebuilds it
+    assert len(built) == 2
+
+
+def test_an_unexpected_build_error_still_releases_waiting_requests(runs_root, monkeypatch):
+    import threading
+    from api import service
+
+    class Broken:
+        def __init__(self, root):
+            time.sleep(0.2)
+            raise TypeError("bug in the store")
+
+    monkeypatch.setattr(service, "EvidenceStore", Broken)
+    reader = service.Reader(runs_root)
+
+    errors = []
+
+    def attempt():
+        try:
+            reader.store("phase4-x")
+        except TypeError as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=attempt, daemon=True) for _ in range(4)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert not any(thread.is_alive() for thread in threads), "requests waiting on a failed build were never released"
+    assert len(errors) == 4
+
+
 def test_unknown_or_non_simulation_runs_are_not_found(client):
     for run_id in ["nope", "phase1-x", "phase5-x", "..", "%2e%2e"]:
         assert client.get(f"/api/runs/{run_id}").status_code == 404, run_id

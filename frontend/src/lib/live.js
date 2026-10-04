@@ -4,7 +4,7 @@ import { api, ApiError } from '../api/client.js'
 import { adapt } from '../api/adapt.js'
 import * as data from './data.js'
 import { rebuild } from './sim.js'
-import { clock, pause } from './store.js'
+import { clock, pause, closeAllDrawers } from './store.js'
 
 export const runList = reactive({ status: 'idle', items: [], error: null })
 
@@ -31,18 +31,25 @@ async function fetchRun(id) {
   return { overview, personas, experiences, community, report }
 }
 
+// 加载是异步的，用户可能在加载途中又切到另一个运行。每次发起加载记一个代数，只有最新一代
+// 才允许写入共享的数据容器和加载状态；被取代的加载返回后直接丢弃，否则上一个运行的数据会被当成当前运行显示。
+let generation = 0
 let pending = null
 
 /** 保证 data.js 里是 id 对应的运行；同一运行不重复加载 */
 export async function ensureRun(id) {
   if (data.live.id === id && data.live.status === 'ready') return
   if (pending?.id === id) return pending.promise
+  const mine = ++generation
+  const current = () => mine === generation
   data.live.id = id
   data.live.status = 'loading'
   data.live.error = null
+  closeAllDrawers() // 抽屉里的证据属于上一个运行，留着会指向新运行里不存在的人物
   const promise = (async () => {
     try {
       const model = adapt(await fetchRun(id))
+      if (!current()) return
       data.replaceAll(data.product, model.product)
       data.replaceAll(data.flows, model.flows)
       data.replaceAll(data.personas, model.personas)
@@ -62,10 +69,11 @@ export async function ensureRun(id) {
       clock.stopped = false
       data.live.status = 'ready'
     } catch (e) {
+      if (!current()) return
       data.live.status = 'error'
       data.live.error = e.message
     } finally {
-      pending = null
+      if (current()) pending = null
     }
   })()
   pending = { id, promise }

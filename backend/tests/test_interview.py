@@ -124,16 +124,57 @@ def test_model_failures_map_to_gateway_statuses(runs_root):
         async def generate(schema, text, validate, label):
             raise error
         return generate
-    for error, status in [(InterviewUnavailable("未配置"), 503), (InterviewFailed("三次不合法"), 502)]:
+    for error, status, reason in [(InterviewUnavailable("未配置"), 503, None), (InterviewFailed("三次不合法", "invalid_answer"), 502, "invalid_answer"),
+                                  (InterviewFailed("模型服务出错", "provider"), 502, "provider")]:
         client = TestClient(create_app(runs_root, Interviewer(failing(error))))
         response = client.post(URL.format("p01"), json={"question": "好"})
         assert response.status_code == status and error.args[0] in response.json()["detail"]
+        assert response.json().get("reason") == reason
 
 
 def test_interviews_are_unavailable_until_a_capability_directory_is_given(runs_root):
     client = TestClient(create_app(runs_root))
     response = client.post(URL.format("p01"), json={"question": "好"})
     assert response.status_code == 503 and "--capability-run" in response.json()["detail"]
+
+
+def provider_error(kind, status=None):
+    import httpx
+    import openai
+    request = httpx.Request("POST", "https://provider.example/v1/chat/completions?key=SECRET-KEY")
+    if kind is openai.APIConnectionError:
+        return kind(request=request)
+    response = httpx.Response(status, request=request, json={"error": {"message": "echo of SECRET-KEY and the prompt"}})
+    return kind("provider said no", response=response, body=response.json())
+
+
+# Rejected credentials are a configuration problem (503, like a missing capability file); the rest are a bad gateway
+# that asking again later may fix. Neither is the model giving an invalid answer, so rephrasing is not the advice.
+@pytest.mark.parametrize("kind, status, code", [("RateLimitError", 429, 502), ("InternalServerError", 500, 502), ("BadRequestError", 400, 502),
+                                                ("APIConnectionError", None, 502), ("AuthenticationError", 401, 503),
+                                                ("PermissionDeniedError", 403, 503)])
+def test_provider_http_errors_are_not_a_server_error(runs_root, monkeypatch, kind, status, code):
+    import openai
+    error = provider_error(getattr(openai, kind), status)
+
+    async def failing(client, config, capability, schema, text, validate=None, label=None):
+        raise error
+
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return False
+
+    monkeypatch.setattr(interview, "settings", lambda: {"base_url": "http://x", "api_key": "k", "model": "m"})
+    monkeypatch.setattr(interview, "require_capabilities", lambda directory, cfg: {"ready": True})
+    monkeypatch.setattr(interview, "AsyncOpenAI", Client)
+    monkeypatch.setattr(interview, "request_json", failing)
+    client = TestClient(create_app(runs_root, Interviewer(llm_generate(runs_root))))
+    response = client.post(URL.format("p01"), json={"question": "好"})
+    assert response.status_code == code, response.text
+    assert response.json().get("reason") == ("provider" if code == 502 else None)
+    assert kind in response.json()["detail"] and (status is None or str(status) in response.json()["detail"])
+    assert "SECRET-KEY" not in response.text and "echo of" not in response.text  # provider bodies and URLs stay out of responses
 
 
 def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatch, tmp_path):
@@ -154,6 +195,8 @@ def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatc
         seen["call"] = (schema, text, label)
         if text == "boom":
             raise ValueError("三次不合法")
+        if text == "slow":
+            raise TimeoutError("采访 p01 超过 120s 未完成")
         return "parsed"
 
     monkeypatch.setattr(interview, "AsyncOpenAI", Client)
@@ -161,8 +204,12 @@ def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatc
     generate = llm_generate(tmp_path)
     assert asyncio.run(generate(InterviewAnswer, "hi", None, "采访 p01")) == "parsed"
     assert seen["call"] == (InterviewAnswer, "hi", "采访 p01") and seen["client"]["max_retries"] == 0
-    with pytest.raises(InterviewFailed, match="三次不合法"):
+    with pytest.raises(InterviewFailed, match="三次不合法") as failed:
         asyncio.run(generate(InterviewAnswer, "boom", None, "采访 p01"))
+    assert failed.value.reason == "invalid_answer"
+    with pytest.raises(InterviewFailed, match="未完成") as failed:
+        asyncio.run(generate(InterviewAnswer, "slow", None, "采访 p01"))
+    assert failed.value.reason == "provider"
     with pytest.raises(InterviewUnavailable, match="capability-run"):
         asyncio.run(llm_generate(None)(InterviewAnswer, "hi", None, "采访 p01"))
 

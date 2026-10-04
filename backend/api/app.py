@@ -18,7 +18,8 @@ def create_app(runs_root, interviewer=None, recordings=None):
     interviewer = interviewer or Interviewer(llm_generate(None))
 
     for error_type, status in STATUS.items():
-        app.add_exception_handler(error_type, lambda request, error, status=status: JSONResponse({"detail": str(error)}, status))
+        app.add_exception_handler(error_type, lambda request, error, status=status: JSONResponse(
+            {"detail": str(error), **({"reason": error.reason} if hasattr(error, "reason") else {})}, status))
 
     @app.get("/api/runs")
     def runs():
