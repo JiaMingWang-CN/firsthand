@@ -26,6 +26,12 @@ def runs_root(source, tmp_path):
     save_json(root / "phase1-x" / "product_model.json", {"metadata": {"name": "演示产品"}})
     save_json(root / "phase1-x" / "draft.json", {"run_config": {"duration_days": 1, "time_slice_minutes": 60}})
     save_json(run / "p01" / "session.json", {"viewer_url": "https://viewer.example/SECRET-SESSION"})
+    save_json(run / "cost.json", {"model_usd_min": 0.09, "total_usd_max": 0.23, "steel_usd_billed": 0.05})
+    ledger = lambda model, usage, error=None: json.dumps({"request": 1, "api": "chat_completions", "model": model, "error_type": error, "usage": usage})
+    full = {"input_tokens": 100, "cached_input_tokens": 40, "uncached_input_tokens": 60, "output_tokens": 10}
+    (run / "p01" / "model_usage.jsonl").write_text("\n".join([ledger("model-a", full), ledger("model-a", None, "TimeoutError")]) + "\n", encoding="utf-8")
+    (run / "community").mkdir(exist_ok=True)
+    (run / "community" / "model_usage.jsonl").write_text("\n".join([ledger("model-a", full), ledger("model-b", full)]) + "\n", encoding="utf-8")
     asyncio.run(execute(run, root / "phase5-x", None, False))
     return root
 
@@ -49,6 +55,16 @@ def test_overview_has_no_credentials(client):
     assert body["configuration"]["provider"] == "fixture" and body["run_config"]["time_slice_minutes"] == 60
     assert body["limitations"] == ["样本很小"] and body["personas"] == 2
     assert "SECRET" not in response.text
+
+
+def test_usage_is_tokens_per_model_and_never_a_price(client):
+    response = client.get("/api/runs/phase4-x")
+    usage = response.json()["usage"]
+    assert usage["models"] == [
+        {"model": "model-a", "requests": 3, "failed_requests": 1, "input_tokens": 200, "cached_input_tokens": 80, "output_tokens": 20},
+        {"model": "model-b", "requests": 1, "failed_requests": 0, "input_tokens": 100, "cached_input_tokens": 40, "output_tokens": 10}]
+    assert usage["total"] == {"requests": 4, "failed_requests": 1, "input_tokens": 300, "cached_input_tokens": 120, "output_tokens": 30}
+    assert not any(word in response.text.lower() for word in ("usd", "price", "cny", "steel_usd"))
 
 
 def test_personas_summarise_experience_and_survey(client):

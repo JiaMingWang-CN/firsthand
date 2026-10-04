@@ -1,5 +1,6 @@
 """Builds the JSON the UI reads from a validated EvidenceStore. Nothing here writes to a run directory."""
 
+import json
 from pathlib import Path
 from urllib.parse import quote
 
@@ -9,6 +10,28 @@ from report.evidence import EvidenceStore
 
 def file_url(run_id, relative):
     return f"/api/runs/{run_id}/files/{quote(relative, safe='/')}"
+
+
+TOKEN_FIELDS = ("input_tokens", "cached_input_tokens", "output_tokens")
+
+
+def model_usage(run):
+    """Requests and tokens per model from the run's request ledgers. Prices are deliberately not exposed."""
+    models = {}
+    for ledger in [run / "model_usage.jsonl", *sorted(run.glob("*/model_usage.jsonl"))]:
+        if not ledger.is_file():
+            continue
+        for line in ledger.read_text(encoding="utf-8").splitlines():
+            entry = json.loads(line)
+            row = models.setdefault(entry["model"], {"model": entry["model"], "requests": 0, "failed_requests": 0,
+                                                     **{field: 0 for field in TOKEN_FIELDS}})
+            row["requests"] += 1
+            row["failed_requests"] += entry["error_type"] is not None
+            for field in TOKEN_FIELDS:
+                row[field] += (entry["usage"] or {}).get(field, 0)
+    rows = sorted(models.values(), key=lambda row: -row["requests"])
+    return {"models": rows, "total": {key: sum(row[key] for row in rows) for key in ("requests", "failed_requests", *TOKEN_FIELDS)},
+            "scope": "浏览、讨论与问卷阶段的模型请求；不含人设生成"}
 
 
 class Reader:
@@ -48,7 +71,7 @@ class Reader:
                 "provider", "model", "api", "thinking_type", "max_model_concurrency", "max_browser_concurrency")},
             "personas": len(store.people),
             "timeline": {"slices": len(timeline.get("slices", [])), "peak_workers": timeline.get("peak_workers")},
-            "usage": read_json(path / "cost.json"), "audit": store.audit, "coverage": store.inventory(),
+            "usage": model_usage(path), "audit": store.audit, "coverage": store.inventory(),
             "reports": report_index(self.root).get(run_id, [])}
 
     def personas(self, run_id):
