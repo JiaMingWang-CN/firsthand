@@ -15,7 +15,7 @@ from orchestrator.manual import read_manual
 from orchestrator.personas import (assignment_errors, build_persona, cohort_issues, distribution_issues, request_json,
                                    schedule_rows, validate_draft)
 
-SAMPLE = ROOT / "docs/examples/wjm_product_manual.md"
+SAMPLE = ROOT.parent / "docs/examples/wjm_product_manual.md"
 CONFIG = {"model": "custom", "base_url": "https://test.invalid/v1", "api_key": "test", "thinking_type": "disabled"}
 CAPABILITY = {"model": "custom", "base_url": CONFIG["base_url"], "thinking_type": "disabled", "ready": True,
               "recommended_concurrency": 10, "checks": {"json_schema": {"supported": True}, "json_prompt": {"supported": False}}}
@@ -95,13 +95,13 @@ def test_invalid_manual_fields_rejected(tmp_path, before, after):
 
 def test_template_comments_do_not_count_as_content():
     with pytest.raises(ValueError, match="缺少必填章节"):
-        read_manual(ROOT / "docs/product_manual_template.md")
+        read_manual(ROOT.parent / "docs/product_manual_template.md")
 
 
 def test_invalid_manual_does_not_make_paid_requests(tmp_path, monkeypatch):
     monkeypatch.setattr(phase1, "settings", lambda: pytest.fail("Invalid input must be rejected before configuration/API calls"))
     with pytest.raises(ValueError):
-        asyncio.run(phase1.prepare(ROOT / "docs/product_manual_template.md", tmp_path / "run"))
+        asyncio.run(phase1.prepare(ROOT.parent / "docs/product_manual_template.md", tmp_path / "run"))
     assert not (tmp_path / "run").exists()
 
 

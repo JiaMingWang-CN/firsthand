@@ -2,8 +2,9 @@
 .venv*/
 __pycache__/
 .pytest_cache/
-.runtime/concurrency/
-config/.env
+backend/.runtime/concurrency/
+backend/config/.env
 .env
 runs/
-UI/
+node_modules/
+frontend/dist/

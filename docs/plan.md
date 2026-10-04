@@ -290,16 +290,22 @@ Steel 和旁路 CDP 采集全部数据，但只有被授权的 Agent 才能通�
 
 ```
 muchhuman/
-├── docs/
-├── config/            # .env.example、模型配置
-├── core/              # 共享数据结构（Persona、Experience Memory、运行配置）
-├── probe/             # ⓪ 模型能力探测
-├── orchestrator/      # ①②③ 主 Agent、说明书解析、Persona 生成、审核、时钟推进
-├── browsing/          # ④a 浏览执行层（venv A：browser-use + steel）
-├── discussion/        # ④b OASIS 讨论（venv B：camel-oasis）
-├── report/            # ⑤⑥⑦ 离场问卷、Report Agent、采访
-└── runs/<run_id>/     # 每次运行的产物：db、trace、截图、报告
+├── docs/                  # 方案与各阶段记录（前后端共用）
+├── frontend/              # Web UI：Vue 3 + Vite（阶段 6）
+└── backend/               # Python 项目根；所有命令都在此目录下执行
+    ├── config/            # .env.example、模型配置
+    ├── core/              # 共享数据结构（Persona、Experience Memory、运行配置）
+    ├── probe/             # ⓪ 模型能力探测
+    ├── orchestrator/      # ①②③ 主 Agent、说明书解析、Persona 生成、审核、时钟推进
+    ├── browsing/          # ④a 浏览执行层（venv A：browser-use + steel）
+    ├── discussion/        # ④b OASIS 讨论（venv B：camel-oasis）
+    ├── report/            # ⑤⑥⑦ 离场问卷、Report Agent、采访
+    ├── api/               # 阶段 6：FastAPI 接口层（只读运行目录 + 采访）
+    ├── tests/
+    └── runs/<run_id>/     # 每次运行的产物：db、trace、截图、报告（不入库）
 ```
+
+前后端分离：前端只通过 HTTP 访问 `api/`，不直接读 `runs/`。`.venv-browsing`、`.venv-oasis` 与 `.runtime/` 位于 `backend/` 内（不入库），文档中的 `.venv-*/Scripts/python.exe`、`runs/…`、`config/…` 均相对 `backend/`。
 
 ## 6. 开发阶段
 
