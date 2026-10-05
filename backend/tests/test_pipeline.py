@@ -143,6 +143,7 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
     configuring = client.get(f"/api/drafts/{draft_id}").json()
     assert configuring["status"] == "configuring" and configuring["recommendation"]["persona_count"] == 40
     assert configuring["material"] is None and configuring["product"]["positioning"]
+    assert configuring["manual"]["name"] == "JiaMingWang-CN 个人作品网站"  # the page title: a name, not the product model
     too_few = client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 2, "duration_days": 50})
     assert too_few.status_code == 422 and "至少需要 3 人" in too_few.json()["detail"]
     assert client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 10, "duration_days": 0}).status_code == 422

@@ -146,7 +146,7 @@ export function adapt({ overview, personas: rows, experiences, community, report
       tzOffset, state: exp?.state_at_browse ?? sched.state_at_browse, activity: sched.activity_by_hour,
       heat: heatOf(sched.activity_by_hour, tzOffset, startMs, config.duration_days ?? 1),
       participation: p.participation, candor: p.disclosure.candor, withhold: p.disclosure.withhold_tendency,
-      withholdReasons: p.disclosure.withhold_reasons,
+      withholdReasons: p.disclosure.withhold_reasons, sampling: p.sampling ?? null, browseDay: sched.browse_day ?? 1,
       outcome: exp ? OUTCOME[exp.outcome] ?? 'error' : 'error',
       outcomeReason: exp?.reason ?? '没有通过校验的体验记录',
       outcomeSource: row.experience?.outcome_source ?? null, hasExperience: Boolean(exp), jobState: row.job_state,

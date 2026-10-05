@@ -94,8 +94,13 @@ def summary(root, path, jobs):
         status = "configuring"  # the user confirms the recommended cohort size and timeline length
     else:
         status = approval_state(path)["status"]
-    manual = read_json(path / "product_model.json", {}) or {}
-    return {"id": path.name, "status": status, "product": (manual.get("metadata") or {}).get("name"),
+    name = ((read_json(path / "product_model.json", {}) or {}).get("metadata") or {}).get("name")
+    if name is None:  # before personas exist (analyzing, configuring) only the manual names the product
+        try:
+            name = read_manual(path / "manual.md")["metadata"].name
+        except (ValueError, OSError):
+            name = None
+    return {"id": path.name, "status": status, "product": name,
             "created_at": datetime.fromtimestamp((path / "manual.md").stat().st_mtime, timezone.utc).isoformat(),
             "error": (result or {}).get("error")}
 
@@ -116,7 +121,8 @@ def review(root, draft_id, jobs):
                 "site": None if site is None else {key: site.get(key) for key in ("status", "url", "title", "reason", "note")},
                 "limits": {"personas": [MIN_PERSONAS, MAX_PERSONAS], "days": [1, MAX_DAYS]}}
     if head["status"] in {"analyzing", "generating", "configuring"} and (path / "product.json").is_file():
-        analysis["product"] = read_json(path / "product.json")
+        # As on a drafted review, "product" is the product model; the product's name is under "manual".
+        analysis.update(product=read_json(path / "product.json"), manual={"name": head["product"]})
     if head["status"] in {"analyzing", "generating", "configuring", "failed", "incomplete"}:
         return {**head, **analysis, "valid": False}
     displayed = draft_hash(path)

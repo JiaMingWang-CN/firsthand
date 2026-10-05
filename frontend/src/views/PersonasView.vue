@@ -21,12 +21,13 @@ const match = (p) => ({
 }[filt.value])
 const list = computed(() => personas.filter((p) => match(p) && (!q.value || [p.realname, p.profession, p.city, p.username].join(' ').includes(q.value.trim()))))
 const count = (fn) => personas.filter(fn).length
-// 10 人样本的分布要求（plan 4.4）；是否满足由实际人数算出
+// 分布要求（plan 4.4）按人数比例换算，与 orchestrator/personas.py 的 targets 一致；10 人即 2/4/3/2
+const share = (f) => Math.floor(personas.length * f + 0.5)
 const dist = computed(() => [
-  { k: '开发者', v: count((p) => p.tech === 'developer'), min: 2 },
-  { k: '手机用户', v: count((p) => p.device === 'mobile'), min: 4 },
-  { k: '低耐心', v: count((p) => p.patience === 'low'), min: 3 },
-  { k: '明显的未说出倾向', v: count((p) => p.withhold === '高'), min: 2 },
+  { k: '开发者', v: count((p) => p.tech === 'developer'), min: Math.max(1, share(0.2)) },
+  { k: '手机用户', v: count((p) => p.device === 'mobile'), min: share(0.4) },
+  { k: '低耐心', v: count((p) => p.patience === 'low'), min: share(0.3) },
+  { k: '明显的未说出倾向', v: count((p) => p.withhold === '高'), min: Math.max(1, share(0.2)) },
 ].map((d) => ({ ...d, ok: d.v >= d.min })))
 const parts = ['poster', 'commenter', 'reactor', 'lurker'].map((k) => ({ k, v: count((p) => p.participation === k) }))
 const spark = (pid) => {

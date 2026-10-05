@@ -42,12 +42,14 @@ export const api = {
   recording: (id, pid) => request(`${run(id)}/personas/${enc(pid)}/recording`),
   interview: (id, pid, body) => post(`${run(id)}/personas/${enc(pid)}/interview`, body),
 
-  // 新建运行：说明书 → 人物草稿 → 运行前审核 → 模拟与报告（后端以子进程执行命令行同一套步骤）
+  // 新建运行：资料 → 分析与推荐 → 确认人数与天数、生成人物 → 运行前审核 → 模拟与报告（后端以子进程执行命令行同一套步骤）
   checkManual: (text) => post('/api/manuals/check', { text }),
   capabilities: () => request('/api/capabilities'),
   drafts: () => request('/api/drafts'),
   newDraft: (manual, capabilityRun) => post('/api/drafts', { manual, capability_run: capabilityRun || null }),
   draft: (id) => request(`/api/drafts/${enc(id)}`),
+  generatePersonas: (id, personaCount, durationDays) => post(`/api/drafts/${enc(id)}/personas`, { persona_count: personaCount, duration_days: durationDays }),
+  editDraft: (id, body) => post(`/api/drafts/${enc(id)}/edits`, body),
   decide: (id, body) => post(`/api/drafts/${enc(id)}/decision`, body),
   simulate: (id) => post(`/api/drafts/${enc(id)}/simulations`, { confirm: true }),
   jobs: () => request('/api/jobs'),

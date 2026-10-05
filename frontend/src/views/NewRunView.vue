@@ -1,20 +1,47 @@
 <script setup>
-// 新建运行：校验使用说明 → 选择能力文件（复用或重新探测）→ 生成人物草稿。
-// 校验与命令行 orchestrator.phase1 完全一致；生成由后端以子进程执行同一条命令，完成后进入运行前审核。
+// 新建运行：资料（只填网址，或完整说明书）→ 选择能力文件 → 分析资料。
+// 分析由后端以子进程执行 orchestrator.phase1 analyze：读首页、生成产品模型并推荐人数与天数；
+// 人数与天数在审核页确认（可改）后才生成人物。校验与命令行完全一致。
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import { askConfirm } from '../lib/store.js'
-import { Upload, Check, AlertTriangle, FileText, Cpu, Users, Loader, Circle, X, Info } from 'lucide-vue-next'
+import { Upload, Check, AlertTriangle, FileText, Cpu, Sparkles, Loader, Circle, X, Info, Globe } from 'lucide-vue-next'
 
 const router = useRouter()
 const step = ref(1)
+const mode = ref('url') // 'url' 只填网址 | 'manual' 完整说明书
 const text = ref('')
 const fileName = ref('')
 const checking = ref(false)
 const checked = ref(null) // 校验通过时的说明书摘要
 const checkError = ref('')
 const dragging = ref(false)
+
+// —— 只填网址：表单拼出只有 front matter（和可选两节）的说明书，后端按同一套规则校验 ——
+const form = ref({ url: '', domains: '', name: '', positioning: '', users: '' })
+const domainsTouched = ref(false)
+function hostOf(url) {
+  try { return new URL(url.trim()).hostname } catch { return '' }
+}
+function onUrl() {
+  if (!domainsTouched.value) form.value.domains = hostOf(form.value.url)
+  onEdit()
+}
+const domainList = computed(() => form.value.domains.split(/[\s,，、]+/).map((d) => d.trim()).filter(Boolean))
+const yaml = (value) => JSON.stringify(value) // JSON 字符串是合法的 YAML 双引号标量
+const built = computed(() => {
+  const f = form.value
+  const lines = ['---', `url: ${yaml(f.url.trim())}`, 'allowed_domains:', ...domainList.value.map((d) => `  - ${yaml(d)}`)]
+  if (f.name.trim()) lines.push(`name: ${yaml(f.name.trim())}`)
+  lines.push('---', '')
+  if (f.positioning.trim()) lines.push('# 产品定位', '', f.positioning.trim(), '')
+  if (f.users.trim()) lines.push('# 目标用户', '', f.users.trim(), '')
+  return lines.join('\n')
+})
+const manualText = computed(() => (mode.value === 'url' ? built.value : text.value))
+const canCheck = computed(() => (mode.value === 'url' ? form.value.url.trim() && domainList.value.length : text.value.trim()))
+function setMode(m) { mode.value = m; onEdit() }
 
 async function loadFile(file) {
   if (!file) return
@@ -23,37 +50,43 @@ async function loadFile(file) {
   await check()
 }
 function onDrop(e) { dragging.value = false; loadFile(e.dataTransfer?.files?.[0]) }
-function onEdit() { checked.value = null; checkError.value = ''; fileName.value = '' }
+function onEdit() { checked.value = null; checkError.value = '' }
 
-// 校验项与 orchestrator/manual.py 一致；未校验时列出要求，失败时标出报错里点名的项，通过时显示读到的值
+// 校验项与 orchestrator/manual.py 一致：只有 url 与 allowed_domains 必填，其余缺了会降低结果的参考性
 const REQUIREMENTS = [
-  { group: 'front matter', key: 'name', label: 'name / url', value: (c) => `${c.name} · ${c.url}` },
-  { group: 'front matter', key: 'allowed_domains', label: 'allowed_domains', value: (c) => c.allowed_domains.join('、') },
-  { group: 'front matter', key: 'test_accounts', label: 'test_accounts', value: (c) => c.test_accounts.join('、') },
-  { group: 'front matter', key: 'forbidden_actions', label: 'forbidden_actions', value: (c) => `${c.forbidden_actions} 条` },
-  { group: '正文章节', key: '产品定位', label: '# 产品定位', value: () => '已填写' },
-  { group: '正文章节', key: '目标用户', label: '# 目标用户', value: () => '已填写' },
-  { group: '正文章节', key: '核心功能', label: '# 核心功能', value: () => '已填写' },
-  { group: '正文章节', key: '关键流程', label: '# 关键流程', value: (c) => `${c.flows.length} 条：${c.flows.map((f) => f.name).join('、')}` },
-  { group: '可选', key: '已知问题', label: '# 已知问题', optional: true, value: (c) => (c.known_issues ? '有（作为校准集，不进入生成人物的提示词）' : '未提供') },
+  { group: '必填', key: 'url', label: 'url', value: (c) => c.url },
+  { group: '必填', key: 'allowed_domains', label: 'allowed_domains', value: (c) => c.allowed_domains.join('、') },
+  { group: '可选', key: 'name', label: 'name', value: (c) => (c.defaults.includes('name') ? `未填，用域名 ${c.name}` : c.name) },
+  { group: '可选', key: 'test_accounts', label: 'test_accounts', value: (c) => c.test_accounts.join('、') },
+  { group: '可选', key: 'forbidden_actions', label: 'forbidden_actions', value: (c) => `${c.forbidden_actions.length} 条` },
+  { group: '可选', key: '产品定位', label: '# 产品定位', value: () => '已填写' },
+  { group: '可选', key: '目标用户', label: '# 目标用户', value: () => '已填写' },
+  { group: '可选', key: '核心功能', label: '# 核心功能', value: () => '已填写' },
+  { group: '可选', key: '关键流程', label: '# 关键流程', value: (c) => `${c.flows.length} 条：${c.flows.map((f) => f.name).join('、')}` },
+  { group: '可选', key: '已知问题', label: '# 已知问题', value: (c) => (c.known_issues ? '有（作为校准集，不进入生成人物的提示词）' : '') },
 ]
-const requirements = computed(() => REQUIREMENTS.map((r) => ({
-  ...r,
-  state: checked.value ? 'ok' : checkError.value && checkError.value.includes(r.key) ? 'bad' : 'todo',
-  shown: checked.value ? r.value(checked.value) : r.optional ? '可不填' : '必填',
-})))
+const requirements = computed(() => REQUIREMENTS.map((r) => {
+  const gap = checked.value?.material.gaps.find((g) => g.item === r.key)
+  const missing = checked.value && (gap || (r.key === '已知问题' && !checked.value.known_issues))
+  return {
+    ...r,
+    state: checked.value ? (missing ? 'gap' : 'ok') : checkError.value && checkError.value.includes(r.key) ? 'bad' : 'todo',
+    shown: checked.value ? (gap ? `未提供 · ${gap.effect}` : missing ? '未提供' : r.value(checked.value)) : r.group === '必填' ? '必填' : '可不填',
+  }
+}))
 const groups = computed(() => [...new Set(REQUIREMENTS.map((r) => r.group))].map((g) => [g, requirements.value.filter((r) => r.group === g)]))
+const LEVEL = { complete: 'pos', partial: 'confused', limited: 'neg' }
 const stats = computed(() => `${text.value.length.toLocaleString('zh-CN')} 字 · ${text.value ? text.value.split('\n').length : 0} 行`)
-const PLACEHOLDER = ['---', 'name: 产品名', 'url: https://…', 'allowed_domains: […]', 'test_accounts: […]', 'forbidden_actions: […]', '---', '',
+const PLACEHOLDER = ['---', 'url: https://…', 'allowed_domains: […]', '# 以下都可以不填', 'name: 产品名', 'test_accounts: […]', 'forbidden_actions: […]', '---', '',
   '# 产品定位', '# 目标用户', '# 核心功能', '# 关键流程', '', '格式见 docs/product_manual_template.md'].join('\n')
 
 async function check() {
   checked.value = null
   checkError.value = ''
-  if (!text.value.trim()) return
+  if (!canCheck.value) return
   checking.value = true
   try {
-    checked.value = await api.checkManual(text.value)
+    checked.value = await api.checkManual(manualText.value)
   } catch (e) {
     checkError.value = e.message
   } finally {
@@ -79,22 +112,22 @@ const when = (iso) => new Date(iso).toLocaleString('zh-CN', { hour12: false })
 const starting = ref(false)
 const startError = ref('')
 const plan = computed(() => [
-  capability.value ? `复用能力文件 ${capability.value}` : '重新探测模型能力（识图、工具调用、结构化输出等）',
-  '主 Agent 解析说明书，生成产品模型',
-  '规划 10 人的维度分布，再并行补全每个人的身份、背景、性格与作息',
-  '生成运行配置并校验分布约束',
+  capability.value ? `复用能力文件 ${capability.value}` : '重新探测模型能力（识图、工具调用、结构化输出、采样参数等）',
+  '读取产品首页（只访问 allowed_domains 内的地址）',
+  '主 Agent 根据资料和首页生成产品模型',
+  '主 Agent 推荐模拟人数和天数，并说明理由',
 ])
-async function generate() {
+async function analyze() {
   const ok = await askConfirm({
-    title: capability.value ? '生成人物草稿' : '探测模型能力并生成人物草稿',
-    body: `将${capability.value ? '' : '先探测模型能力（识图、工具调用、结构化输出，需要几次模型调用），再'}调用当前配置的模型生成 10 名人物与运行配置，会产生模型用量。生成的草稿需要你在运行前审核中确认后，才会开始浏览与讨论。`,
-    confirmText: capability.value ? '开始生成' : '开始探测并生成',
+    title: capability.value ? '分析资料' : '探测模型能力并分析资料',
+    body: `将${capability.value ? '' : '先探测模型能力（需要几次模型调用），再'}读取首页、调用当前配置的模型生成产品模型和人数、天数推荐，会产生模型用量。推荐结果在下一页确认或修改后，才会生成人物。`,
+    confirmText: capability.value ? '开始分析' : '开始探测并分析',
   })
   if (!ok) return
   starting.value = true
   startError.value = ''
   try {
-    const job = await api.newDraft(text.value, capability.value)
+    const job = await api.newDraft(manualText.value, capability.value)
     router.push({ name: 'review', params: { draftId: job.draft } })
   } catch (e) {
     startError.value = e.message
@@ -110,35 +143,59 @@ async function generate() {
       <div>
         <div class="eyebrow">新建运行</div>
         <h1 class="page-title">新建运行</h1>
-        <p class="page-sub">上传规定格式的使用说明。先校验必填项（不调用模型），再选择能力文件并生成人物草稿；草稿要在运行前审核里确认后才会开始真实浏览。</p>
+        <p class="page-sub">最少只需要产品网址和允许访问的域名。资料越完整，人物和结论越可信；资料很少时会明确提示参考性有限。人数和天数由主 Agent 推荐，生成人物前可以修改。</p>
       </div>
     </header>
 
     <ol class="stepper">
-      <li v-for="(s, i) in [['使用说明', FileText], ['模型能力', Cpu], ['生成人物', Users]]" :key="i" :class="{ on: step === i + 1, done: step > i + 1 }">
+      <li v-for="(s, i) in [['资料', FileText], ['模型能力', Cpu], ['分析与推荐', Sparkles]]" :key="i" :class="{ on: step === i + 1, done: step > i + 1 }">
         <span class="sn num">{{ step > i + 1 ? '✓' : i + 1 }}</span><component :is="s[1]" class="si" /><span>{{ s[0] }}</span>
       </li>
     </ol>
 
-    <!-- 1 使用说明 -->
+    <!-- 1 资料 -->
     <section v-if="step === 1" class="s1">
-      <div class="editor" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
-        <div class="ed-head">
-          <FileText class="hi" />
-          <b>使用说明</b>
-          <span v-if="fileName" class="chip num">{{ fileName }}</span>
-          <span class="faint ed-hint">粘贴 Markdown，或把 .md 文件拖到这里</span>
-          <label class="btn btn-secondary sm pick"><Upload />选择文件
-            <input type="file" accept=".md,text/markdown" class="sr-only" aria-label="选择使用说明文件" @change="loadFile($event.target.files[0]); $event.target.value = ''" />
-          </label>
+      <div class="left">
+        <div class="seg modes" role="group" aria-label="资料形式">
+          <button type="button" :aria-pressed="mode === 'url'" @click="setMode('url')">只填网址</button>
+          <button type="button" :aria-pressed="mode === 'manual'" @click="setMode('manual')">完整说明书</button>
         </div>
-        <textarea v-model="text" class="ed-text" spellcheck="false" aria-label="使用说明内容" :placeholder="PLACEHOLDER" @input="onEdit"></textarea>
-        <div class="ed-foot">
-          <span class="faint num">{{ stats }}</span>
-          <span class="faint">校验只解析格式，不调用模型、不产生费用</span>
-          <button class="btn btn-primary sm" type="button" :disabled="!text.trim() || checking" @click="check"><Loader v-if="checking" class="spin" />校验</button>
+
+        <div v-if="mode === 'url'" class="panel urlform">
+          <label class="field"><span>产品网址 <b class="req">必填</b></span>
+            <input v-model="form.url" class="input" type="url" placeholder="https://staging.example.com" aria-label="产品网址" @input="onUrl" /></label>
+          <label class="field"><span>允许访问的域名 <b class="req">必填</b><em class="faint">人物只能访问这些主机；多个用逗号或空格分开</em></span>
+            <input v-model="form.domains" class="input" placeholder="staging.example.com, auth.example.com" aria-label="允许访问的域名" @input="domainsTouched = true; onEdit()" /></label>
+          <label class="field"><span>产品名称 <em class="faint">可选，不填用域名</em></span>
+            <input v-model="form.name" class="input" aria-label="产品名称" @input="onEdit" /></label>
+          <label class="field"><span>一句话说明产品 <em class="faint">可选：给谁用、解决什么问题</em></span>
+            <textarea v-model="form.positioning" class="input area" rows="2" aria-label="产品定位" @input="onEdit"></textarea></label>
+          <label class="field"><span>目标用户 <em class="faint">可选：人群、设备、常用时段</em></span>
+            <textarea v-model="form.users" class="input area" rows="2" aria-label="目标用户" @input="onEdit"></textarea></label>
+          <div class="ed-foot">
+            <span class="faint"><Globe class="gl" />没写的内容由 AI 读取首页后推断；测试账号、关键流程等需要完整说明书</span>
+            <button class="btn btn-primary sm" type="button" :disabled="!canCheck || checking" @click="check"><Loader v-if="checking" class="spin" />检查</button>
+          </div>
         </div>
-        <div v-if="dragging" class="drop-mask"><Upload />松开以载入文件</div>
+
+        <div v-else class="editor" :class="{ dragging }" @dragover.prevent="dragging = true" @dragleave.self="dragging = false" @drop.prevent="onDrop">
+          <div class="ed-head">
+            <FileText class="hi" />
+            <b>使用说明</b>
+            <span v-if="fileName" class="chip num">{{ fileName }}</span>
+            <span class="faint ed-hint">粘贴 Markdown，或把 .md 文件拖到这里</span>
+            <label class="btn btn-secondary sm pick"><Upload />选择文件
+              <input type="file" accept=".md,text/markdown" class="sr-only" aria-label="选择使用说明文件" @change="loadFile($event.target.files[0]); $event.target.value = ''" />
+            </label>
+          </div>
+          <textarea v-model="text" class="ed-text" spellcheck="false" aria-label="使用说明内容" :placeholder="PLACEHOLDER" @input="onEdit(); fileName = ''"></textarea>
+          <div class="ed-foot">
+            <span class="faint num">{{ stats }}</span>
+            <span class="faint">校验只解析格式，不调用模型、不产生费用</span>
+            <button class="btn btn-primary sm" type="button" :disabled="!canCheck || checking" @click="check"><Loader v-if="checking" class="spin" />校验</button>
+          </div>
+          <div v-if="dragging" class="drop-mask"><Upload />松开以载入文件</div>
+        </div>
       </div>
 
       <aside class="panel checklist">
@@ -152,6 +209,10 @@ async function generate() {
           </span>
         </div>
         <div v-if="checkError" class="warn" role="alert"><AlertTriangle /><div>{{ checkError }}。修改后重新校验。</div></div>
+        <div v-if="checked" class="material" :class="checked.material.level" role="status">
+          <span class="tag" :class="LEVEL[checked.material.level]"><span class="dot"></span>{{ { complete: '资料完整', partial: '资料不全', limited: '参考性有限' }[checked.material.level] }}</span>
+          <span>{{ checked.material.summary }}</span>
+        </div>
         <div v-for="[g, items] in groups" :key="g" class="req-group">
           <div class="req-title faint">{{ g }}</div>
           <ul class="req">
@@ -167,37 +228,39 @@ async function generate() {
 
     <!-- 2 模型能力 -->
     <section v-else-if="step === 2" class="panel">
-      <div class="panel-head"><h3>模型能力</h3><span class="aside faint">能力文件决定能否识图、调用工具和输出结构化结果；必须与当前模型配置一致</span></div>
+      <div class="panel-head"><h3>模型能力</h3><span class="aside faint">能力文件决定能否识图、调用工具、输出结构化结果和使用人物各自的采样参数；必须与当前模型配置一致</span></div>
       <p v-if="capabilities.status === 'loading'" class="faint">正在读取已有的能力文件…</p>
-      <div v-else-if="capabilities.status === 'ready' && !capabilities.items.length" class="note"><Info />没有与当前模型配置一致、可复用的能力文件。探测不在这一步执行：进入下一步点“探测模型能力并生成人物”时，会先探测、再生成。</div>
+      <div v-else-if="capabilities.status === 'ready' && !capabilities.items.length" class="note"><Info />没有与当前模型配置一致、可复用的能力文件。探测不在这一步执行：进入下一步点“探测模型能力并分析资料”时，会先探测、再分析。</div>
       <div v-else-if="capabilities.status === 'error'" class="warn" role="alert"><AlertTriangle /><div>{{ capabilities.error }}</div></div>
       <fieldset v-else class="caps">
         <legend class="sr-only">能力文件</legend>
         <label v-for="c in capabilities.items" :key="c.id" class="cap" :class="{ on: capability === c.id }">
           <input v-model="capability" type="radio" name="cap" :value="c.id" />
-          <span><b class="num">{{ c.id }}</b><span class="faint">探测于 {{ when(c.created_at) }}，与当前模型配置一致，可直接复用</span></span>
+          <span><b class="num">{{ c.id }}</b><span class="faint">探测于 {{ when(c.created_at) }}，与当前模型配置一致，可直接复用</span>
+            <span v-if="!c.sampling" class="faint warn-text">没有通过采样参数检查（或探测时还没有这一项）：人物各自的温度、top_p 不会生效</span></span>
         </label>
         <label class="cap" :class="{ on: capability === '' }">
           <input v-model="capability" type="radio" name="cap" value="" />
-          <span><b>重新探测</b><span class="faint">用随机答案的样本测试识图、工具调用与结构化输出，会多花几次模型调用</span></span>
+          <span><b>重新探测</b><span class="faint">用随机答案的样本测试识图、工具调用、结构化输出和采样参数，会多花几次模型调用</span></span>
         </label>
       </fieldset>
       <div class="row end">
         <button class="btn btn-ghost" type="button" @click="step = 1">返回</button>
-        <button class="btn btn-primary" type="button" :disabled="capabilities.status === 'loading'" @click="step = 3">下一步：生成人物</button>
+        <button class="btn btn-primary" type="button" :disabled="capabilities.status === 'loading'" @click="step = 3">下一步：分析资料</button>
       </div>
     </section>
 
-    <!-- 3 生成人物 -->
+    <!-- 3 分析与推荐 -->
     <section v-else class="panel">
-      <div class="panel-head"><h3>生成人物与运行配置</h3><span class="aside faint">{{ checked?.name }}</span></div>
+      <div class="panel-head"><h3>分析资料并推荐人数与天数</h3><span class="aside faint">{{ checked?.name }}</span></div>
       <ol class="gen">
         <li v-for="(g, i) in plan" :key="i"><span class="gi"><i></i></span>{{ g }}</li>
       </ol>
+      <p class="faint small">这一步不生成人物。下一页显示推荐的人数和天数（一般 30–50 人、50 天左右），确认或修改后再生成。</p>
       <div v-if="startError" class="warn" role="alert"><AlertTriangle /><div>{{ startError }}</div></div>
       <div class="row end">
         <button class="btn btn-ghost" type="button" :disabled="starting" @click="step = 2">返回</button>
-        <button class="btn btn-primary" type="button" :disabled="starting" @click="generate"><Loader v-if="starting" class="spin" />{{ capability ? '生成人物草稿' : '探测模型能力并生成人物' }}</button>
+        <button class="btn btn-primary" type="button" :disabled="starting" @click="analyze"><Loader v-if="starting" class="spin" />{{ capability ? '分析资料' : '探测模型能力并分析资料' }}</button>
       </div>
     </section>
   </div>
@@ -212,6 +275,18 @@ async function generate() {
 .on .sn { background: var(--text); color: var(--bg); }
 .si { width: 16px; height: 16px; stroke-width: 1.5; }
 .s1 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: var(--sp-4); align-items: start; }
+.left { display: grid; gap: var(--sp-3); min-width: 0; }
+.modes { justify-self: start; }
+.urlform { display: grid; gap: var(--sp-3); }
+.field { display: grid; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
+.field em { font-style: normal; font-weight: 400; font-size: var(--fs-xs); margin-left: var(--sp-2); }
+.field .req { font-size: var(--fs-xs); color: var(--neg); font-weight: 600; margin-left: 4px; }
+.area { height: auto; padding: 8px 11px; resize: vertical; line-height: 1.6; font-weight: 400; }
+.urlform .ed-foot { padding: 0; }
+.gl { width: 14px; height: 14px; stroke-width: 1.5; vertical-align: -2px; margin-right: 4px; }
+.material { display: grid; gap: 6px; padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sm); }
+.material .tag { justify-self: start; }
+.warn-text { color: var(--confused); }
 .editor { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; transition: border-color var(--dur-fast) var(--ease); }
 .editor:focus-within { border-color: var(--border-strong); }
 .editor.dragging { border-color: var(--accent); }
@@ -237,7 +312,8 @@ async function generate() {
 .ri { width: 16px; height: 16px; stroke-width: 1.5; margin-top: 2px; color: var(--text-3); }
 .req li.ok .ri { color: var(--pos); }
 .req li.bad .ri, .req li.bad code { color: var(--neg); }
-.req li.todo .rv { color: var(--text-3); }
+.req li.todo .rv, .req li.gap .rv { color: var(--text-3); }
+.req li.gap .ri { color: var(--confused); }
 .rv { color: var(--text-2); word-break: break-word; }
 .next { justify-self: end; }
 .note { display: flex; gap: var(--sp-2); align-items: flex-start; padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); color: var(--text-2); font-size: var(--fs-sm); }

@@ -60,7 +60,7 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
     <header class="page-head">
       <div>
         <div class="eyebrow">任务 · <span class="num">{{ jobId }}</span></div>
-        <h1 class="page-title">{{ job?.kind === 'simulate' ? '模拟与报告' : '生成人物草稿' }}</h1>
+        <h1 class="page-title">{{ { simulate: '模拟与报告', prepare: '分析资料' }[job?.kind] ?? '生成人物草稿' }}</h1>
         <p class="page-sub">任务在后端以子进程执行与命令行相同的步骤；页面每 2 秒读取一次运行目录里的进度。关闭页面不会中断任务。</p>
       </div>
       <span v-if="job" class="tag" :class="STATE[job.state]?.[0]"><span class="dot"></span>{{ STATE[job.state]?.[1] ?? job.state }}</span>
@@ -95,11 +95,15 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
         </template>
         <template v-else>
           <ul class="checks">
-            <li :class="{ ok: p.capability }"><Check v-if="p.capability" /><Circle v-else />能力文件</li>
-            <li :class="{ ok: p.draft }"><Check v-if="p.draft" /><Circle v-else />人物草稿</li>
+            <template v-if="job.kind === 'prepare'">
+              <li :class="{ ok: p.capability }"><Check v-if="p.capability" /><Circle v-else />能力文件</li>
+              <li :class="{ ok: p.site }"><Check v-if="p.site" /><Circle v-else />首页摘录</li>
+              <li :class="{ ok: p.product }"><Check v-if="p.product" /><Circle v-else />产品模型与人数、天数推荐</li>
+            </template>
+            <li v-else :class="{ ok: p.draft }"><Check v-if="p.draft" /><Circle v-else />人物草稿</li>
           </ul>
           <div class="row links">
-            <RouterLink class="btn btn-secondary sm" :to="{ name: 'review', params: { draftId: job.draft } }">{{ job.state === 'succeeded' ? '去审核' : '查看草稿' }}</RouterLink>
+            <RouterLink class="btn btn-secondary sm" :to="{ name: 'review', params: { draftId: job.draft } }">{{ job.state !== 'succeeded' ? '查看草稿' : job.kind === 'prepare' ? '去确认人数与天数' : '去审核' }}</RouterLink>
           </div>
         </template>
         <p class="faint small">开始于 {{ when(job.created_at) }}<template v-if="job.finished_at"> · 结束于 {{ when(job.finished_at) }}</template></p>

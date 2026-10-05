@@ -22,6 +22,8 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
       newDraft: call('newDraft', () => ({ id: 'prepare-1', draft: 'phase1-new' })),
       drafts: call('drafts', () => state.drafts),
       draft: call('draft', () => state.draft),
+      generatePersonas: call('generatePersonas', () => ({ id: 'generate-1', draft: 'phase1-new' })),
+      editDraft: call('editDraft', () => (state.editError ? state.editError : { draft_sha256: 'b'.repeat(64) })),
       decide: call('decide', (id, body) => { if (state.decideError) return state.decideError; state.draft = { ...state.draft, status: body.decision === 'approve' ? 'approved' : 'rejected', approval: { status: 'approved', approved_at: '2026-10-04T08:00:00Z', overrides: [] } }; return state.draft.approval }),
       simulate: call('simulate', () => ({ id: 'simulate-1' })),
       jobs: call('jobs', () => state.jobs),
@@ -39,7 +41,8 @@ const PERSONA = (i) => ({
   persona_id: `p0${i}`, realname: `人物${i}`, age: 30, gender: '女', profession: '设计师', city: '上海', timezone: 'Asia/Shanghai', bio: '简介',
   persona: '叙述', participation: 'poster', browsing_profile: { device: 'mobile', tech_level: 'novice', patience: 'low', motivation: '随便看看',
     assignment: { type: 'explore', flow: null }, tools: [], max_steps: 30 },
-  schedule: { wake: '07:00', sleep: '23:00', state_at_browse: '通勤路上' }, disclosure: { candor: '中', withhold_tendency: '高', withhold_reasons: ['怕显得不会用'] },
+  schedule: { wake: '07:00', sleep: '23:00', state_at_browse: '通勤路上', browse_day: i }, disclosure: { candor: '中', withhold_tendency: '高', withhold_reasons: ['怕显得不会用'] },
+  sampling: { temperature: 0.6 + i / 10, top_p: 0.9, presence_penalty: 0.1 },
 })
 const DRAFT = {
   id: 'phase1-new', status: 'pending', valid: true, draft_sha256: 'a'.repeat(64), approval: { status: 'pending' },
@@ -47,6 +50,19 @@ const DRAFT = {
   run_config: { start_time: '2026-10-03T00:00:00Z', duration_days: 1, time_slice_minutes: 60, max_concurrency: 5 }, cohort_rationale: '分布说明',
   personas: [PERSONA(1), PERSONA(2)], schedule: [{ persona_id: 'p01', local_time: '2026-10-03T09:40:00+08:00', slice_index: 1 }, { persona_id: 'p02', local_time: '2026-10-03T21:10:00+08:00', slice_index: 13 }],
   distribution: ['- 性别：女 2'], issues: [], capability: { model: 'm' }, simulations: [],
+  sampling: { probed: true, chat: true, configured_api: true, thinking: 'disabled' }, limits: { personas: [2, 99], days: [1, 365] },
+}
+const CONFIGURING = {
+  id: 'phase1-new', status: 'configuring', valid: false, recommendation: { persona_count: 40, duration_days: 50, reason: '流程较少，取中间值' },
+  minimum_personas: 3, limits: { personas: [2, 99], days: [1, 365] }, site: { status: 'failed', reason: 'HTTP 503' },
+  material: { level: 'limited', summary: '资料很少，本次结果参考性有限：产品理解和人群分布主要来自 AI 推断', gaps: [{ item: '关键流程', effect: '没有指定任务，所有人自由探索' }] },
+  product: { positioning: '作品展示', target_users: '招聘方', features: ['项目列表'], assumptions: ['定位由首页推断'] },
+}
+const CHECKED = {
+  name: 'example.com', url: 'https://example.com/app', allowed_domains: ['example.com'], test_accounts: [], forbidden_actions: ['真实支付或下单'],
+  flows: [], sections: [], known_issues: false, defaults: ['name', 'test_accounts', 'forbidden_actions'], minimum_personas: 2,
+  material: { level: 'limited', summary: '资料很少，本次结果参考性有限：产品理解和人群分布主要来自 AI 推断',
+    gaps: [{ item: 'test_accounts', effect: '只能以未登录的新访客身份体验' }, { item: '关键流程', effect: '没有指定任务，所有人自由探索' }] },
 }
 
 const mounted = []
@@ -65,62 +81,127 @@ const button = (w, text) => w.findAll('button').find((b) => b.text().includes(te
 beforeEach(() => {
   calls.length = 0
   Object.assign(state, {
-    checked: { name: '示例产品', url: 'https://example.com', allowed_domains: ['example.com'], test_accounts: ['new_visitor'], forbidden_actions: 2, flows: [{ name: '注册', account_role: 'new_visitor' }], sections: [], known_issues: true },
+    checked: structuredClone(CHECKED), editError: null,
     capabilities: [{ id: 'phase0-mimo', created_at: '2026-10-04T00:00:00Z' }],
     draft: structuredClone(DRAFT), drafts: [], jobs: [], job: null, decideError: null, checkError: null, live: { personas: [], selected: null },
   })
 })
 afterEach(() => { while (mounted.length) mounted.pop().unmount() })
 
-test('新建运行：校验不通过时说明原因；通过后复用能力文件并在确认后生成，进入审核页', async () => {
+test('新建运行：默认只填网址，域名随网址自动填好，检查后提示参考性；确认后按拼出的说明书分析，进入审核页', async () => {
   const w = await open('/new')
+  await w.find('input[aria-label="产品网址"]').setValue('https://example.com/app')
+  expect(w.find('input[aria-label="允许访问的域名"]').element.value).toBe('example.com')
+  await button(w, '检查').trigger('click')
+  await settle()
+  const sent = calls.find(([name]) => name === 'checkManual')[1]
+  expect(sent).toBe('---\nurl: "https://example.com/app"\nallowed_domains:\n  - "example.com"\n---\n')
+  expect(w.find('.material').text()).toContain('参考性有限')
+  expect(w.findAll('.checklist li.gap').map((li) => li.find('code').text())).toContain('# 关键流程')
+  await button(w, '下一步：模型能力').trigger('click')
+  await settle()
+  expect(w.find('input[type="radio"]:checked').element.value).toBe('phase0-mimo')  // 默认复用最新的能力文件
+  expect(w.text()).toContain('人物各自的温度、top_p 不会生效')  // 这份能力文件没探测采样参数
+  await button(w, '下一步：分析资料').trigger('click')
+  await button(w, '分析资料').trigger('click')
+  await settle()
+  expect(calls.some(([name]) => name === 'newDraft')).toBe(false)  // 先确认
+  await confirm(w)
+  expect(calls.find(([name]) => name === 'newDraft')).toEqual(['newDraft', sent, 'phase0-mimo'])
+  await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/drafts/phase1-new'))  // 页面组件按需加载
+})
+
+test('新建运行：选填的名称、定位、目标用户写进说明书；改过的域名不再跟着网址变', async () => {
+  const w = await open('/new')
+  await w.find('input[aria-label="允许访问的域名"]').setValue('a.example.com, b.example.com')
+  await w.find('input[aria-label="产品网址"]').setValue('https://a.example.com')
+  await w.find('input[aria-label="产品名称"]').setValue('作品集: 新版')
+  await w.find('textarea[aria-label="产品定位"]').setValue('给招聘方看的作品集')
+  await button(w, '检查').trigger('click')
+  await settle()
+  expect(calls.find(([name]) => name === 'checkManual')[1]).toBe(
+    '---\nurl: "https://a.example.com"\nallowed_domains:\n  - "a.example.com"\n  - "b.example.com"\nname: "作品集: 新版"\n---\n\n# 产品定位\n\n给招聘方看的作品集\n')
+})
+
+test('新建运行：完整说明书模式下，校验前列出各项，未通过时标出报错点名的项', async () => {
+  const w = await open('/new')
+  await button(w, '完整说明书').trigger('click')
+  expect(w.findAll('.checklist li.todo').length).toBe(10)
   await w.find('textarea').setValue('没有 front matter 的说明书')
   await button(w, '校验').trigger('click')
   await settle()
   expect(w.find('[role="alert"]').text()).toContain('缺少 YAML front matter')
-  await w.find('textarea').setValue('---\nname: x\n---\n')
+  state.checkError = 'allowed_domains: Field required'
+  await w.find('textarea').setValue('---\nurl: https://example.com\n---\n')
   await button(w, '校验').trigger('click')
   await settle()
-  expect(w.text()).toContain('校验通过')
-  await button(w, '下一步：模型能力').trigger('click')
-  await settle()
-  expect(w.find('input[type="radio"]:checked').element.value).toBe('phase0-mimo')  // 默认复用最新的能力文件
-  await button(w, '下一步：生成人物').trigger('click')
-  await button(w, '生成人物草稿').trigger('click')
-  await settle()
-  expect(calls.some(([name]) => name === 'newDraft')).toBe(false)  // 先确认
-  await confirm(w)
-  expect(calls.find(([name]) => name === 'newDraft')).toEqual(['newDraft', '---\nname: x\n---\n', 'phase0-mimo'])
-  await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/drafts/phase1-new'))  // 页面组件按需加载
-})
-
-test('新建运行：校验前列出必填项，未通过时标出报错点名的章节', async () => {
-  const w = await open('/new')
-  expect(w.findAll('.checklist li.todo').length).toBe(9)
-  state.checkError = '缺少必填章节或内容为空：产品定位、目标用户'
-  await w.find('textarea').setValue('---\nname: x\n---\n')
-  await button(w, '校验').trigger('click')
-  await settle()
-  expect(w.findAll('.checklist li.bad').map((li) => li.find('code').text())).toEqual(['# 产品定位', '# 目标用户'])
+  expect(w.findAll('.checklist li.bad').map((li) => li.find('code').text())).toEqual(['allowed_domains'])
   expect(button(w, '下一步：模型能力')).toBeUndefined()
 })
 
-test('新建运行：没有可复用的能力文件时说明探测发生在生成时，按钮与确认弹窗都写明会先探测', async () => {
+test('新建运行：没有可复用的能力文件时说明探测发生在分析时，按钮与确认弹窗都写明会先探测', async () => {
   state.capabilities = []
   const w = await open('/new')
-  await w.find('textarea').setValue('---\nname: x\n---\n')
-  await button(w, '校验').trigger('click')
+  await w.find('input[aria-label="产品网址"]').setValue('https://example.com')
+  await button(w, '检查').trigger('click')
   await settle()
   await button(w, '下一步：模型能力').trigger('click')
   await settle()
   expect(w.find('.note').text()).toContain('探测不在这一步执行')
-  await button(w, '下一步：生成人物').trigger('click')
-  expect(button(w, '生成人物草稿')).toBeUndefined()
-  await button(w, '探测模型能力并生成人物').trigger('click')
+  await button(w, '下一步：分析资料').trigger('click')
+  expect(w.findAll('button').some((b) => b.text() === '分析资料')).toBe(false)
+  await button(w, '探测模型能力并分析资料').trigger('click')
   await settle()
   expect(document.querySelector('.dlg').textContent).toContain('先探测模型能力')
   await confirm(w)
   expect(calls.find(([name]) => name === 'newDraft')[2]).toBe('')
+})
+
+test('确认人数与天数：显示推荐与参考性提示，可修改，低于下限时不能生成，确认后按所填数字生成', async () => {
+  state.draft = structuredClone(CONFIGURING)
+  const w = await open('/drafts/phase1-new')
+  expect(w.find('.material').text()).toContain('参考性有限')
+  expect(w.find('.material').text()).toContain('首页没有读取成功（HTTP 503）')
+  expect(w.text()).toContain('推荐 40 人、50 天')
+  const count = w.find('input[aria-label="人数"]'), days = w.find('input[aria-label="天数"]')
+  expect([count.element.value, days.element.value]).toEqual(['40', '50'])
+  await count.setValue(2)
+  expect(w.find('.size [role="alert"]').text()).toContain('至少需要 3 人')
+  expect(button(w, '生成人物').attributes('disabled')).toBeDefined()
+  await count.setValue(45)
+  await button(w, '生成人物').trigger('click')
+  await settle()
+  expect(document.querySelector('.dlg').textContent).toContain('45 人')
+  await confirm(w)
+  expect(calls.find(([name]) => name === 'generatePersonas')).toEqual(['generatePersonas', 'phase1-new', 45, 50])
+})
+
+test('审核：可改天数（不能少于最晚的体验日）和每个人的采样参数，带上展示版本的哈希', async () => {
+  state.draft.run_config.duration_days = 3
+  const w = await open('/drafts/phase1-new')
+  expect(w.text()).toContain('第 2 天')
+  expect(w.text()).toContain('0.7 / 0.9')
+  const days = w.find('input[aria-label="模拟天数"]')
+  await days.setValue(1)
+  expect(w.text()).toContain('有人排在第 2 天首次体验')
+  expect(button(w, '保存天数').attributes('disabled')).toBeDefined()
+  await days.setValue(7)
+  await button(w, '保存天数').trigger('click')
+  await settle()
+  expect(calls.find(([name]) => name === 'editDraft')).toEqual(['editDraft', 'phase1-new', { draft_sha256: 'a'.repeat(64), duration_days: 7 }])
+  await w.findAll('tr.click')[0].trigger('click')
+  await button(w, '修改').trigger('click')
+  await w.find('.sampling input').setValue(1.25)
+  await button(w, '保存').trigger('click')
+  await settle()
+  expect(calls.filter(([name]) => name === 'editDraft').at(-1)[2]).toEqual(
+    { draft_sha256: 'a'.repeat(64), sampling: { p01: { temperature: 1.25, top_p: 0.9, presence_penalty: 0.1 } } })
+})
+
+test('审核：能力文件没探测采样参数时说明人物各自的参数不会生效', async () => {
+  state.draft.sampling = { probed: false, chat: false, configured_api: false, thinking: null }
+  const w = await open('/drafts/phase1-new')
+  expect(w.find('.pad-note').text()).toContain('不会发送人物各自的温度')
 })
 
 test('审核：批准时带上展示版本的哈希；分布变更须勾选确认；批准后可开始模拟并跳到任务页', async () => {

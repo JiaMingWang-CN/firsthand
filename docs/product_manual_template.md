@@ -1,17 +1,17 @@
 ---
-# ===== 机器读取字段（必填，除非另有注明）=====
-name: 产品名称
-url: https://staging.example.com          # 测试入口，建议使用 staging 环境
-allowed_domains:                          # Agent 只能访问这些域名
+# ===== 机器读取字段：只有 url 与 allowed_domains 必填，其余都可以不写 =====
+name: 产品名称                            # 选填，不写用 url 的域名
+url: https://staging.example.com          # 必填：测试入口，建议使用 staging 环境
+allowed_domains:                          # 必填：Agent 只能访问这些域名
   - staging.example.com
   - example.com
   - auth.example.com
-test_accounts:                            # 这里只写角色名；账号和密码放在 config/.env 中（见下方说明）
+test_accounts:                            # 选填，不写则只以未登录新访客体验；这里只写角色名，账号和密码放在 config/.env 中（见下方说明）
   - role: free_user
     description: 免费用户，已完成注册
   - role: paid_user
     description: 付费用户，专业版
-forbidden_actions:                        # Agent 禁止执行的操作
+forbidden_actions:                        # 选填，不写用默认清单（真实支付或下单、删除账号或数据、对外发送消息、提交真实个人信息）
   - 真实支付
   - 删除账号
   - 对外发送邮件或短信
@@ -20,7 +20,7 @@ forbidden_actions:                        # Agent 禁止执行的操作
 <!--
 填写说明：
 1. 不要修改标题名称和层级，主 Agent 按标题解析内容。
-2. 标注（必填）的章节缺失或为空时，本次运行会被拒绝。
+2. 正文章节都可以不写（不写的章节整节删掉）。缺得越多，产品理解和人群分布越依赖 AI 推断，界面和报告会提示“参考性有限”。
 3. 测试账号的密码不要写在本文件中。在 config/.env 中按角色配置：
      ACCOUNT_FREE_USER_USERNAME=...
      ACCOUNT_FREE_USER_PASSWORD=...
@@ -28,22 +28,22 @@ forbidden_actions:                        # Agent 禁止执行的操作
 -->
 
 # 产品定位
-<!-- （必填）一句话：给谁用、解决什么问题 -->
+<!-- （选填）一句话：给谁用、解决什么问题 -->
 
 
 # 目标用户
-<!-- （必填）用户群体、使用场景、技术水平分布、常用设备（手机 / 桌面）、
+<!-- （选填）用户群体、使用场景、技术水平分布、常用设备（手机 / 桌面）、
      性别与年龄分布、通常的使用时段（例如“工作日白天”“晚上睡前”）——主 Agent 会按这些分布生成 Persona 和作息 -->
 
 
 # 核心功能
-<!-- （必填）功能列表，每项一两句话 -->
+<!-- （选填）功能列表，每项一两句话 -->
 - 功能 A：
 - 功能 B：
 
 
 # 关键流程
-<!-- （必填，至少 1 条）每条流程用二级标题，以“流程：”开头 -->
+<!-- （选填；写了就至少 1 条）每条流程用二级标题，以“流程：”开头。不写则所有人自由探索 -->
 
 ## 流程：注册并完成新手引导
 - 适用账号：新访客

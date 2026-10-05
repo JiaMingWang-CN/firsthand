@@ -155,6 +155,8 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
           <dt>作息</dt><dd class="num">{{ p.wake }} 起床 · {{ p.sleep }} 睡觉</dd>
           <dt>坦率程度</dt><dd>{{ p.candor }}</dd>
           <dt>未说出倾向</dt><dd>{{ p.withhold }}<span v-if="p.withholdReasons.length" class="faint"> · {{ p.withholdReasons.join('；') }}</span></dd>
+          <dt>体验日</dt><dd class="num">第 {{ p.browseDay }} 天</dd>
+          <dt>采样参数</dt><dd class="num">{{ p.sampling ? `温度 ${p.sampling.temperature} · top_p ${p.sampling.top_p} · presence_penalty ${p.sampling.presence_penalty}` : '框架默认' }}</dd>
         </dl>
       </div>
     </div>

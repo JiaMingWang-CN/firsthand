@@ -1,12 +1,13 @@
 <script setup>
 // 运行前审核：与命令行 orchestrator.phase1 review 同一套规则、读写同一份审批记录。
-// 批准时带上页面展示版本的哈希：展示后草稿被改过，后端会拒绝，要求重新加载再看一遍。
+// 先确认（或修改）主 Agent 推荐的人数与天数，再生成人物；生成后可改天数和每个人的采样参数（改动后要重新批准）。
+// 批准与修改都带上页面展示版本的哈希：展示后草稿被改过，后端会拒绝，要求重新加载再看一遍。
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import { label } from '../lib/sim.js'
 import { askConfirm, toast } from '../lib/store.js'
-import { AlertTriangle, Check, RefreshCw, Play, Info, Loader } from 'lucide-vue-next'
+import { AlertTriangle, Check, RefreshCw, Play, Info, Loader, Users } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -24,20 +25,22 @@ async function load() {
   try {
     const data = await api.draft(draftId.value)
     state.value = { status: 'ready', data, error: '' }
-    if (['generating', 'failed', 'incomplete'].includes(data.status)) {
-      const jobs = await api.jobs()
-      const mine = jobs.find((j) => j.kind === 'prepare' && j.draft === draftId.value)
+    if (BUSY.includes(data.status) || ['failed', 'incomplete'].includes(data.status) || data.generation_error) {
+      const jobs = await api.jobs()  // 最新的在前：重新生成时显示最近一次
+      const mine = jobs.find((j) => ['prepare', 'generate'].includes(j.kind) && j.draft === draftId.value)
       job.value = mine ? await api.job(mine.id) : null
     } else {
       job.value = null
     }
-    if (data.status === 'generating') timer = setTimeout(load, 3000)
+    if (data.status === 'configuring' && !size.value.touched && data.recommendation) {
+      size.value = { count: data.recommendation.persona_count, days: data.recommendation.duration_days, touched: false }
+    }
+    if (data.run_config) days.value = data.run_config.duration_days
+    if (BUSY.includes(data.status)) timer = setTimeout(load, 3000)
   } catch (e) {
     state.value = { status: 'error', data: null, error: e.message }
   }
 }
-watch(draftId, () => { state.value = { status: 'loading', data: null, error: '' }; overrides.value = false; load() }, { immediate: true })
-onBeforeUnmount(() => clearTimeout(timer))
 
 const d = computed(() => state.value.data)
 const people = computed(() => {
@@ -45,11 +48,75 @@ const people = computed(() => {
   return (d.value?.personas ?? []).map((p) => ({ ...p, row: rows[p.persona_id] ?? {} }))
 })
 const STATUS = {
+  analyzing: ['confused', '分析中'], configuring: ['confused', '待确认人数与天数'],
   generating: ['confused', '生成中'], failed: ['neg', '生成失败'], incomplete: ['neg', '生成未完成'],
   pending: ['', '待审核'], approved: ['pos', '已批准'], rejected: ['neg', '已拒绝'], stale: ['confused', '审批已失效'],
 }
 const status = computed(() => STATUS[d.value?.status] ?? ['', d.value?.status])
+const BUSY = ['analyzing', 'generating']
 const canDecide = computed(() => d.value?.valid && ['pending', 'stale', 'rejected'].includes(d.value.status))
+const LEVEL = { complete: ['pos', '资料完整'], partial: ['confused', '资料不全'], limited: ['neg', '参考性有限'] }
+
+// —— 人数与天数：主 Agent 推荐，用户可改；人物生成后人数固定（换人数需新建运行），天数仍可改 ——
+const size = ref({ count: null, days: null, touched: false })
+const limits = computed(() => d.value?.limits ?? { personas: [2, 99], days: [1, 365] })
+const sizeError = computed(() => {
+  const { count, days: n } = size.value
+  const [lo, hi] = limits.value.personas
+  if (!Number.isInteger(count) || count < lo || count > hi) return `人数须是 ${lo}–${hi} 的整数`
+  if (d.value?.minimum_personas && count < d.value.minimum_personas) return `说明书里的关键流程至少需要 ${d.value.minimum_personas} 人`
+  if (!Number.isInteger(n) || n < 1 || n > limits.value.days[1]) return `天数须是 1–${limits.value.days[1]} 的整数`
+  return ''
+})
+async function generate() {
+  const { count, days: n } = size.value
+  const ok = await askConfirm({
+    title: `生成 ${count} 名人物`,
+    body: `将调用模型规划 ${count} 人的分布（每批 10 人），再逐个补全身份、背景、性格与作息，模拟时间线 ${n} 天。人数越多，生成和之后的模拟用量越大、耗时越长。生成后人数不能再改，天数可以在审核时调整。`,
+    confirmText: '开始生成',
+  })
+  if (!ok) return
+  busy.value = true
+  actionError.value = ''
+  try {
+    await api.generatePersonas(draftId.value, count, n)
+    await load()
+  } catch (e) {
+    actionError.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 审核时的修改：天数、每个人的采样参数 ——
+const days = ref(null)
+const latestDay = computed(() => Math.max(1, ...(d.value?.personas ?? []).map((p) => p.schedule.browse_day ?? 1)))
+const editing = ref({}) // persona_id -> { temperature, top_p, presence_penalty }
+function editSampling(p) {
+  editing.value = { ...editing.value, [p.persona_id]: { ...(p.sampling ?? { temperature: 0.7, top_p: 0.95, presence_penalty: 0 }) } }
+}
+async function saveEdit(body, what) {
+  busy.value = true
+  actionError.value = ''
+  try {
+    await api.editDraft(draftId.value, { draft_sha256: d.value.draft_sha256, ...body })
+    toast(`已保存${what}${d.value.status === 'approved' ? '，需要重新批准' : ''}`)
+    editing.value = {}
+    await load()
+  } catch (e) {
+    actionError.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
+const samplingNote = computed(() => {
+  const s = d.value?.sampling
+  if (!s) return ''
+  if (!s.probed) return '这份草稿用的能力文件没有探测采样参数：运行时不会发送人物各自的温度、top_p，所有人仍用框架默认值。新建运行时选“重新探测”可启用。'
+  if (!s.chat) return '模型服务没有接受采样参数（能力探测未通过）：运行时不会发送，所有人仍用框架默认值。'
+  if (s.thinking === 'enabled') return '当前开启了思考模式，部分模型在思考时会忽略温度、top_p，人物之间的差异主要来自人设。'
+  return ''
+})
 
 async function decide(decision) {
   const approving = decision === 'approve'
@@ -88,6 +155,14 @@ async function simulate() {
     busy.value = false
   }
 }
+// 放在最后：immediate 会立即调用 load，它用到上面定义的状态
+watch(draftId, () => {
+  state.value = { status: 'loading', data: null, error: '' }
+  overrides.value = false
+  size.value = { count: null, days: null, touched: false }
+  load()
+}, { immediate: true })
+onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
@@ -108,12 +183,48 @@ async function simulate() {
     <div v-else-if="state.status === 'error'" class="panel" role="alert"><p>{{ state.error }}</p></div>
 
     <template v-else>
-      <!-- 生成中 / 失败 -->
-      <section v-if="['generating', 'failed', 'incomplete'].includes(d.status)" class="panel">
-        <div class="panel-head"><h3>{{ d.status === 'generating' ? '正在生成人物草稿' : '人物草稿没有生成成功' }}</h3>
+      <!-- 资料充分程度：分析后一直显示 -->
+      <div v-if="d.material && d.material.level !== 'complete'" class="warn block material" role="status">
+        <AlertTriangle /><div><b>{{ d.material.summary }}</b>
+          <ul><li v-for="g in d.material.gaps" :key="g.item">缺少 {{ g.item }}：{{ g.effect }}</li></ul>
+          <span v-if="d.site && d.site.status !== 'ok'" class="faint">首页没有读取成功（{{ d.site.reason }}），AI 只能依据你填写的内容。</span>
+          <span v-else-if="d.site?.note" class="faint">{{ d.site.note }}。</span>
+        </div>
+      </div>
+
+      <!-- 确认人数与天数 -->
+      <section v-if="d.status === 'configuring'" class="grid g2 top">
+        <section class="panel">
+          <div class="panel-head"><h3>产品模型</h3><span class="aside faint">{{ d.site?.status === 'ok' ? `已读取首页：${d.site.title || d.site.url}` : '未读取首页' }}</span></div>
+          <template v-if="d.product">
+            <p>{{ d.product.positioning }}</p>
+            <p class="faint">目标用户：{{ d.product.target_users }}</p>
+            <ul class="feats"><li v-for="f in d.product.features" :key="f">{{ f }}</li></ul>
+            <p v-if="d.product.assumptions?.length" class="faint">假设与推断：{{ d.product.assumptions.join('；') }}</p>
+          </template>
+        </section>
+        <section class="panel size">
+          <div class="panel-head"><h3><Users class="hi" />人数与天数</h3><span class="aside faint">主 Agent 推荐，可以修改</span></div>
+          <p v-if="d.recommendation" class="rationale">推荐 {{ d.recommendation.persona_count }} 人、{{ d.recommendation.duration_days }} 天：{{ d.recommendation.reason }}</p>
+          <div class="size-row">
+            <label class="field">人数<input v-model.number="size.count" class="input num" type="number" :min="limits.personas[0]" :max="limits.personas[1]" aria-label="人数" @input="size.touched = true" /></label>
+            <label class="field">天数<input v-model.number="size.days" class="input num" type="number" min="1" :max="limits.days[1]" aria-label="天数" @input="size.touched = true" /></label>
+          </div>
+          <p class="faint small">每人在时间线上某一天首次体验产品（分散到不同日子），之后按作息刷社区、讨论；时间片 60 分钟。人数 {{ limits.personas[0] }}–{{ limits.personas[1] }}<template v-if="d.minimum_personas">（关键流程至少需要 {{ d.minimum_personas }} 人）</template>，天数 1–{{ limits.days[1] }}。</p>
+          <div v-if="d.generation_error" class="warn" role="alert"><AlertTriangle /><div>上次生成没有成功：{{ d.generation_error.type }}{{ d.generation_error.status_code ? `（HTTP ${d.generation_error.status_code}）` : '' }}。可以直接重试，或换个人数。</div></div>
+          <div v-if="sizeError" class="warn" role="alert"><AlertTriangle /><div>{{ sizeError }}</div></div>
+          <div v-if="actionError" class="warn" role="alert"><AlertTriangle /><div>{{ actionError }}</div></div>
+          <div class="row end"><button class="btn btn-primary" type="button" :disabled="busy || !!sizeError" @click="generate"><Users />生成人物</button></div>
+        </section>
+      </section>
+
+      <!-- 分析中 / 生成中 / 失败 -->
+      <section v-else-if="['analyzing', 'generating', 'failed', 'incomplete'].includes(d.status)" class="panel">
+        <div class="panel-head"><h3>{{ { analyzing: '正在分析资料', generating: '正在生成人物草稿' }[d.status] ?? '没有完成' }}</h3>
           <RouterLink v-if="job" class="aside btn btn-ghost sm" :to="{ name: 'job', params: { jobId: job.id } }">任务详情</RouterLink>
         </div>
-        <p v-if="d.status === 'generating'" class="row faint"><Loader class="spin" />{{ job?.progress?.capability ? (job?.progress?.draft ? '草稿已写出，正在整理审核清单' : '能力文件就绪，正在生成产品模型与人物') : '正在准备能力文件' }}（每 3 秒刷新）</p>
+        <p v-if="d.status === 'analyzing'" class="row faint"><Loader class="spin" />{{ !job?.progress?.capability ? '正在准备能力文件' : !job?.progress?.site ? '正在读取首页' : !job?.progress?.product ? '正在生成产品模型' : '正在推荐人数与天数' }}（每 3 秒刷新）</p>
+        <p v-else-if="d.status === 'generating'" class="row faint"><Loader class="spin" />{{ job?.progress?.draft ? '草稿已写出，正在整理审核清单' : '正在规划人群分布并逐个补全人物（人多时需要较长时间）' }}（每 3 秒刷新）</p>
         <div v-else class="warn"><AlertTriangle /><div>{{ d.error ? `错误类型：${d.error.type}${d.error.status_code ? `（HTTP ${d.error.status_code}）` : ''}。` : '' }}运行目录里有 errors.log 记录详细原因；可以修正后新建一次运行。</div></div>
         <pre v-if="job?.log?.length" class="log">{{ job.log.join('\n') }}</pre>
       </section>
@@ -140,7 +251,12 @@ async function simulate() {
             <div class="panel-head"><h3>运行配置</h3><span class="aside faint num">{{ d.capability.model }}</span></div>
             <dl class="kv num">
               <dt>模拟起点</dt><dd>{{ d.run_config.start_time }}</dd>
-              <dt>模拟时长</dt><dd>{{ d.run_config.duration_days }} 天 · 每片 {{ d.run_config.time_slice_minutes }} 分钟</dd>
+              <dt>人数</dt><dd>{{ d.personas.length }} 人</dd>
+              <dt>模拟时长</dt><dd class="days">
+                <input v-model.number="days" class="input sm num" type="number" :min="latestDay" :max="limits.days[1]" aria-label="模拟天数" />天 · 每片 {{ d.run_config.time_slice_minutes }} 分钟
+                <button v-if="days !== d.run_config.duration_days" class="btn btn-secondary sm" type="button" :disabled="busy || !Number.isInteger(days) || days < latestDay" @click="saveEdit({ duration_days: days }, '天数')">保存天数</button>
+                <span v-if="Number.isInteger(days) && days < latestDay" class="neg small">有人排在第 {{ latestDay }} 天首次体验，不能少于 {{ latestDay }} 天</span>
+              </dd>
               <dt>浏览并发上限</dt><dd>{{ d.run_config.max_concurrency }}（另受模型、浏览器与能力探测建议值限制）</dd>
             </dl>
             <div class="label">主 Agent 的分布方案</div>
@@ -150,25 +266,40 @@ async function simulate() {
         </div>
 
         <section class="panel flush">
-          <div class="panel-head pad"><h3>人物与时间表</h3><span class="aside faint">{{ d.personas.length }} 人 · 点击一行查看完整设定</span></div>
+          <div class="panel-head pad"><h3>人物与时间表</h3><span class="aside faint">{{ d.personas.length }} 人 · 点击一行查看完整设定、修改采样参数</span></div>
+          <div v-if="samplingNote" class="note pad-note"><Info />{{ samplingNote }}</div>
           <div class="table-wrap">
             <table class="data">
-              <thead><tr><th>ID</th><th>姓名</th><th>年龄/性别</th><th>职业</th><th>设备/技术/耐心</th><th>动机</th><th>参与</th><th>本地体验时间</th><th>时间片</th><th>任务</th></tr></thead>
+              <thead><tr><th>ID</th><th>姓名</th><th>年龄/性别</th><th>职业</th><th>设备/技术/耐心</th><th>动机</th><th>参与</th><th>体验日</th><th>本地体验时间</th><th>时间片</th><th>任务</th><th>温度 / top_p</th></tr></thead>
               <tbody>
                 <template v-for="p in people" :key="p.persona_id">
                   <tr class="click" :aria-expanded="open === p.persona_id" @click="open = open === p.persona_id ? null : p.persona_id">
                     <td class="num">{{ p.persona_id }}</td><td><b>{{ p.realname }}</b></td><td class="num">{{ p.age }}/{{ p.gender }}</td><td>{{ p.profession }}</td>
                     <td>{{ label.device[p.browsing_profile.device] }}/{{ label.tech[p.browsing_profile.tech_level] }}/{{ label.patience[p.browsing_profile.patience] }}</td>
                     <td>{{ p.browsing_profile.motivation }}</td><td>{{ label.participation[p.participation] }}</td>
-                    <td class="num">{{ p.row.local_time }}</td><td class="num">{{ p.row.slice_index }}</td>
+                    <td class="num">第 {{ p.schedule.browse_day ?? 1 }} 天</td><td class="num">{{ p.row.local_time }}</td><td class="num">{{ p.row.slice_index }}</td>
                     <td>{{ p.browsing_profile.assignment.flow ?? '自由探索' }}</td>
+                    <td class="num">{{ p.sampling ? `${p.sampling.temperature} / ${p.sampling.top_p}` : '默认' }}</td>
                   </tr>
                   <tr v-if="open === p.persona_id" class="detail">
-                    <td colspan="10">
+                    <td colspan="12">
                       <p><b>{{ p.city }} · {{ p.timezone }}</b> · {{ p.bio }}</p>
                       <p>{{ p.persona }}</p>
                       <p class="faint">作息 {{ p.schedule.wake }}–{{ p.schedule.sleep }} · 体验时状态：{{ p.schedule.state_at_browse }} · 技术工具：{{ p.browsing_profile.tools.join('、') || '无' }} · 步数上限 {{ p.browsing_profile.max_steps }}</p>
                       <p class="faint">坦率程度 {{ p.disclosure.candor }} · 隐瞒倾向 {{ p.disclosure.withhold_tendency }}：{{ p.disclosure.withhold_reasons.join('；') }}</p>
+                      <div class="sampling" @click.stop>
+                        <template v-if="editing[p.persona_id]">
+                          <label>温度 temperature<input v-model.number="editing[p.persona_id].temperature" class="input sm num" type="number" step="0.01" min="0" max="2" /></label>
+                          <label>top_p<input v-model.number="editing[p.persona_id].top_p" class="input sm num" type="number" step="0.01" min="0.01" max="1" /></label>
+                          <label>presence_penalty<input v-model.number="editing[p.persona_id].presence_penalty" class="input sm num" type="number" step="0.05" min="-2" max="2" /></label>
+                          <button class="btn btn-primary sm" type="button" :disabled="busy" @click="saveEdit({ sampling: { [p.persona_id]: editing[p.persona_id] } }, `${p.realname}的采样参数`)">保存</button>
+                          <button class="btn btn-ghost sm" type="button" @click="editing = {}">取消</button>
+                        </template>
+                        <template v-else>
+                          <span class="faint">采样参数（浏览、讨论、问卷与采访时用；由性格推出）：{{ p.sampling ? `温度 ${p.sampling.temperature} · top_p ${p.sampling.top_p} · presence_penalty ${p.sampling.presence_penalty}` : '未设置，用框架默认值' }}</span>
+                          <button class="btn btn-ghost sm" type="button" @click="editSampling(p)">修改</button>
+                        </template>
+                      </div>
                     </td>
                   </tr>
                 </template>
@@ -214,6 +345,20 @@ tr.detail p { margin: 0 0 var(--sp-1); }
 .actions { margin-top: var(--sp-4); }
 .end { justify-content: flex-end; margin-top: var(--sp-3); }
 .ov { font-size: var(--fs-sm); gap: var(--sp-2); }
+.material ul { margin: var(--sp-1) 0; padding-left: var(--sp-5); }
+.size { display: grid; gap: var(--sp-3); align-content: start; }
+.size .panel-head { margin-bottom: 0; }
+.size-row { display: flex; gap: var(--sp-4); flex-wrap: wrap; }
+.field { display: grid; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
+.field .input { width: 140px; }
+.hi { width: 16px; height: 16px; stroke-width: 1.5; vertical-align: -3px; margin-right: 6px; }
+.days { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.days .input { width: 80px; }
+.pad-note { margin: var(--sp-3) var(--sp-5) 0; }
+.sampling { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); cursor: default; }
+.sampling label { display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--text-3); }
+.sampling .input { width: 96px; }
+.small { font-size: var(--fs-xs); }
 .ok { width: 16px; height: 16px; color: var(--pos); }
 .sims { margin: var(--sp-3) 0 0; font-size: var(--fs-xs); display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .log { background: var(--surface-2); border-radius: var(--r-md); padding: var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-xs); max-height: 320px; overflow: auto; white-space: pre-wrap; margin: var(--sp-3) 0 0; }

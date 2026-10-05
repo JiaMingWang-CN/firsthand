@@ -35,8 +35,8 @@ async function loadPipeline() {
 onMounted(loadPipeline)
 onBeforeUnmount(() => clearTimeout(timer))
 const activeJobs = computed(() => jobs.value.filter((j) => j.state === 'running' || j.state === 'detached'))
-const waiting = computed(() => drafts.value.filter((d) => ['pending', 'stale', 'generating'].includes(d.status)))
-const DRAFT = { pending: '待审核', stale: '审批已失效', generating: '生成中' }
+const DRAFT = { analyzing: '分析中', configuring: '待确认人数', generating: '生成中', pending: '待审核', stale: '审批已失效' }
+const waiting = computed(() => drafts.value.filter((d) => d.status in DRAFT))
 const jobText = (j) => (j.kind === 'simulate'
   ? `模拟 · 时间片 ${j.progress.slices_done}/${j.progress.slices} · 完成体验 ${j.progress.personas_done}/${j.progress.personas}`
   : '生成人物草稿') + (j.state === 'detached' ? ' · API 重启后无法跟踪' : '')
