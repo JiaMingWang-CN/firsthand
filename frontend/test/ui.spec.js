@@ -160,6 +160,38 @@ describe('从报告问题跳到录像片段', () => {
   })
 })
 
+test('问题卡片把证据按（人物，步骤）成组，每段仍能打开对应的证据', async () => {
+  const w = await open(`/runs/${RUN}/report`)
+  const issue = data.findings.find((f) => f.kind === 'issue' && f.evidence.some((e) => e.kind === 'video'))
+  const card = w.find(`article[id="${issue.id}"]`)
+  const keys = [...new Set(issue.evidence.map((e) => `${e.pid}#${e.step}`))]
+  const groups = card.findAll('.evg')
+  expect(groups).toHaveLength(keys.length)
+  expect(card.findAll('.seg-ev')).toHaveLength(issue.evidence.length)  // 一条证据一段，不丢不重
+  const video = issue.evidence.find((e) => e.kind === 'video')
+  const index = keys.indexOf(`${video.pid}#${video.step}`)
+  const seg = groups[index].findAll('.seg-ev').find((b) => b.classes('video'))
+  expect(seg.attributes('aria-label')).toMatch(/^录像 \d{2}:\d{2}$/)
+  await seg.trigger('click')
+  await flushPromises()
+  expect(store.drawers.stack.at(-1)).toMatchObject({ type: 'evidence', ev: video })
+})
+
+test('人物档案：同一帖子在体验前被反复看到时，预期只显示一次并列出每次看到的时刻', async () => {
+  const w = await open(`/runs/${RUN}/report`)
+  const before = data.reads.filter((r) => r.pid === 'p05' && r.before && r.expectation)
+  const posts = [...new Set(before.map((r) => r.post))]
+  expect(before.length).toBeGreaterThan(posts.length)  // 样本里确有重复看帖
+  store.openDrawer({ type: 'persona', pid: 'p05' })
+  for (let i = 0; i < 3; i++) await flushPromises()
+  const blocks = w.findAll('.expect')
+  expect(blocks).toHaveLength(posts.length)
+  const first = before.filter((r) => r.post === posts[0])
+  expect(blocks[0].text()).toContain(`看到 ${first.length} 次`)
+  expect(blocks[0].findAll('.simtime')).toHaveLength(first.length)
+  expect(errors.filter((e) => e.includes('Duplicate keys'))).toEqual([])
+})
+
 test('证据视图列出该步骤的 Console / Network 摘要', async () => {
   const w = await open(`/runs/${RUN}/report`)
   store.openDrawer({ type: 'evidence', ev: { pid: 'p03', step: 1, kind: 'network' } })

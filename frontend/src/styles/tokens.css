@@ -1,71 +1,84 @@
 /* =========================================================
-   设计令牌（Design Tokens）
-   其他 Agent 实现界面时，直接复制本 :root 块作为唯一来源
+   设计令牌 · Graphite
+   冷灰石墨中性色 + 单一强调色（靛蓝，只用于“可操作”）+ 模拟时间专用青色。
+   质感只放在外壳与组件精度上；数据区域保持干净，不加装饰性底纹。
+   变量名是组件的接口，改值不改名。
    ========================================================= */
 :root {
-  /* —— 中性色：暖纸色系，像研究笔记 —— */
-  --bg:            #F6F5F1;
-  --surface:       #FFFFFF;
-  --surface-2:     #EFEDE7;
-  --border:        #DEDBD2;
-  --border-strong: #C4C0B4;
-  --text:          #1D1C1A;
-  --text-2:        #55524B;
-  --text-3:        #8A867C;
+  color-scheme: light;
 
-  /* —— 主色：只用于“可操作” —— */
-  --accent:        #2F55D4;
-  --accent-hover:  #2445B5;
-  --accent-soft:   #E6ECFC;
+  /* —— 中性色 —— */
+  --bg:            #F4F5F7;
+  --surface:       #FFFFFF;
+  --surface-2:     #F1F2F5;
+  --surface-3:     #E9EBEF;
+  --border:        #E4E6EB;
+  --border-strong: #CDD1D9;
+  --text:          #0D1015;
+  --text-2:        #4B5260;
+  --text-3:        #8B92A0;
+
+  /* —— 强调色：只用于可操作 —— */
+  --accent:        #4F46E5;
+  --accent-hover:  #4338CA;
+  --accent-soft:   #EEEEFE;
+  --accent-ring:   rgba(79, 70, 229, .28);
   --on-accent:     #FFFFFF;
 
   /* —— 模拟时间：专用色，与真实时间严格区分 —— */
-  --sim:           #7A4FC9;
-  --sim-soft:      #F0EAFB;
+  --sim:           #0E7490;
+  --sim-soft:      #E3F4F7;
 
-  /* —— 严重度 —— */
-  --sev-1: #B42318;  /* 致命：阻断任务 */
-  --sev-2: #D4570F;  /* 严重：明显受挫 */
-  --sev-3: #A87A12;  /* 一般：有摩擦 */
-  --sev-4: #6F6C64;  /* 轻微：瑕疵 */
+  /* —— 严重度（S1 致命 → S4 轻微） —— */
+  --sev-1: #DC2626;
+  --sev-2: #EA580C;
+  --sev-3: #B7791F;
+  --sev-4: #64748B;
 
-  /* —— 情绪 —— */
-  --pos:      #2E7D4F;
-  --pos-soft: #E3F2E8;
-  --neg:      #C2362F;
-  --neg-soft: #FBE7E5;
-  --confused: #A86A12;
-  --confused-soft: #FBF0DC;
+  /* —— 情绪 / 结果 —— */
+  --pos:      #15803D;
+  --pos-soft: #E8F6EC;
+  --neg:      #DC2626;
+  --neg-soft: #FDECEC;
+  --confused: #B45309;
+  --confused-soft: #FDF3E1;
 
   /* —— 可见性：公开 / 未说出 / 私下 —— */
-  --vis-public:   #1D1C1A;
-  --vis-withheld: #A0562A;
-  --vis-withheld-soft: #F7E9DF;
-  --vis-private:  #4C6A8A;
-  --vis-private-soft: #E5EDF5;
+  --vis-public:   #0D1015;
+  --vis-withheld: #B4532A;
+  --vis-withheld-soft: #FBEEE7;
+  --vis-private:  #3E6A9A;
+  --vis-private-soft: #EAF1F9;
 
-  /* —— 人物分类色（10 色，仅用于区分人物，不承载语义） —— */
-  --p1:  #3B6FD8; --p2:  #D0663A; --p3:  #2E9479; --p4:  #B4458C; --p5:  #8A7A2A;
-  --p6:  #6A5ACD; --p7:  #C24D5C; --p8:  #2B8BA8; --p9:  #7E8C38; --p10: #9A5B34;
+  /* —— 人物分类色（10 色，仅区分人物，不承载语义） —— */
+  --p1:  #4F6BED; --p2:  #E0703F; --p3:  #12977A; --p4:  #C2489A; --p5:  #8C7A1F;
+  --p6:  #7258E0; --p7:  #D14A5F; --p8:  #1D8FB0; --p9:  #6E8A25; --p10: #A0603A;
 
   /* —— 字体 —— */
-  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, "SF Mono", monospace;
+  --font-sans: "Inter", "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "SF Mono", Consolas, monospace;
 
-  /* —— 字号（1.2 比例，正文 14） —— */
+  /* —— 字号 —— */
   --fs-xs: 12px; --fs-sm: 13px; --fs-md: 14px; --fs-lg: 16px;
-  --fs-xl: 20px; --fs-2xl: 24px; --fs-3xl: 32px;
+  --fs-xl: 20px; --fs-2xl: 22px; --fs-3xl: 30px;
 
   /* —— 间距（4px 栅格） —— */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
   --sp-5: 24px; --sp-6: 32px; --sp-7: 48px; --sp-8: 64px;
 
   /* —— 圆角 / 阴影 / 动效 —— */
-  --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-full: 999px;
-  --shadow-1: 0 1px 2px rgba(29,28,26,.06), 0 1px 1px rgba(29,28,26,.04);
-  --shadow-2: 0 8px 24px rgba(29,28,26,.12), 0 2px 6px rgba(29,28,26,.06);
-  --ease: cubic-bezier(.2,.7,.2,1);
+  --r-sm: 6px; --r-md: 9px; --r-lg: 14px; --r-full: 999px;
+  --shadow-1: 0 1px 2px rgba(13, 16, 21, .04), 0 1px 3px rgba(13, 16, 21, .04);
+  --shadow-2: 0 12px 32px -8px rgba(13, 16, 21, .16), 0 4px 10px -4px rgba(13, 16, 21, .08);
+  --shadow-hover: 0 1px 2px rgba(13, 16, 21, .05), 0 8px 24px -10px rgba(13, 16, 21, .14);
+  --edge: inset 0 1px 0 rgba(255, 255, 255, .7);
+  --ease: cubic-bezier(.2, .8, .2, 1);
   --dur-fast: 120ms; --dur: 200ms; --dur-slow: 320ms;
+
+  /* —— 品牌：只出现在标识与外壳的细线上 —— */
+  --brand-a: #4F46E5;
+  --brand-b: #06B6D4;
+  --glow: rgba(79, 70, 229, .07);
 
   /* —— 未说出的纹理 —— */
   --hatch: repeating-linear-gradient(135deg, var(--vis-withheld-soft) 0 6px, transparent 6px 12px);
@@ -73,27 +86,35 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg:#151513; --surface:#1E1E1B; --surface-2:#272723; --border:#34332E; --border-strong:#4A4840;
-    --text:#ECEAE4; --text-2:#B4B0A6; --text-3:#7F7B72;
-    --accent:#6F8FF0; --accent-hover:#8AA3F4; --accent-soft:#232C47; --on-accent:#0E1220;
-    --sim:#A98BEA; --sim-soft:#2A2340;
-    --sev-1:#F0675C; --sev-2:#F08A4B; --sev-3:#D9AE45; --sev-4:#9C988E;
-    --pos:#5DBB85; --pos-soft:#1C3326; --neg:#EE6A62; --neg-soft:#3A1F1D; --confused:#D9A54A; --confused-soft:#3A2E18;
-    --vis-public:#ECEAE4; --vis-withheld:#E09A6A; --vis-withheld-soft:#3A2A1F; --vis-private:#8FB0D2; --vis-private-soft:#1F2A36;
-    --p1:#6F98F0; --p2:#EE8D62; --p3:#5DC4A6; --p4:#E07AB8; --p5:#C9B65A;
-    --p6:#9C8EF0; --p7:#EE7D8B; --p8:#5BB8D4; --p9:#AEBD62; --p10:#D08E62;
-    --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+    color-scheme: dark;
+    --bg:#08090B; --surface:#101216; --surface-2:#171A1F; --surface-3:#1E2228; --border:#22262D; --border-strong:#333943;
+    --text:#ECEEF2; --text-2:#A4ABB8; --text-3:#6C7382;
+    --accent:#8B8DFF; --accent-hover:#A5A7FF; --accent-soft:#1B1C3A; --accent-ring:rgba(139,141,255,.32); --on-accent:#0B0C1A;
+    --sim:#2DD4EE; --sim-soft:#0B252C;
+    --sev-1:#FF6369; --sev-2:#FF8B3E; --sev-3:#F2BE4A; --sev-4:#94A3B8;
+    --pos:#4ADE80; --pos-soft:#0E2A19; --neg:#FF6369; --neg-soft:#2E1214; --confused:#FBBF24; --confused-soft:#2A2010;
+    --vis-public:#ECEEF2; --vis-withheld:#F0A070; --vis-withheld-soft:#2C1D14; --vis-private:#8DB6E6; --vis-private-soft:#122030;
+    --p1:#7F93FF; --p2:#F2925F; --p3:#3ACFA8; --p4:#EE7CC4; --p5:#D4BE4E;
+    --p6:#A491FF; --p7:#FF7D90; --p8:#4FC3E6; --p9:#A6C84A; --p10:#D9946A;
+    --shadow-1: 0 1px 2px rgba(0,0,0,.5); --shadow-2: 0 16px 40px -8px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+    --shadow-hover: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -10px rgba(0,0,0,.8);
+    --edge: inset 0 1px 0 rgba(255,255,255,.04);
+    --brand-a:#8B8DFF; --brand-b:#2DD4EE; --glow: rgba(139,141,255,.10);
   }
 }
 :root[data-theme="dark"] {
-  --bg:#151513; --surface:#1E1E1B; --surface-2:#272723; --border:#34332E; --border-strong:#4A4840;
-  --text:#ECEAE4; --text-2:#B4B0A6; --text-3:#7F7B72;
-  --accent:#6F8FF0; --accent-hover:#8AA3F4; --accent-soft:#232C47; --on-accent:#0E1220;
-  --sim:#A98BEA; --sim-soft:#2A2340;
-  --sev-1:#F0675C; --sev-2:#F08A4B; --sev-3:#D9AE45; --sev-4:#9C988E;
-  --pos:#5DBB85; --pos-soft:#1C3326; --neg:#EE6A62; --neg-soft:#3A1F1D; --confused:#D9A54A; --confused-soft:#3A2E18;
-  --vis-public:#ECEAE4; --vis-withheld:#E09A6A; --vis-withheld-soft:#3A2A1F; --vis-private:#8FB0D2; --vis-private-soft:#1F2A36;
-  --p1:#6F98F0; --p2:#EE8D62; --p3:#5DC4A6; --p4:#E07AB8; --p5:#C9B65A;
-  --p6:#9C8EF0; --p7:#EE7D8B; --p8:#5BB8D4; --p9:#AEBD62; --p10:#D08E62;
-  --shadow-1: 0 1px 2px rgba(0,0,0,.4); --shadow-2: 0 8px 24px rgba(0,0,0,.5);
+  color-scheme: dark;
+  --bg:#08090B; --surface:#101216; --surface-2:#171A1F; --surface-3:#1E2228; --border:#22262D; --border-strong:#333943;
+  --text:#ECEEF2; --text-2:#A4ABB8; --text-3:#6C7382;
+  --accent:#8B8DFF; --accent-hover:#A5A7FF; --accent-soft:#1B1C3A; --accent-ring:rgba(139,141,255,.32); --on-accent:#0B0C1A;
+  --sim:#2DD4EE; --sim-soft:#0B252C;
+  --sev-1:#FF6369; --sev-2:#FF8B3E; --sev-3:#F2BE4A; --sev-4:#94A3B8;
+  --pos:#4ADE80; --pos-soft:#0E2A19; --neg:#FF6369; --neg-soft:#2E1214; --confused:#FBBF24; --confused-soft:#2A2010;
+  --vis-public:#ECEEF2; --vis-withheld:#F0A070; --vis-withheld-soft:#2C1D14; --vis-private:#8DB6E6; --vis-private-soft:#122030;
+  --p1:#7F93FF; --p2:#F2925F; --p3:#3ACFA8; --p4:#EE7CC4; --p5:#D4BE4E;
+  --p6:#A491FF; --p7:#FF7D90; --p8:#4FC3E6; --p9:#A6C84A; --p10:#D9946A;
+  --shadow-1: 0 1px 2px rgba(0,0,0,.5); --shadow-2: 0 16px 40px -8px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+  --shadow-hover: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px -10px rgba(0,0,0,.8);
+  --edge: inset 0 1px 0 rgba(255,255,255,.04);
+  --brand-a:#8B8DFF; --brand-b:#2DD4EE; --glow: rgba(139,141,255,.10);
 }

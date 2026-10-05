@@ -107,7 +107,7 @@ function openEvent(e) {
             <div class="rowlane" v-for="(pid, i) in pids" :key="pid" :style="{ top: `${22 + i * 30}px` }">
               <template v-if="showActivity">
                 <template v-for="h in P[pid].heat" :key="h.t">
-                  <i v-if="clip(h.t, h.t + 60)" class="heat" :style="{ ...clip(h.t, h.t + 60), opacity: h.v * 0.55 }"></i>
+                  <i v-if="clip(h.t, h.t + 60)" class="heat" :style="{ ...clip(h.t, h.t + 60), opacity: h.v * 0.28 }"></i>
                 </template>
               </template>
               <i v-if="clip(slotOf(pid), endOf(pid))" class="browse" :style="{ ...clip(slotOf(pid), endOf(pid)), background: P[pid].color }" :title="`体验 ${fmt(slotOf(pid))}–${fmt(endOf(pid))}`"></i>
@@ -128,7 +128,7 @@ function openEvent(e) {
           <div v-if="scrub" class="playhead" :style="{ left: pct(modelValue) }" tabindex="0" role="slider"
                aria-label="模拟时间播放头" :aria-valuetext="fmt(modelValue)" :aria-valuemin="0" :aria-valuemax="timeline.total" :aria-valuenow="Math.round(modelValue)"
                @keydown="key">
-            <span class="ph-label">{{ fmt(modelValue) }}</span>
+            <span class="ph-label" :class="{ flip: (modelValue - view.from) / view.len > 0.9 }">{{ fmt(modelValue) }}</span>
           </div>
         </div>
       </div>
@@ -179,6 +179,7 @@ function openEvent(e) {
 .tick:last-child { transform: translateX(-100%); }
 .playhead { position: absolute; top: -4px; bottom: 20px; width: 2px; margin-left: -1px; background: var(--sim); cursor: ew-resize; z-index: 3; }
 .playhead::before { content: ""; position: absolute; left: -5px; top: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--sim); box-shadow: 0 0 0 3px var(--surface); }
+.ph-label.flip { left: auto; right: 10px; }
 .ph-label { position: absolute; top: -3px; left: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--sim); background: var(--sim-soft); padding: 0 5px; border-radius: 3px; white-space: nowrap; line-height: 16px; }
 .legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-3); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
@@ -187,7 +188,7 @@ function openEvent(e) {
 .lg.post { background: var(--text-2); }
 .lg.comment { background: linear-gradient(90deg, var(--text-2) 50%, transparent 50%); }
 .lg.react { background: radial-gradient(circle, var(--text-2) 2px, transparent 2.5px); }
-.lg-heat { width: 18px; height: 10px; background: var(--sim); opacity: .4; display: inline-block; }
+.lg-heat { width: 18px; height: 10px; background: var(--sim); opacity: .22; display: inline-block; }
 .lg-night { width: 18px; height: 10px; background: var(--surface-2); border: 1px solid var(--border); display: inline-block; }
 @media (max-width: 959px) { .labels { width: 28px; } .lrow span { display: none; } }
 </style>

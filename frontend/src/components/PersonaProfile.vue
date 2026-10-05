@@ -18,6 +18,17 @@ const p = computed(() => P[props.pid])
 const tab = ref(props.tab || 'record')
 const sv = computed(() => surveys[props.pid])
 const myReads = computed(() => reads.filter((r) => r.pid === props.pid).sort((a, b) => a.t - b.t))
+// 体验前每次刷社区都可能再看到同一条帖子：预期按帖子合并（后端给模型的预期同样按帖子去重），列出每次看到的时刻
+const expectations = computed(() => {
+  const byPost = new Map()
+  for (const r of myReads.value.filter((x) => x.before && x.expectation)) {
+    if (!byPost.has(r.post)) byPost.set(r.post, { ...r, times: [] })
+    const item = byPost.get(r.post)
+    item.times.push(r.t)
+    if (r.verdict === 'confirmed') item.verdict = 'confirmed'
+  }
+  return [...byPost.values()]
+})
 const myPosts = computed(() => posts.filter((x) => x.author === props.pid))
 const myComments = computed(() => posts.flatMap((x) => x.comments.filter((c) => c.author === props.pid).map((c) => ({ ...c, post: x }))))
 const myReacts = computed(() => reactions.filter((r) => r.pid === props.pid))
@@ -52,8 +63,8 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
         <dt>体验时</dt><dd><SimTime :m="p.slot" /> {{ p.state }}</dd>
         <dt>约束</dt><dd class="num">最多 {{ p.maxSteps }} 步 · 连续 {{ p.stall }} 步无进展即放弃</dd>
       </dl>
-      <div v-for="r in myReads.filter((r) => r.before && r.expectation)" :key="r.post" class="expect">
-        <div class="label">体验前的预期 · 来自看帖 <SimTime :m="r.t" /></div>
+      <div v-for="r in expectations" :key="r.post" class="expect">
+        <div class="label">体验前的预期 · 来自看帖<template v-if="r.times.length > 1"> · 看到 {{ r.times.length }} 次</template> <SimTime v-for="(t, i) in r.times" :key="i" :m="t" /></div>
         <p>{{ r.expectation }}</p>
         <span v-if="r.verdict === 'confirmed'" class="tag confused">体验后：预期被印证</span>
       </div>
@@ -156,7 +167,8 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
 .kv { display: grid; grid-template-columns: 84px 1fr; gap: 6px var(--sp-3); margin: 0 0 var(--sp-3); font-size: var(--fs-sm); }
 .kv dt { color: var(--text-3); font-size: var(--fs-xs); padding-top: 2px; }
 .kv dd { margin: 0; }
-.expect { background: var(--sim-soft); border-radius: var(--r-md); padding: var(--sp-3); margin-bottom: var(--sp-3); }
+.expect { background: var(--surface-2); border: 1px solid var(--border); border-left: 2px solid var(--sim); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-3); }
+.expect .label { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
 .expect p { margin: 4px 0 6px; font-size: var(--fs-sm); }
 .curve { margin-bottom: var(--sp-3); }
 .steps { list-style: none; padding: 0; margin: 0; }

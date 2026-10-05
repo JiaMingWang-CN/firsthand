@@ -130,7 +130,7 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
                 <button type="button" class="stepbtn" @click="stepPick = s.n">
                   <span class="sn num">{{ s.n }}</span>
                   <span class="sb">
-                    <span v-if="s.eval" class="ev">{{ s.eval }}</span>
+                    <span v-if="s.eval" class="evl">{{ s.eval }}</span>
                     <span v-if="s.goal" class="goal">▸ {{ s.goal }}</span>
                     <code v-for="(a, i) in s.actions" :key="i" class="act">{{ a }}</code>
                     <span v-for="(r, i) in s.results" :key="'r' + i" class="faint res">{{ r }}</span>
@@ -190,11 +190,11 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
 .noshot { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 200px; border: 1px dashed var(--border-strong); border-radius: var(--r-md); text-align: center; padding: var(--sp-4); font-size: var(--fs-sm); }
 .steplist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); max-height: 560px; overflow: auto; }
 .steplist li { border: 1px solid var(--border); border-radius: var(--r-md); }
-.steplist li.on { border-color: var(--text); }
+.steplist li.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .stepbtn { display: flex; gap: var(--sp-3); width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); background: none; border: none; font: inherit; color: inherit; cursor: pointer; }
 .sn { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: var(--fs-xs); }
-.sb { display: grid; gap: 4px; min-width: 0; font-size: var(--fs-sm); }
-.ev { color: var(--text-2); }
+.sb { display: grid; gap: 4px; min-width: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.evl { color: var(--text-2); }
 .goal { font-weight: 600; }
 .act { font-size: var(--fs-xs); background: var(--surface-2); padding: 2px 6px; border-radius: var(--r-sm); word-break: break-all; }
 .res { font-size: var(--fs-xs); }

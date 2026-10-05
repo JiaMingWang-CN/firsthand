@@ -79,8 +79,13 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 <style>
 .gate { max-width: 640px; }
 .gate-msg { color: var(--text-2); line-height: 1.7; word-break: break-word; }
-.app { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
-.main { min-width: 0; transition: margin-right var(--dur-slow) var(--ease); }
+.app { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; }
+.main { min-width: 0; position: relative; isolation: isolate; transition: margin-right var(--dur-slow) var(--ease); }
+/* 外壳的一点光：只在页头背后，向下迅速淡出，不进入数据区域 */
+.main::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 320px; z-index: -1; pointer-events: none;
+  background: radial-gradient(60% 100% at 18% 0%, var(--glow), transparent 70%), radial-gradient(40% 80% at 85% 0%, color-mix(in srgb, var(--brand-b) 6%, transparent), transparent 70%); }
+.app::before { content: ""; position: fixed; inset: 0 0 auto 0; height: 2px; z-index: 100; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--brand-a) 30%, var(--brand-b) 70%, transparent); opacity: .55; }
 @media (min-width: 1280px) { body.has-drawer .main { margin-right: var(--drawer-w, 480px); } }
 @media (max-width: 1279px) and (min-width: 960px) { .app { grid-template-columns: 64px minmax(0, 1fr); } }
 @media (max-width: 959px) { .app { grid-template-columns: 1fr; } }
