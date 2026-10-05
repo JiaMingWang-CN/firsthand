@@ -2,20 +2,51 @@
 
 import json
 import re
+from pathlib import Path
 from typing import Literal
 
 from openai import APIError, AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.runs import NotFound
+from api.runs import NotFound, interview_dir
 from core.persona import Data, Text
 from core.runtime import require, require_capabilities, settings
+from core.usage import UsageRecorder
 from orchestrator.personas import request_json
 
 # Records a persona may cite: its own experience, private survey, disclosure decisions, reads and public posts.
 OWN_CATEGORIES = {"experience", "surveys", "withheld", "reads", "discussion"}
 # Internal evidence ids belong in the evidence list, not in what the persona says aloud.
 SPOKEN_ID = re.compile(r"\bp\d{2}:[\w:]+|\b(?:read|post|comment|disclosure):\d+")
+
+
+# Declining must not restate what the persona chose to keep back. Share of a withheld text's character bigrams that
+# reappear in the answer: on the 10-person sample plain refusals stay at or below 0.17, verbatim restatements reach
+# 0.6 and more, and a close restatement of a description 0.35. A loose paraphrase is not caught.
+RESTATED = {"title": 0.5, "observed_quote": 0.5, "description": 0.3}
+
+
+def bigrams(text):
+    text = re.sub(r"[\W_]+", "", str(text or "").lower())
+    return {text[i:i + 2] for i in range(len(text) - 1)}
+
+
+def restated(answer, finding):
+    """The withheld finding's field the answer restates, or None."""
+    spoken = bigrams(answer)
+    for field, threshold in RESTATED.items():
+        grams = bigrams(finding.get(field))
+        if len(grams) >= 4 and len(grams & spoken) / len(grams) >= threshold:
+            return field
+    return None
+
+
+def withheld_findings(store, pid):
+    """Findings this persona kept out of the community: its disclosure decisions and the survey's unsaid items."""
+    ids = {item["finding_id"] for record in store.records.values()
+           if record["persona_id"] == pid and record["category"] == "withheld" for item in record["data"]["withheld"]}
+    ids |= {item["finding_id"] for item in (store.surveys.get(pid) or {}).get("answer", {}).get("unsaid", [])}
+    return {ref: store.records[ref]["data"] for ref in sorted(ids) if ref in store.records}
 
 
 class InterviewUnavailable(RuntimeError):
@@ -83,7 +114,7 @@ def prompt(context, question, history, has_experience):
             "规则：\n"
             "1. 只能使用资料里的事实。资料没有的，就说不记得或没遇到过，不能编造页面、操作、数据或别人的想法。\n"
             "2. 你可以按自己的坦率程度和隐瞒倾向回避某些话题（理由见 disclosure_decisions 与 persona.disclosure），"
-            "此时 stance 填 declined；但不能说与资料相反的话，例如不能否认确实发生过的事。\n"
+            "此时 stance 填 declined，只说明不想谈，不要复述你隐瞒的内容；也不能说与资料相反的话，例如不能否认确实发生过的事。\n"
             "3. 陈述具体事实时，在 evidence 里列出支撑它的资料编号，只能使用资料中出现的编号。stance 为 answered 时 evidence 不能为空。\n"
             f"4. {stance}\n"
             "5. 回答正文里不要出现资料编号（如 p01:f001），编号只放进 evidence。\n"
@@ -101,6 +132,7 @@ class Interviewer:
             raise NotFound(f"Unknown persona: {pid}")
         context, allowed = dossier(store, pid)
         has_experience = pid in store.memories
+        kept_back = withheld_findings(store, pid)
 
         def validate(result):
             if has_experience == (result.stance == "no_experience"):
@@ -113,15 +145,21 @@ class Interviewer:
             unknown = [ref for ref in result.evidence if ref not in allowed]
             if unknown:
                 raise ValueError(f"evidence ids are not among this persona's own records: {unknown}")
+            if result.stance == "declined":
+                leaked = [f"{finding['title']}（{field}）" for finding in kept_back.values() if (field := restated(result.answer, finding))]
+                if leaked:
+                    raise ValueError("a declined answer must not restate what you chose to keep back: " + "；".join(leaked)
+                                     + "。只说明你不想谈，不要复述这些内容")
 
         history = [turn.model_dump() for turn in ask.history]
-        result = await self.generate(InterviewAnswer, prompt(context, ask.question, history, has_experience), validate, f"采访 {pid}")
+        result = await self.generate(InterviewAnswer, prompt(context, ask.question, history, has_experience), validate, f"采访 {pid}",
+                                     usage_dir=interview_dir(store.root))
         return {"persona_id": pid, **result.model_dump()}
 
 
 def llm_generate(capability_dir):
     """Production generator: the configured model, gated by the capability profile."""
-    async def generate(schema, text, validate, label):
+    async def generate(schema, text, validate, label, usage_dir=None):
         try:
             if capability_dir is None:
                 raise ValueError("start the API with --capability-run <directory containing capability_profile.json>")
@@ -132,7 +170,11 @@ def llm_generate(capability_dir):
             raise InterviewUnavailable(str(error)) from error
         try:
             async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
-                return await request_json(client, config, capability, schema, text, validate=validate, label=label)
+                if usage_dir is None:
+                    return await request_json(client, config, capability, schema, text, validate=validate, label=label)
+                Path(usage_dir).mkdir(parents=True, exist_ok=True)
+                with UsageRecorder(config, usage_dir):  # every attempt, including rejected and failed ones
+                    return await request_json(client, config, capability, schema, text, validate=validate, label=label)
         except APIError as error:
             # The provider's message can echo the request URL, prompt or credentials, so only type and status leave.
             status = getattr(error, "status_code", None)

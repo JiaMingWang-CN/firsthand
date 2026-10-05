@@ -14,9 +14,9 @@ import ToastHost from './components/ToastHost.vue'
 const route = useRoute()
 const router = useRouter()
 
-// 带 runId 的页面先加载对应运行；演示页（meta.mock）不读后端
-const needsRun = computed(() => Boolean(route.params.runId) && !route.meta.mock)
-watch(() => [route.params.runId, route.meta.mock], () => { if (needsRun.value) ensureRun(String(route.params.runId)) }, { immediate: true })
+// 带 runId 的页面先加载对应运行
+const needsRun = computed(() => Boolean(route.params.runId))
+watch(() => route.params.runId, () => { if (needsRun.value) ensureRun(String(route.params.runId)) }, { immediate: true })
 const gate = computed(() => (!needsRun.value ? 'open' : live.id !== route.params.runId ? 'loading' : live.status))
 
 // 时间联动：选中的模拟时刻同步到 URL（?t=D1-21:10）

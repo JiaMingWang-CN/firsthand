@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { personas } from '../lib/data.js'
+import { personas, run } from '../lib/data.js'
 import { P } from '../lib/sim.js'
 import { openDrawer } from '../lib/store.js'
 import { api } from '../api/client.js'
@@ -55,6 +55,8 @@ async function ask(q) {
   }
   msg.done = true
   busy.value = false
+  // 每次采访（含被打回重写的尝试）都记入运行目录之外的采访账本；刷新累计用量
+  api.overview(runId.value).then((o) => { run.interviewUsage = o.interview_usage ?? null }).catch(() => {})
   scrollDown()
 }
 // 只有模型给出了不合格的回答时，换个问法才可能有用；服务出错、超时或配置问题都与问法无关
@@ -92,6 +94,7 @@ watch(pid, scrollDown)
         <div class="ch">
           <PersonaCard :pid="pid" compact />
           <div class="notice"><Info />模拟人物 · 回答由模型只依据该人物自己的记录生成，不代表真实用户；回答是否被所引记录支持请自行对照</div>
+          <div v-if="run.interviewUsage?.total?.requests" class="usage num faint">本次运行的采访累计 {{ run.interviewUsage.total.requests.toLocaleString('zh-CN') }} 次模型请求 · 输入 {{ run.interviewUsage.total.input_tokens.toLocaleString('zh-CN') }}（缓存 {{ run.interviewUsage.total.cached_input_tokens.toLocaleString('zh-CN') }}）· 输出 {{ run.interviewUsage.total.output_tokens.toLocaleString('zh-CN') }} token，不计入运行本身的用量</div>
           <button class="btn btn-secondary sm full" type="button" @click="openDrawer({ type: 'persona', pid, tab: 'record' })"><BookOpen />打开完整体验记录对照</button>
         </div>
         <div class="msgs" ref="scroller" aria-live="polite">
@@ -133,6 +136,7 @@ watch(pid, scrollDown)
 .ch { padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--border); display: grid; grid-template-columns: 1fr auto; gap: var(--sp-3); align-items: start; }
 .notice { grid-column: 1; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--sim); }
 .notice svg { width: 14px; height: 14px; stroke-width: 1.5; }
+.usage { grid-column: 1; font-size: var(--fs-xs); }
 .ch .full { grid-column: 2; grid-row: 1; }
 .msgs { flex: 1; overflow-y: auto; padding: var(--sp-5); display: flex; flex-direction: column; gap: var(--sp-4); }
 .hint { text-align: center; margin: auto; font-size: var(--fs-sm); }

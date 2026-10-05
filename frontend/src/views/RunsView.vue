@@ -1,6 +1,7 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
+import { api } from '../api/client.js'
 import { runList, loadRunList } from '../lib/live.js'
 import { Plus, ArrowUpDown } from 'lucide-vue-next'
 
@@ -16,6 +17,29 @@ const status = (r) => {
 }
 const report = (r) => r.reports.find((x) => x.passed && x.model_used) ?? r.reports[0] ?? null
 const open = (r) => router.push({ name: 'report', params: { runId: r.id } })
+
+// 进行中的任务与待审核的草稿：有任务在跑时每 3 秒刷新，任务结束后顺带刷新运行列表
+const jobs = ref([])
+const drafts = ref([])
+let timer = 0
+async function loadPipeline() {
+  clearTimeout(timer)
+  try {
+    const wasRunning = jobs.value.some((j) => j.state === 'running')
+    ;[jobs.value, drafts.value] = await Promise.all([api.jobs(), api.drafts()])
+    const running = jobs.value.some((j) => j.state === 'running')
+    if (wasRunning && !running) loadRunList()
+    if (running) timer = setTimeout(loadPipeline, 3000)
+  } catch (e) { /* 列表照常显示；任务区留空 */ }
+}
+onMounted(loadPipeline)
+onBeforeUnmount(() => clearTimeout(timer))
+const activeJobs = computed(() => jobs.value.filter((j) => j.state === 'running' || j.state === 'detached'))
+const waiting = computed(() => drafts.value.filter((d) => ['pending', 'stale', 'generating'].includes(d.status)))
+const DRAFT = { pending: '待审核', stale: '审批已失效', generating: '生成中' }
+const jobText = (j) => (j.kind === 'simulate'
+  ? `模拟 · 时间片 ${j.progress.slices_done}/${j.progress.slices} · 完成体验 ${j.progress.personas_done}/${j.progress.personas}`
+  : '生成人物草稿') + (j.state === 'detached' ? ' · API 重启后无法跟踪' : '')
 </script>
 
 <template>
@@ -24,10 +48,20 @@ const open = (r) => router.push({ name: 'report', params: { runId: r.id } })
       <div>
         <div class="eyebrow">工作台</div>
         <h1 class="page-title">运行</h1>
-        <p class="page-sub">每次运行让模拟人物按各自作息真实使用产品，在社区里讨论，再私下填写离场问卷。结论只来自亲身体验，并附证据。这里列出后端已有的运行目录（只读）。</p>
+        <p class="page-sub">每次运行让模拟人物按各自作息真实使用产品，在社区里讨论，再私下填写离场问卷。结论只来自亲身体验，并附证据。这里列出后端已完成阶段 4 的运行；新建的运行在完成前显示在“进行中”。</p>
       </div>
       <RouterLink to="/new" class="btn btn-primary"><Plus />新建运行</RouterLink>
     </header>
+
+    <section v-if="activeJobs.length || waiting.length" class="panel pipe">
+      <div class="panel-head"><h3>进行中</h3></div>
+      <ul>
+        <li v-for="j in activeJobs" :key="j.id"><span class="status st-browse"><i></i>任务</span>
+          <RouterLink :to="{ name: 'job', params: { jobId: j.id } }">{{ jobText(j) }}</RouterLink><span class="faint num">{{ j.id }}</span></li>
+        <li v-for="d in waiting" :key="d.id"><span class="status st-wait"><i></i>{{ DRAFT[d.status] }}</span>
+          <RouterLink :to="{ name: 'review', params: { draftId: d.id } }">{{ d.product ?? '人物草稿' }}</RouterLink><span class="faint num">{{ d.id }}</span></li>
+      </ul>
+    </section>
 
     <div v-if="runList.status === 'loading' || runList.status === 'idle'" class="panel"><p class="faint">正在读取运行列表…</p></div>
     <div v-else-if="runList.status === 'error'" class="panel" role="alert">
@@ -67,4 +101,8 @@ const open = (r) => router.push({ name: 'report', params: { runId: r.id } })
 <style scoped>
 .si { width: 12px; height: 12px; vertical-align: -2px; stroke-width: 1.5; }
 .rid { font-size: var(--fs-xs); }
+.pipe { margin-bottom: var(--sp-4); }
+.pipe ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.pipe li { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); flex-wrap: wrap; }
+.pipe .faint { font-size: var(--fs-xs); }
 </style>

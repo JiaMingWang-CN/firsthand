@@ -15,7 +15,7 @@ URL = "/api/runs/phase4-x/personas/{}/interview"
 
 
 def stub(result, calls):
-    async def generate(schema, text, validate, label):
+    async def generate(schema, text, validate, label, usage_dir=None):
         calls.append({"schema": schema, "text": text, "label": label})
         validate(result)
         return result
@@ -121,7 +121,7 @@ def test_unknown_persona_and_run_are_not_found(runs_root):
 
 def test_model_failures_map_to_gateway_statuses(runs_root):
     def failing(error):
-        async def generate(schema, text, validate, label):
+        async def generate(schema, text, validate, label, usage_dir=None):
             raise error
         return generate
     for error, status, reason in [(InterviewUnavailable("未配置"), 503, None), (InterviewFailed("三次不合法", "invalid_answer"), 502, "invalid_answer"),
@@ -218,3 +218,65 @@ def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatc
     monkeypatch.setattr(interview, "require_capabilities", mismatch)
     with pytest.raises(InterviewUnavailable, match="different model endpoint"):
         asyncio.run(generate(InterviewAnswer, "hi", None, "采访 p01"))
+
+
+def test_interview_tokens_go_to_a_ledger_beside_the_run_and_show_up_in_the_overview(runs_root, monkeypatch):
+    """Interviews were the only model calls missing from usage; the run directory itself must stay untouched."""
+    from types import SimpleNamespace
+    from core.usage import measured_request
+
+    async def request_json(client, config, capability, schema, text, validate=None, label=None):
+        # two provider requests, as when the first answer is rejected and rewritten
+        for _ in range(2):
+            await measured_request(lambda: _response(), "chat_completions", "m")
+        return InterviewAnswer(stance="answered", answer="首屏能看到经历。", evidence=["p01:f001"])
+
+    async def _response():
+        return SimpleNamespace(usage={"prompt_tokens": 100, "completion_tokens": 7, "prompt_tokens_details": {"cached_tokens": 40}})
+
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return False
+
+    monkeypatch.setattr(interview, "settings", lambda: {"base_url": "http://x", "api_key": "k", "model": "m"})
+    monkeypatch.setattr(interview, "require_capabilities", lambda directory, cfg: {"ready": True})
+    monkeypatch.setattr(interview, "AsyncOpenAI", Client)
+    monkeypatch.setattr(interview, "request_json", request_json)
+    run = runs_root / "phase4-x"
+    before = sorted(str(path) for path in run.rglob("*"))
+    client = TestClient(create_app(runs_root, Interviewer(llm_generate(runs_root))))
+    assert client.post(URL.format("p01"), json={"question": "好"}).status_code == 200
+    assert sorted(str(path) for path in run.rglob("*") if not path.name.endswith("-shm")) == [p for p in before if not p.endswith("-shm")]
+    ledger = runs_root / "_interviews" / "phase4-x" / "model_usage.jsonl"
+    assert len(ledger.read_text(encoding="utf-8").splitlines()) == 2
+    overview = client.get("/api/runs/phase4-x").json()
+    assert overview["interview_usage"]["total"] == {"requests": 2, "failed_requests": 0, "input_tokens": 200,
+                                                    "cached_input_tokens": 80, "output_tokens": 14}
+    assert overview["usage"]["total"]["requests"] == 4  # the simulation's own totals are unchanged
+    assert [run["id"] for run in client.get("/api/runs").json()] == ["phase4-x"]
+
+
+def test_declining_must_not_restate_what_the_persona_kept_back(runs_root):
+    """p01 withheld 按钮无反馈 from the community; a declined answer may say it won't talk, not what it won't say."""
+    with pytest.raises(ValueError, match="keep back: 按钮无反馈（title）"):
+        ask_directly(runs_root, "p01", answer(stance="declined", evidence=(), text="这个不想多说，就是按钮点了无反馈。"))
+    assert ask_directly(runs_root, "p01", answer(stance="declined", evidence=("disclosure:1",), text="这个我不想多说，怕显得自己不会用。"))["stance"] == "declined"
+    # Answering openly is the persona's choice; the check only binds a refusal.
+    assert ask_directly(runs_root, "p01", answer(text="按钮点了无反馈。"))["stance"] == "answered"
+
+
+@pytest.mark.parametrize("text, leaked", [
+    # Withheld findings of p03 in the 10-person sample; refusals there stayed at or below 0.17 bigram overlap.
+    ("这块我不太想展开，我习惯自己线下再核实，不在这里评价。", None),
+    ("详情页我看过，具体怎么看我先保留，等我自己核实完再说。", None),
+    ("不想多说，只能说详情页正文缺少独立的可核实交付证据。", "title"),
+    ("不多说了，反正详情页有线上站点和源码入口。", "title"),
+    ("我不想公开说，但量化的交付信息散在各段里，没有单独的证据区块，核对得靠读者自己。", "description"),
+])
+def test_restatement_thresholds_on_sample_findings(text, leaked):
+    from api.interview import restated
+    findings = [{"title": "详情页正文缺少独立的可核实交付证据区块",
+                 "description": "量化交付信息散落在背景、技术实现与结果叙述中，正文没有单独的可核实证据区块，核对成本被推给读者。"},
+                {"title": "详情页提供线上站点与源码入口", "description": "详情页顶部同时给出线上站点和源码仓库入口，为其后续线下核实留了路径。"}]
+    assert next((field for finding in findings if (field := restated(text, finding))), None) == leaked

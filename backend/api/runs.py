@@ -40,6 +40,12 @@ def sibling(root, recorded):
     return root / name if name else None
 
 
+def interview_dir(run):
+    """Interviews of a run keep their own ledger beside, not inside, the run directory: the run stays read-only
+    and its own totals stay those of the simulation."""
+    return run.parent / "_interviews" / run.name
+
+
 def report_index(root):
     """Phase-5 directories grouped by the simulation run they read, newest first."""
     found = {}

@@ -94,6 +94,37 @@ def require_approved(run_dir):
     return draft, manual
 
 
+class OverrideRequired(ValueError):
+    """The draft's cohort no longer matches the planned distribution; approving needs explicit confirmation."""
+
+    def __init__(self, issues):
+        super().__init__("分布已改变：" + "；".join(issues))
+        self.issues = issues
+
+
+def approve(run_dir, displayed_hash, accept_overrides=False):
+    """Approve exactly the draft the reviewer was shown (CLI and Web UI share this). Returns accepted overrides."""
+    run_dir = Path(run_dir)
+    # Reload after the decision: do not approve a version edited while the reviewer was reading.
+    if draft_hash(run_dir) != displayed_hash:
+        raise ValueError("草稿与刚才展示的版本不同，请先重新加载后再批准")
+    draft, manual = load_draft(run_dir)
+    require_capabilities(run_dir, settings())
+    issues = distribution_issues(draft, manual)
+    if issues and not accept_overrides:
+        raise OverrideRequired(issues)
+    save_review(run_dir, draft, manual)
+    if draft_hash(run_dir) != displayed_hash:
+        raise ValueError("审核过程中草稿有修改，请重新审核")
+    write_json(run_dir / "approval.json", {"status": "approved", "draft_sha256": displayed_hash,
+               "approved_at": datetime.now(timezone.utc).isoformat(), "distribution_overrides": issues})
+    return issues
+
+
+def reject(run_dir):
+    write_json(Path(run_dir) / "approval.json", {"status": "rejected", "draft_sha256": draft_hash(run_dir)})
+
+
 def review(run_dir, input_fn=input):
     run_dir = Path(run_dir)
     print(f"编辑文件：{run_dir / 'draft.json'}")
@@ -122,7 +153,7 @@ def review(run_dir, input_fn=input):
         if command == "quit":
             return
         if command == "reject":
-            write_json(run_dir / "approval.json", {"status": "rejected", "draft_sha256": draft_hash(run_dir)})
+            reject(run_dir)
             print("已拒绝。")
             return
         if command == "show":
@@ -130,24 +161,14 @@ def review(run_dir, input_fn=input):
                 print((run_dir / "review.md").read_text(encoding="utf-8"))
             continue
         if command in {"approve", "approve overrides"}:
-            # Reload after the command: do not approve a version edited during the prompt.
             try:
-                if draft is None or draft_hash(run_dir) != displayed_hash:
+                if draft is None:
                     raise ValueError("草稿与刚才展示的版本不同，请先重新加载后再批准")
-                snapshot_hash = displayed_hash
-                draft, manual = load_draft(run_dir)
-                require_capabilities(run_dir, settings())
-                issues = distribution_issues(draft, manual)
-                if issues and command != "approve overrides":
-                    print("分布已改变：" + "；".join(issues) + "。确认这些变更时输入 approve overrides。")
-                    continue
-                save_review(run_dir, draft, manual)
-                if draft_hash(run_dir) != snapshot_hash:
-                    raise ValueError("审核过程中草稿有修改，请重新审核")
-                write_json(run_dir / "approval.json", {"status": "approved", "draft_sha256": snapshot_hash,
-                           "approved_at": datetime.now(timezone.utc).isoformat(), "distribution_overrides": issues})
+                approve(run_dir, displayed_hash, accept_overrides=command == "approve overrides")
                 print("已批准当前草稿。阶段 1 不会启动浏览或讨论执行。")
                 return
+            except OverrideRequired as error:
+                print(f"{error}。确认这些变更时输入 approve overrides。")
             except (ValueError, OSError) as error:
                 print("不能批准：" + validation_message(error))
         elif command != "reload":

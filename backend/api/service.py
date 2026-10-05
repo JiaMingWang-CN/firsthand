@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from api.media import RecordingUnavailable, by_step, media_position, segments, summarize
-from api.runs import NotFound, RunInvalid, SERVED_FILE, job_span, read_json, report_index, run_path, sibling
+from api.runs import NotFound, RunInvalid, SERVED_FILE, interview_dir, job_span, read_json, report_index, run_path, sibling
 from report.evidence import EvidenceStore
 
 
@@ -19,10 +19,10 @@ def file_url(run_id, relative):
 TOKEN_FIELDS = ("input_tokens", "cached_input_tokens", "output_tokens")
 
 
-def model_usage(run):
-    """Requests and tokens per model from the run's request ledgers. Prices are deliberately not exposed."""
+def model_usage(run, ledgers=None, scope="浏览、讨论与问卷阶段的模型请求；不含人设生成"):
+    """Requests and tokens per model from request ledgers. Prices are deliberately not exposed."""
     models = {}
-    for ledger in [run / "model_usage.jsonl", *sorted(run.glob("*/model_usage.jsonl"))]:
+    for ledger in ledgers if ledgers is not None else [run / "model_usage.jsonl", *sorted(run.glob("*/model_usage.jsonl"))]:
         if not ledger.is_file():
             continue
         for line in ledger.read_text(encoding="utf-8").splitlines():
@@ -35,7 +35,14 @@ def model_usage(run):
                 row[field] += (entry["usage"] or {}).get(field, 0)
     rows = sorted(models.values(), key=lambda row: -row["requests"])
     return {"models": rows, "total": {key: sum(row[key] for row in rows) for key in ("requests", "failed_requests", *TOKEN_FIELDS)},
-            "scope": "浏览、讨论与问卷阶段的模型请求；不含人设生成"}
+            "scope": scope}
+
+
+def fingerprint(run):
+    """Every file the evidence store may read, so editing any of them (say a repaired experience.json) invalidates
+    the cache. SQLite rewrites *-shm even for read-only opens, and logs are not evidence, so both are left out."""
+    stats = [(item, item.stat()) for item in run.rglob("*") if item.is_file() and not item.name.endswith(("-shm", ".log"))]
+    return tuple(sorted((str(item.relative_to(run)), stat.st_mtime_ns, stat.st_size) for item, stat in stats))
 
 
 class Reader:
@@ -48,7 +55,7 @@ class Reader:
 
     def store(self, run_id):
         path = run_path(self.root, run_id)
-        stamp = tuple((path / name).stat().st_mtime_ns for name in ("run.db", "run_context.json") if (path / name).exists())
+        stamp = fingerprint(path)
         # Opening a run fires a dozen requests at once and building re-hashes every screenshot, so concurrent
         # requests share one build and its outcome. A failure is shared but not cached: the next request retries.
         with self._guard:
@@ -95,7 +102,8 @@ class Reader:
                 "provider", "model", "api", "thinking_type", "max_model_concurrency", "max_browser_concurrency")},
             "personas": len(store.people),
             "timeline": {"slices": len(timeline.get("slices", [])), "peak_workers": timeline.get("peak_workers")},
-            "usage": model_usage(path), "audit": store.audit, "coverage": store.inventory(),
+            "usage": model_usage(path), "interview_usage": model_usage(path, [interview_dir(path) / "model_usage.jsonl"], "运行结束后的采访"),
+            "audit": store.audit, "coverage": store.inventory(),
             "reports": report_index(self.root).get(run_id, [])}
 
     def personas(self, run_id):

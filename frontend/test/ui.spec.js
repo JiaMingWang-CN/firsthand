@@ -35,7 +35,12 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
     ApiError,
     api: {
       runs: async () => [],
-      overview: async () => { if (state.overviewError) throw state.overviewError; return { ...data().overview, id: RUN } },
+      overview: async () => {
+        if (state.overviewError) throw state.overviewError
+        const n = calls.interview.length
+        const interview_usage = n ? { total: { requests: 2 * n, input_tokens: 1000 * n, cached_input_tokens: 0, output_tokens: 50 * n } } : null
+        return { ...data().overview, id: RUN, interview_usage }
+      },
       personas: async () => data().personas,
       community: async () => data().community,
       report: async () => data().report,
@@ -194,6 +199,9 @@ test('采访：带上已答的历史，展示回答与所引证据原文', async
   await w.find('form').trigger('submit')
   for (let i = 0; i < 5; i++) await flushPromises()
   expect(calls.interview[1].body.history).toEqual([{ question: '哪一步最困惑？', answer: '第三步我一直找不到按钮。' }])
+  // 采访的用量另记，答完后刷新累计
+  expect(w.find('.usage').text()).toContain('累计 4 次模型请求')
+  expect(w.find('.usage').text()).toContain('不计入运行本身的用量')
 })
 
 describe('采访失败时的提示与原因相符', () => {

@@ -13,9 +13,13 @@ const counts = computed(() => {
 })
 const total = computed(() => run.usage?.total ?? {})
 const num = (n) => (n ?? 0).toLocaleString('zh-CN')
-const usageTip = computed(() => (run.usage?.models ?? [])
-  .map((m) => `${m.model}：输入 ${num(m.input_tokens)}（缓存 ${num(m.cached_input_tokens)}）· 输出 ${num(m.output_tokens)}`)
-  .join(String.fromCharCode(10)))
+const usageLine = (m) => `${m.model}：输入 ${num(m.input_tokens)}（缓存 ${num(m.cached_input_tokens)}）· 输出 ${num(m.output_tokens)}`
+const usageTip = computed(() => {
+  const lines = (run.usage?.models ?? []).map(usageLine)
+  const iv = run.interviewUsage?.total
+  if (iv?.requests) lines.push(`采访另计 ${num(iv.requests)} 次请求：输入 ${num(iv.input_tokens)}（缓存 ${num(iv.cached_input_tokens)}）· 输出 ${num(iv.output_tokens)}`)
+  return lines.join(String.fromCharCode(10))
+})
 </script>
 
 <template>

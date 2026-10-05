@@ -182,6 +182,21 @@ def test_an_unexpected_build_error_still_releases_waiting_requests(runs_root, mo
     assert len(errors) == 4
 
 
+def test_repairing_any_evidence_file_invalidates_the_cache(runs_root):
+    """The cache used to key on run.db and run_context.json only, so a repaired experience.json stayed rejected."""
+    from api import service
+    experience = runs_root / "phase4-x" / "p01" / "experience.json"
+    original = experience.read_text(encoding="utf-8")
+    reader = service.Reader(runs_root)
+    store = reader.store("phase4-x")
+    assert reader.store("phase4-x") is store  # unchanged files: served from the cache, even after read-only opens
+    experience.write_text("{}", encoding="utf-8")
+    with pytest.raises(service.RunInvalid):
+        reader.store("phase4-x")
+    experience.write_text(original, encoding="utf-8")
+    assert reader.store("phase4-x") is not store
+
+
 def test_unknown_or_non_simulation_runs_are_not_found(client):
     for run_id in ["nope", "phase1-x", "phase5-x", "..", "%2e%2e"]:
         assert client.get(f"/api/runs/{run_id}").status_code == 404, run_id

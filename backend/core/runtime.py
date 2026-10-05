@@ -78,15 +78,19 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def error_summary(error, run_dir):
-    # Provider errors can contain request URLs and credentials. Result files keep only
-    # type/status; the redacted traceback goes to the private run directory for diagnosis.
-    text = "".join(traceback.format_exception(error))
+def redact(text):
+    """Remove configured credentials and token-looking values from text that may leave the process."""
     config = settings()
     for secret in [config["api_key"], config["steel_api_key"]]:
         if secret:
             text = text.replace(secret, "REDACTED")
-    text = re.sub(r"(apiKey=|token=|Bearer )[^&\s'\"]+", r"\1REDACTED", text)
+    return re.sub(r"(apiKey=|token=|Bearer )[^&\s'\"]+", r"\1REDACTED", text)
+
+
+def error_summary(error, run_dir):
+    # Provider errors can contain request URLs and credentials. Result files keep only
+    # type/status; the redacted traceback goes to the private run directory for diagnosis.
+    text = redact("".join(traceback.format_exception(error)))
     Path(run_dir).mkdir(parents=True, exist_ok=True)
     with (Path(run_dir) / "errors.log").open("a", encoding="utf-8") as log:
         log.write(text + "\n")

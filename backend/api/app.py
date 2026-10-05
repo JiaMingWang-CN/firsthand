@@ -1,21 +1,62 @@
 """FastAPI application. Read handlers are plain functions so FastAPI runs them in its thread pool."""
 
+from typing import Literal
+from urllib.parse import urlsplit
+
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
+from pydantic import BaseModel, Field
 
+from api import drafts
+from api.drafts import Invalid, Unconfigured
 from api.interview import Ask, InterviewFailed, InterviewUnavailable, Interviewer, llm_generate
+from api.jobs import Busy, Jobs
 from api.media import RecordingUnavailable
 from api.runs import NotFound, RunInvalid, list_runs
 from api.service import Reader
 
-STATUS = {NotFound: 404, RunInvalid: 422, InterviewUnavailable: 503, InterviewFailed: 502, RecordingUnavailable: 503}
+STATUS = {NotFound: 404, RunInvalid: 422, InterviewUnavailable: 503, InterviewFailed: 502, RecordingUnavailable: 503,
+          Invalid: 422, Unconfigured: 503, Busy: 409}
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-def create_app(runs_root, interviewer=None, recordings=None):
+class ManualText(BaseModel):
+    text: str = Field(max_length=drafts.MAX_MANUAL)
+
+
+class NewDraft(BaseModel):
+    manual: str = Field(max_length=drafts.MAX_MANUAL)
+    capability_run: str | None = None
+
+
+class Decision(BaseModel):
+    decision: Literal["approve", "reject"]
+    draft_sha256: str
+    accept_overrides: bool = False
+
+
+class Confirm(BaseModel):
+    confirm: Literal[True]
+
+
+def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
     app = FastAPI(title="muchhuman", docs_url="/api/docs", openapi_url="/api/openapi.json")
     reader = Reader(runs_root, recordings)
     interviewer = interviewer or Interviewer(llm_generate(None))
+    jobs = jobs or Jobs(reader.root)
+
+    @app.middleware("http")
+    async def same_machine_writes(request: Request, call_next):
+        # POSTs start paid model and browser work. A page on another site must not be able to trigger them through
+        # the user's browser: only same-machine origins may write, and every POST takes a JSON body (no form posts).
+        if request.method == "POST":
+            origin = request.headers.get("origin")
+            if origin and urlsplit(origin).hostname not in LOCAL_HOSTS:
+                return JSONResponse({"detail": "只接受本机页面发起的写操作"}, 403)
+            if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+                return JSONResponse({"detail": "请求体必须是 JSON"}, 415)
+        return await call_next(request)
 
     for error_type, status in STATUS.items():
         app.add_exception_handler(error_type, lambda request, error, status=status: JSONResponse(
@@ -65,5 +106,46 @@ def create_app(runs_root, interviewer=None, recordings=None):
     @app.get("/api/runs/{run_id}/files/{path:path}")
     def files(run_id: str, path: str):
         return FileResponse(reader.file(run_id, path), media_type="image/png")
+
+    # —— New runs: manual → persona draft → human review → simulation and report ——
+
+    @app.post("/api/manuals/check")
+    def check_manual(body: ManualText):
+        return drafts.check_manual(body.text)
+
+    @app.get("/api/capabilities")
+    def capabilities():
+        return drafts.capabilities(reader.root)
+
+    @app.get("/api/drafts")
+    def list_drafts():
+        return drafts.list_drafts(reader.root, jobs.all())
+
+    @app.post("/api/drafts")
+    def new_draft(body: NewDraft):
+        return drafts.start_prepare(reader.root, jobs, body.manual, body.capability_run)
+
+    @app.get("/api/drafts/{draft_id}")
+    def draft_review(draft_id: str):
+        return drafts.review(reader.root, draft_id, jobs.all())
+
+    @app.post("/api/drafts/{draft_id}/decision")
+    def decide(draft_id: str, body: Decision):
+        return drafts.decide(reader.root, draft_id, body.decision, body.draft_sha256, body.accept_overrides)
+
+    @app.post("/api/drafts/{draft_id}/simulations")
+    def simulate(draft_id: str, body: Confirm):
+        return drafts.start_simulation(reader.root, jobs, draft_id)
+
+    @app.get("/api/jobs")
+    def list_jobs():
+        return jobs.all()
+
+    @app.get("/api/jobs/{job_id}")
+    def job(job_id: str):
+        found = jobs.view(job_id) if drafts.RUN_ID.fullmatch(job_id) else None
+        if found is None:
+            raise NotFound(f"Unknown job: {job_id}")
+        return {**found, "log": jobs.log_tail(job_id)}
 
     return app
