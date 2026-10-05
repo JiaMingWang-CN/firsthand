@@ -89,6 +89,13 @@ async def probe_model(config, run_dir):
         token = secrets.token_hex(8)
         await check("conversation", [{"role": "user", "content": f"Reply with exactly {token}"}],
                     lambda message: (message.content or "").strip() == token)
+        # Per-persona sampling: only acceptance is observable; a provider may still ignore the values (e.g. while thinking).
+        sampling = {"temperature": 0.9, "top_p": 0.9, "presence_penalty": 0.2}
+        await check("sampling", [{"role": "user", "content": f"Reply with exactly {token}"}], lambda message: bool(message.content),
+                    sampling={key: value for key, value in sampling.items() if llm_api(config) == "chat_completions" or key != "presence_penalty"})
+        if llm_api(config) == "responses":
+            await check("chat_completions_sampling", [{"role": "user", "content": f"Reply with exactly {token}"}],
+                        lambda message: bool(message.content), request_config=dict(config, api="chat_completions"), sampling=sampling)
         for name, forced in [("tool_call", False), ("forced_tool", True)]:
             options = {"tools": [tool_definition("echo")]}
             if forced:

@@ -144,7 +144,7 @@ def test_forced_tool_choice_is_sent_only_to_providers_that_enforce_it(tmp_path, 
     async def run():
         community = Community(draft, store, tmp_path / "community", config, {}, "seed")
         try:
-            return dict(community.backend.model_config_dict)
+            return dict(community.backends[person.persona_id].model_config_dict)
         finally:
             await community.client.close()
     options = asyncio.run(run())
@@ -169,3 +169,31 @@ def test_one_failed_questionnaire_does_not_cancel_the_others(tmp_path, monkeypat
     assert answered == ["p01", "p03"] and result["survey_count"] == 2
     assert result["survey_failures"][0]["persona_id"] == "p02"
     assert json.loads((tmp_path / "survey_failures.json").read_text(encoding="utf-8"))[0]["error_type"] == "ValueError"
+
+
+def test_each_persona_speaks_with_its_own_sampling(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    from datetime import datetime, timezone
+    from core.persona import Sampling
+    from discussion.community import Community
+    from core.simulation import SimulationStore
+    from tests.verify_phase2 import fixture_persona
+    people = [fixture_persona(False), fixture_persona(True)]
+    people[0].sampling = Sampling(temperature=0.95, top_p=0.9, presence_penalty=0.3)
+    draft = SimpleNamespace(personas=people, run_config=SimpleNamespace(start_time=datetime(2026, 10, 3, tzinfo=timezone.utc)))
+    store = SimulationStore(tmp_path / "run.db")
+    store.initialize(draft, [{"persona_id": p.persona_id, "slice_index": 1} for p in people])
+    (tmp_path / "community").mkdir()
+    config = {"provider": "deepseek", "model": "custom", "base_url": "https://test.invalid/v1", "api_key": "test",
+              "thinking_type": "disabled", "api": "responses", "max_model_concurrency": 2, "max_browser_concurrency": 1}
+    capability = {"api": "responses", "checks": {"chat_completions_sampling": {"supported": True}}}
+
+    async def run():
+        community = Community(draft, store, tmp_path / "community", config, capability, "seed")
+        try:
+            return {pid: dict(backend.model_config_dict) for pid, backend in community.backends.items()}
+        finally:
+            await community.client.close()
+    options = asyncio.run(run())
+    assert (options["p01"]["temperature"], options["p01"]["top_p"], options["p01"]["presence_penalty"]) == (0.95, 0.9, 0.3)
+    assert options["p02"]["temperature"] == 0 and "top_p" not in options["p02"]  # no sampling: the old deterministic planner

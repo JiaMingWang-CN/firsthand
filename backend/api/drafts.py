@@ -10,11 +10,12 @@ from pathlib import Path
 
 from api.jobs import read_json, stamp
 from api.runs import NotFound, RUN_ID, matching_capabilities, sibling
-from core.persona import Draft
-from core.runtime import require, require_capabilities, settings
-from orchestrator.manual import read_manual
-from orchestrator.personas import distribution_issues, schedule_rows, validation_message
-from orchestrator.phase1 import OverrideRequired, approve, distribution_summary, draft_hash, load_draft, reject, require_approved
+from core.persona import MAX_DAYS, MAX_PERSONAS, MIN_PERSONAS, Draft
+from core.runtime import require, require_capabilities, settings, write_json
+from orchestrator.manual import material, read_manual
+from orchestrator.personas import distribution_issues, minimum_count, schedule_rows, validate_draft, validation_message
+from orchestrator.phase1 import (OverrideRequired, approve, distribution_summary, draft_hash, load_draft, reject, require_approved,
+                                 save_review)
 
 # Same bound as the interview question: a manual is a page or two of Markdown.
 MAX_MANUAL = 200_000
@@ -41,9 +42,10 @@ def check_manual(text):
             raise Invalid(validation_message(error)) from error
     metadata = manual["metadata"]
     return {"name": metadata.name, "url": metadata.url, "allowed_domains": metadata.allowed_domains,
-            "test_accounts": [account.role for account in metadata.test_accounts], "forbidden_actions": len(metadata.forbidden_actions),
+            "test_accounts": [account.role for account in metadata.test_accounts], "forbidden_actions": metadata.forbidden_actions,
             "flows": [{"name": flow.name, "account_role": flow.account_role} for flow in manual["flows"]],
-            "sections": list(manual["sections"]), "known_issues": "已知问题" in manual["sections"]}
+            "sections": list(manual["sections"]), "known_issues": "已知问题" in manual["sections"], "defaults": manual["defaults"],
+            "material": material(manual), "minimum_personas": minimum_count(len(manual["flows"]))}
 
 
 def capabilities(root):
@@ -83,11 +85,13 @@ def simulations_of(root, draft_id):
 
 def summary(root, path, jobs):
     result = read_json(path / "phase1_result.json")
-    generating = any(job["kind"] == "prepare" and job["draft"] == path.name and job["state"] == "running" for job in jobs)
-    if generating:
-        status = "generating"
+    running = [job["kind"] for job in jobs if job["kind"] in {"prepare", "generate"} and job["draft"] == path.name and job["state"] == "running"]
+    if running:
+        status = "analyzing" if running[0] == "prepare" else "generating"
     elif result is None or not result.get("passed"):
         status = "failed" if result else "incomplete"
+    elif result.get("stage") == "analyzed":
+        status = "configuring"  # the user confirms the recommended cohort size and timeline length
     else:
         status = approval_state(path)["status"]
     manual = read_json(path / "product_model.json", {}) or {}
@@ -105,8 +109,16 @@ def review(root, draft_id, jobs):
     """Everything the reviewer must see before approving, plus the hash of exactly this version."""
     path = draft_path(root, draft_id)
     head = summary(root, path, jobs)
-    if head["status"] in {"generating", "failed", "incomplete"}:
-        return {**head, "valid": False}
+    result = read_json(path / "phase1_result.json", {}) or {}
+    site = read_json(path / "site.json")
+    analysis = {"material": result.get("material"), "recommendation": result.get("recommendation"),
+                "minimum_personas": result.get("minimum_personas"), "generation_error": result.get("generation_error"),
+                "site": None if site is None else {key: site.get(key) for key in ("status", "url", "title", "reason", "note")},
+                "limits": {"personas": [MIN_PERSONAS, MAX_PERSONAS], "days": [1, MAX_DAYS]}}
+    if head["status"] in {"analyzing", "generating", "configuring"} and (path / "product.json").is_file():
+        analysis["product"] = read_json(path / "product.json")
+    if head["status"] in {"analyzing", "generating", "configuring", "failed", "incomplete"}:
+        return {**head, **analysis, "valid": False}
     displayed = draft_hash(path)
     try:
         draft, manual = load_draft(path)
@@ -114,17 +126,22 @@ def review(root, draft_id, jobs):
         # Edited by hand into an invalid state: show why, and offer nothing to approve.
         return {**head, "valid": False, "draft_sha256": displayed, "error": validation_message(error)}
     capability = read_json(path / "capability_profile.json", {}) or {}
+    checks = capability.get("checks", {})
     try:  # approve() checks the same thing; say so now rather than after the reviewer has read everything
         require_capabilities(path, settings())
         blocked = None
     except (ValueError, KeyError, OSError) as error:
         blocked = f"这份草稿生成时用的模型能力文件与当前模型配置不符或已过期，批准会被拒绝。请重新新建运行（重新探测模型能力）。原因：{error}"
-    return {**head, "valid": True, "draft_sha256": displayed, "approval": approval_state(path), "blocked": blocked,
+    return {**head, **analysis, "valid": True, "draft_sha256": displayed, "approval": approval_state(path), "blocked": blocked,
             "manual": {"name": manual["metadata"].name, "url": manual["metadata"].url, "flows": [flow.name for flow in manual["flows"]]},
             "product": draft.product.model_dump(mode="json"), "run_config": draft.run_config.model_dump(mode="json"),
             "cohort_rationale": draft.cohort_rationale, "personas": [persona.model_dump(mode="json") for persona in draft.personas],
             "schedule": schedule_rows(draft), "distribution": distribution_summary(draft), "issues": distribution_issues(draft, manual),
             "capability": {key: capability.get(key) for key in ("provider", "model", "api", "thinking_type", "recommended_concurrency")},
+            # Persona-voiced calls run on Chat (frameworks) and on the configured API (questionnaire, interview).
+            "sampling": {"probed": "sampling" in checks, "chat": bool(checks.get("chat_completions_sampling" if capability.get("api") == "responses"
+                         else "sampling", {}).get("supported")), "configured_api": bool(checks.get("sampling", {}).get("supported")),
+                         "thinking": capability.get("thinking_type")},
             "simulations": simulations_of(root, draft_id)}
 
 
@@ -163,8 +180,60 @@ def start_prepare(root, jobs, text, capability_run=None):
     manual = jobs.dir / f"{draft_id}.manual.md"
     manual.parent.mkdir(parents=True, exist_ok=True)
     manual.write_text(text, encoding="utf-8")
-    return jobs.start("prepare", [{"name": "生成产品模型与人物草稿", "module": "orchestrator.phase1",
-                                   "args": ["prepare", manual, "--run-dir", Path(root) / draft_id, *args]}], draft=draft_id)
+    return jobs.start("prepare", [{"name": "分析资料并推荐人数与天数", "module": "orchestrator.phase1",
+                                   "args": ["analyze", manual, "--run-dir", Path(root) / draft_id, *args]}], draft=draft_id)
+
+
+def check_size(persona_count, duration_days, minimum):
+    if not MIN_PERSONAS <= persona_count <= MAX_PERSONAS:
+        raise Invalid(f"人数须在 {MIN_PERSONAS}–{MAX_PERSONAS} 之间")
+    if persona_count < minimum:
+        raise Invalid(f"说明书里的关键流程至少需要 {minimum} 人，每条流程才有人走")
+    if not 1 <= duration_days <= MAX_DAYS:
+        raise Invalid(f"天数须在 1–{MAX_DAYS} 之间")
+
+
+def start_generate(root, jobs, draft_id, persona_count, duration_days):
+    """Personas for an analyzed draft, with the size and length the user confirmed."""
+    path = draft_path(root, draft_id)
+    if summary(root, path, jobs.all())["status"] != "configuring" or (path / "draft.json").exists():
+        raise Invalid("只有分析完成、尚未生成人物的运行可以生成人物")
+    check_size(persona_count, duration_days, (read_json(path / "phase1_result.json", {}) or {}).get("minimum_personas", MIN_PERSONAS))
+    try:
+        require(settings(), "base_url", "api_key", "model")
+    except ValueError as error:
+        raise Unconfigured(str(error)) from error
+    return jobs.start("generate", [{"name": f"生成 {persona_count} 名人物（{duration_days} 天）", "module": "orchestrator.phase1",
+                                    "args": ["generate", path, "--personas", persona_count, "--days", duration_days]}], draft=draft_id)
+
+
+def update_draft(root, draft_id, draft_sha256, duration_days=None, sampling=None):
+    """The reviewer's edits to the shown version: timeline length and per-persona sampling. Approval must be given again."""
+    path = draft_path(root, draft_id)
+    if draft_hash(path) != draft_sha256:
+        raise Invalid("草稿与刚才展示的版本不同，请先重新加载")
+    draft, manual = load_draft(path)
+    data = draft.model_dump(mode="json")
+    if duration_days is not None:
+        if not 1 <= duration_days <= MAX_DAYS:
+            raise Invalid(f"天数须在 1–{MAX_DAYS} 之间")
+        latest = max(persona.schedule.browse_day for persona in draft.personas)
+        if duration_days < latest:
+            raise Invalid(f"有人物排在第 {latest} 天首次体验，天数不能少于 {latest}")
+        data["run_config"]["duration_days"] = duration_days
+    for persona in data["personas"]:
+        if sampling and persona["persona_id"] in sampling:
+            persona["sampling"] = sampling[persona["persona_id"]]  # validated with the whole draft below
+    if sampling and set(sampling) - {persona["persona_id"] for persona in data["personas"]}:
+        raise Invalid("采样参数里有不存在的人物")
+    try:
+        edited = Draft.model_validate(data)
+        validate_draft(edited, manual, read_json(path / "capability_profile.json", {}))
+    except ValueError as error:
+        raise Invalid(validation_message(error)) from error
+    write_json(path / "draft.json", edited.model_dump(mode="json"))
+    save_review(path, edited, manual)
+    return {"draft_sha256": draft_hash(path)}
 
 
 def start_simulation(root, jobs, draft_id):

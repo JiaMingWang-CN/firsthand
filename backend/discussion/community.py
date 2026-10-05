@@ -21,7 +21,7 @@ from core.simulation import SimulationStore
 from core.runtime import write_json
 from discussion.model import ProviderModel
 from discussion.survey import answer_exit
-from orchestrator.personas import request_json
+from orchestrator.personas import request_json, sampling_options
 
 
 class LogicalClock:
@@ -136,16 +136,20 @@ class Community:
         self.draft, self.store, self.root, self.config, self.capability, self.seed = draft, store, root, config, capability, seed
         route = module_route(config, "OASIS/CAMEL", supports_responses=False)
         write_json(root / "protocol.json", route.metadata)
-        self.backend = ProviderModel(route.config)
-        self.backend.model_config_dict.update(parallel_tool_calls=False)
-        # A provider that ignores forced tool_choice gets "auto"; invalid replies go through the repair loop instead.
-        if get_adapter(config).honors_forced_tool_choice:
-            self.backend.model_config_dict["tool_choice"] = "required"
+        # One backend per persona: each speaks with its own sampling parameters.
+        self.backends = {}
+        for persona in draft.personas:
+            backend = ProviderModel(route.config, sampling_options(capability, persona.sampling, "chat_completions"))
+            backend.model_config_dict.update(parallel_tool_calls=False)
+            # A provider that ignores forced tool_choice gets "auto"; invalid replies go through the repair loop instead.
+            if get_adapter(config).honors_forced_tool_choice:
+                backend.model_config_dict["tool_choice"] = "required"
+            self.backends[persona.persona_id] = backend
         self.graph = AgentGraph()
         self.agents = {}
         for index, persona in enumerate(draft.personas):
             agent = GuardedSocialAgent(agent_id=index, user_info=UserInfo(user_name=persona.username, name=persona.realname,
-                description=persona.bio, profile=None, recsys_type="reddit"), agent_graph=self.graph, model=self.backend,
+                description=persona.bio, profile=None, recsys_type="reddit"), agent_graph=self.graph, model=self.backends[persona.persona_id],
                 available_actions=[ActionType.REFRESH, ActionType.DO_NOTHING], max_iteration=1)
             self.graph.add_agent(agent)
             self.agents[persona.persona_id] = agent
@@ -167,7 +171,8 @@ class Community:
                   "结合性格、坦率程度和隐瞒倾向，不把未公开解释成不曾经历，不编造新的体验。只选 ID，不写公开文章。\n"
                   + json.dumps({"persona": persona.model_dump(), "findings": {key: finding.model_dump() for key, finding in facts.items()}}, ensure_ascii=False))
         return await request_json(self.client, self.config, self.capability, Disclosure, prompt,
-            validate=lambda plan: validate_disclosure(plan, memory, persona.participation), label=f"表达过滤 {persona.persona_id}")
+            validate=lambda plan: validate_disclosure(plan, memory, persona.participation), label=f"表达过滤 {persona.persona_id}",
+            sampling=persona.sampling)
 
     async def step(self, tick, logical_time):
         self.clock.current = logical_time.astimezone(timezone.utc).replace(tzinfo=None)
@@ -199,7 +204,8 @@ class Community:
             permitted = agent.allowed - {"refresh"}
             if not feed:
                 permitted -= {"create_comment", "like_post", "dislike_post"}
-            action, args = await choose_action(self.backend, persona, feed, body, permitted, self.root / "planner_rejections.jsonl")
+            action, args = await choose_action(self.backends[persona.persona_id], persona, feed, body, permitted,
+                                               self.root / "planner_rejections.jsonl")
             return agent, ManualAction(ActionType(action), args)
 
         async with asyncio.TaskGroup() as group:

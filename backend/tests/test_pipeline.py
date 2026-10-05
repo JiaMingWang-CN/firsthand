@@ -43,14 +43,19 @@ class FakePipeline:
         if self.gate:
             self.gate.wait(10)
         code = self.codes.get(module, 0)
-        if module == "orchestrator.phase1" and code == 0:
+        if module == "orchestrator.phase1" and code == 0 and args[0] == "analyze":
             run = Path(args[args.index("--run-dir") + 1])
             run.mkdir(parents=True)
             (run / "manual.md").write_text(SAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
             write_json(run / "capability_profile.json", CAPABILITY)
+            write_json(run / "product.json", self.draft.product.model_dump())
+            write_json(run / "phase1_result.json", {"stage": "analyzed", "passed": True, "minimum_personas": 3,
+                       "recommendation": {"persona_count": 40, "duration_days": 50, "reason": "测试推荐"}})
+        if module == "orchestrator.phase1" and code == 0 and args[0] == "generate":
+            run = Path(args[1])
             write_json(run / "draft.json", self.draft.model_dump(mode="json"))
             write_json(run / "product_model.json", {"metadata": {"name": "王佳明个人作品网站"}})
-            write_json(run / "phase1_result.json", {"passed": True})
+            write_json(run / "phase1_result.json", {"stage": "drafted", "passed": True})
         if module == "orchestrator.phase4":
             run = Path(args[args.index("--run-dir") + 1])
             run.mkdir(parents=True)
@@ -79,6 +84,16 @@ def wait_for(client, job_id, state="succeeded"):
             return job
         time.sleep(0.02)
     pytest.fail("job did not finish")
+
+
+def make_draft(client, **body):
+    """Analyze a manual, then generate personas with the size the user confirmed (what the UI does)."""
+    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8"), **body}).json()
+    wait_for(client, started["id"])
+    assert client.get(f"/api/drafts/{started['draft']}").json()["status"] == "configuring"
+    generating = client.post(f"/api/drafts/{started['draft']}/personas", json={"persona_count": 10, "duration_days": 1}).json()
+    wait_for(client, generating["id"])
+    return started
 
 
 def app(tmp_path, pipeline):
@@ -123,7 +138,19 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
     draft_id = started["draft"]
     wait_for(client, started["id"])
     module, args = pipeline.calls[0]
-    assert module == "orchestrator.phase1" and args[0] == "prepare" and args[-2:] == ["--capability-run", str(root / "phase0-match")]
+    assert module == "orchestrator.phase1" and args[0] == "analyze" and args[-2:] == ["--capability-run", str(root / "phase0-match")]
+
+    configuring = client.get(f"/api/drafts/{draft_id}").json()
+    assert configuring["status"] == "configuring" and configuring["recommendation"]["persona_count"] == 40
+    assert configuring["material"] is None and configuring["product"]["positioning"]
+    too_few = client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 2, "duration_days": 50})
+    assert too_few.status_code == 422 and "至少需要 3 人" in too_few.json()["detail"]
+    assert client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 10, "duration_days": 0}).status_code == 422
+    generating = client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 10, "duration_days": 1}).json()
+    wait_for(client, generating["id"])
+    assert pipeline.calls[1] == ("orchestrator.phase1", ["generate", str(root / draft_id), "--personas", "10", "--days", "1"])
+    again = client.post(f"/api/drafts/{draft_id}/personas", json={"persona_count": 10, "duration_days": 1})
+    assert again.status_code == 422  # personas exist: only a new run regenerates them
 
     listed = client.get("/api/drafts").json()
     assert [(item["id"], item["status"]) for item in listed] == [(draft_id, "pending")]
@@ -139,8 +166,8 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
 
     job = client.post(f"/api/drafts/{draft_id}/simulations", json={"confirm": True}).json()
     done = wait_for(client, job["id"])
-    assert [module for module, _ in pipeline.calls[1:]] == ["orchestrator.phase4", "orchestrator.phase5"]
-    phase5 = pipeline.calls[2][1]
+    assert [module for module, _ in pipeline.calls[2:]] == ["orchestrator.phase4", "orchestrator.phase5"]
+    phase5 = pipeline.calls[3][1]
     assert phase5[0] == str(root / job["simulation"]) and phase5[-2:] == ["--capability-run", str(root / draft_id)]
     assert done["progress"] == {"slices_done": 3, "slices": 24, "personas": 10, "personas_done": 1, "personas_failed": 1,
                                 "phase4_passed": True, "report_passed": True}
@@ -152,21 +179,19 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
 def test_a_failed_simulation_does_not_write_a_report(tmp_path, configured, draft):
     pipeline = FakePipeline(draft, codes={"orchestrator.phase4": 1})
     root, client = app(tmp_path, pipeline)
-    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
-    wait_for(client, started["id"])
+    started = make_draft(client)
     review = client.get(f"/api/drafts/{started['draft']}").json()
     client.post(f"/api/drafts/{started['draft']}/decision", json={"decision": "approve", "draft_sha256": review["draft_sha256"]})
     job = client.post(f"/api/drafts/{started['draft']}/simulations", json={"confirm": True}).json()
     done = wait_for(client, job["id"], "failed")
     assert [step["state"] for step in done["steps"]] == ["failed", "pending"]
-    assert [module for module, _ in pipeline.calls] == ["orchestrator.phase1", "orchestrator.phase4"]
+    assert [module for module, _ in pipeline.calls] == ["orchestrator.phase1", "orchestrator.phase1", "orchestrator.phase4"]
 
 
 def test_only_one_simulation_at_a_time(tmp_path, configured, draft):
     gate = threading.Event()
     root, client = app(tmp_path, FakePipeline(draft))
-    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
-    wait_for(client, started["id"])
+    started = make_draft(client)
     review = client.get(f"/api/drafts/{started['draft']}").json()
     client.post(f"/api/drafts/{started['draft']}/decision", json={"decision": "approve", "draft_sha256": review["draft_sha256"]})
     jobs = Jobs(root, python="python", popen=FakePipeline(draft, gate=gate))
@@ -181,8 +206,7 @@ def test_only_one_simulation_at_a_time(tmp_path, configured, draft):
 def test_rejecting_and_override_rules_follow_the_cli(tmp_path, configured, draft):
     draft.personas[0].participation = "lurker"  # changes the planned distribution
     root, client = app(tmp_path, FakePipeline(draft))
-    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
-    wait_for(client, started["id"])
+    started = make_draft(client)
     draft_id = started["draft"]
     review = client.get(f"/api/drafts/{draft_id}").json()
     assert review["issues"]
@@ -196,8 +220,7 @@ def test_rejecting_and_override_rules_follow_the_cli(tmp_path, configured, draft
 
 def test_a_hand_edited_invalid_draft_offers_nothing_to_approve(tmp_path, configured, draft):
     root, client = app(tmp_path, FakePipeline(draft))
-    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
-    wait_for(client, started["id"])
+    started = make_draft(client)
     data = json.loads((root / started["draft"] / "draft.json").read_text(encoding="utf-8"))
     data["personas"][2]["browsing_profile"]["tools"] = ["read_console"]  # non-developers cannot get technical tools
     write_json(root / started["draft"] / "draft.json", data)
@@ -207,8 +230,7 @@ def test_a_hand_edited_invalid_draft_offers_nothing_to_approve(tmp_path, configu
 
 def test_a_draft_whose_capability_profile_no_longer_matches_says_so_before_approval(tmp_path, monkeypatch, configured, draft):
     root, client = app(tmp_path, FakePipeline(draft))
-    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
-    wait_for(client, started["id"])
+    started = make_draft(client)
     assert client.get(f"/api/drafts/{started['draft']}").json()["blocked"] is None
     changed = {**SETTINGS, "model": "another-model"}  # the model configuration changed after the draft was made
     for module in (drafts, phase1):

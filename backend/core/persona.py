@@ -3,6 +3,7 @@
 import re
 from datetime import datetime
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -12,6 +13,8 @@ Clock = Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 Level = Literal["低", "中", "高"]
 Motivation = Literal["随便看看", "有明确任务", "对比竞品", "付费决策"]
 LIMITS = {"low": (15, 4), "normal": (40, 8), "high": (80, 12)}
+# Persona IDs are p01..p99; the timeline length is the user's choice within a year.
+MIN_PERSONAS, MAX_PERSONAS, MAX_DAYS = 2, 99, 365
 
 
 class Data(BaseModel):
@@ -23,12 +26,23 @@ class TestAccount(Data):
     description: Text
 
 
+# Applied when a manual names no forbidden actions: a URL-only manual must still never pay, delete or send.
+DEFAULT_FORBIDDEN = ["真实支付或下单", "删除账号或数据", "对外发送邮件、短信或消息", "提交真实的个人信息"]
+
+
 class ManualMetadata(Data):
-    name: Text
+    """Only url and allowed_domains are required; the rest falls back to the product's host, a visitor and safe defaults."""
+    name: Text | None = None
     url: Text
     allowed_domains: list[Text] = Field(min_length=1)
-    test_accounts: list[TestAccount] = Field(min_length=1)
-    forbidden_actions: list[Text] = Field(min_length=1)
+    test_accounts: list[TestAccount] = []
+    forbidden_actions: list[Text] = Field(default_factory=lambda: list(DEFAULT_FORBIDDEN), min_length=1)
+
+    @model_validator(mode="after")
+    def default_name(self):
+        if self.name is None:
+            self.name = urlsplit(self.url).hostname or self.url
+        return self
 
 
 class Flow(Data):
@@ -164,6 +178,8 @@ class Schedule(Data):
     sleep: Clock
     activity_by_hour: dict[int, float]
     browse_slot: Clock
+    # Which day of the timeline the persona first uses the product (drafts before multi-day timelines: day 1).
+    browse_day: int = Field(default=1, ge=1, le=MAX_DAYS, strict=True)
     state_at_browse: Text
 
     @field_validator("state_at_browse")
@@ -202,17 +218,26 @@ class Disclosure(Data):
         return self
 
 
+class Sampling(Data):
+    """Per-persona sampling for the calls spoken in the persona's own voice (browsing, discussion, questionnaire, interview)."""
+    temperature: float = Field(ge=0, le=2)
+    top_p: float = Field(gt=0, le=1)
+    presence_penalty: float = Field(ge=-2, le=2)
+
+
 class Persona(Identity):
     persona_id: Annotated[str, Field(pattern=r"^p\d{2}$")]
     browsing_profile: BrowsingProfile
     schedule: Schedule
     participation: Literal["poster", "commenter", "reactor", "lurker"]
     disclosure: Disclosure
+    # Drafts made before per-persona sampling have none: their calls keep the framework defaults.
+    sampling: Sampling | None = None
 
 
 class RunConfig(Data):
     start_time: datetime
-    duration_days: int = Field(ge=1, le=30, strict=True)
+    duration_days: int = Field(ge=1, le=MAX_DAYS, strict=True)
     time_slice_minutes: int = Field(ge=1, le=1440, strict=True)
     max_concurrency: int = Field(ge=1, le=10, strict=True)
 
@@ -239,18 +264,35 @@ class CohortSlot(Data):
     participation: Literal["poster", "commenter", "reactor", "lurker"]
     withhold_tendency: Level
     browse_slot: Clock
+    browse_day: int = Field(ge=1, le=MAX_DAYS, strict=True)
     account_role: Text
     assignment: Assignment
     reason: Text
 
 
+# The main agent plans the cohort ten slots per request, so large cohorts fit any provider's output limit.
+PLAN_BATCH = 10
+
+
 class CohortPlan(Data):
+    """First batch: the overall rationale plus up to PLAN_BATCH slots."""
     rationale: Text
-    slots: list[CohortSlot] = Field(min_length=10, max_length=10)
+    slots: list[CohortSlot] = Field(min_length=1, max_length=PLAN_BATCH)
+
+
+class CohortBatch(Data):
+    slots: list[CohortSlot] = Field(min_length=1, max_length=PLAN_BATCH)
+
+
+class Recommendation(Data):
+    """The main agent's suggested cohort size and timeline length; the user may change both before generation."""
+    persona_count: int = Field(ge=MIN_PERSONAS, le=MAX_PERSONAS, strict=True)
+    duration_days: int = Field(ge=1, le=MAX_DAYS, strict=True)
+    reason: Text
 
 
 class Draft(Data):
     product: ProductSummary
     cohort_rationale: Text
-    personas: list[Persona] = Field(min_length=10, max_length=10)
+    personas: list[Persona] = Field(min_length=MIN_PERSONAS, max_length=MAX_PERSONAS)
     run_config: RunConfig

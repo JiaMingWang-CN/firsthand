@@ -8,12 +8,14 @@ from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 
-from openai import APIError
+from openai import APIError, AsyncOpenAI
 
-from core.persona import Draft
+from core.persona import MAX_DAYS, MAX_PERSONAS, MIN_PERSONAS, Draft, ProductSummary
 from core.runtime import ROOT, error_summary, require, require_capabilities, settings, write_json
-from orchestrator.manual import read_manual
-from orchestrator.personas import distribution_issues, generate_draft, period, schedule_rows, validate_draft, validation_message
+from orchestrator.manual import material, read_manual
+from orchestrator.personas import (distribution_issues, generate_draft, minimum_count, period, recommend, schedule_rows,
+                                   summarize_product, validate_draft, validation_message, with_site)
+from orchestrator.site import read_site
 from probe.model import probe_model
 
 
@@ -38,6 +40,7 @@ def load_draft(run_dir):
 def save_review(run_dir, draft, manual):
     run_dir = Path(run_dir)
     rows = schedule_rows(draft)
+    about = material(manual)
     write_json(run_dir / "schedule.json", rows)
     write_json(run_dir / "product_model.json", {"metadata": manual["metadata"].model_dump(),
                "summary": draft.product.model_dump(), "flows": [flow.model_dump() for flow in manual["flows"]],
@@ -45,19 +48,21 @@ def save_review(run_dir, draft, manual):
     lines = [f"# {manual['metadata'].name}：阶段 1 人工审核", "",
              "此文件是展示副本；修改 draft.json 后，在 CLI 中 reload。审批状态以与当前草稿匹配的 approval.json 为准。",
              "Scout 尚未执行；本文件不包含真实产品体验结论。", "",
+             f"资料充分程度：{about['summary']}", *[f"- 缺少 {gap['item']}：{gap['effect']}" for gap in about["gaps"]], "",
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
              "## 模拟配置", "", "```json", draft.run_config.model_dump_json(indent=2), "```", "",
              "浏览并发同时受环境中的模型上限、浏览器上限和能力探测建议值限制；Steel 套餐需匹配该配置。", "",
              "## 主 Agent 的分布方案", "", draft.cohort_rationale, "",
              "按当前草稿统计：", "", *distribution_summary(draft), "",
-             "## Persona 与时间表", "", "| ID | 姓名 | 年龄/性别 | 设备/技术/耐心 | 动机 | 参与 | 本地体验时间 | UTC时间片 | 任务 |",
-             "|---|---|---|---|---|---|---|---|---|"]
+             "## Persona 与时间表", "", "| ID | 姓名 | 年龄/性别 | 设备/技术/耐心 | 动机 | 参与 | 本地体验时间 | UTC时间片 | 任务 | 温度/top_p |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     people = {persona.persona_id: persona for persona in draft.personas}
     for row in rows:
         p = people[row["persona_id"]]
         profile = p.browsing_profile
         values = [p.persona_id, p.realname, f"{p.age}/{p.gender}", f"{profile.device}/{profile.tech_level}/{profile.patience}",
-                  profile.motivation, p.participation, row["local_time"], str(row["slice_index"]), profile.assignment.flow or "自由探索"]
+                  profile.motivation, p.participation, row["local_time"], str(row["slice_index"]), profile.assignment.flow or "自由探索",
+                  f"{p.sampling.temperature}/{p.sampling.top_p}" if p.sampling else "默认"]
         lines.append("| " + " | ".join(value.replace("|", "\\|").replace("\n", " ") for value in values) + " |")
     issues = distribution_issues(draft, manual)
     lines.extend(["", "分布校验：" + ("；".join(issues) if issues else "全部通过"), ""])
@@ -175,7 +180,10 @@ def review(run_dir, input_fn=input):
             print("未知命令。")
 
 
-async def prepare(manual_path, run_dir, capability_run=None):
+async def analyze(manual_path, run_dir, capability_run=None):
+    """Manual → capability profile, start-page excerpt, product model and the main agent's cohort recommendation.
+
+    Nothing about people is generated yet: the user confirms or changes the recommended size and length first."""
     # Validation precedes configuration, run creation and all paid API requests.
     manual = read_manual(manual_path)
     config = settings()
@@ -196,15 +204,60 @@ async def prepare(manual_path, run_dir, capability_run=None):
             capability = await probe_model(config, run_dir)
             if not capability["ready"]:
                 raise ValueError("模型能力未通过；中止生成人设")
-        draft = await generate_draft(config, capability, manual)
-        write_json(run_dir / "draft.json", draft.model_dump(mode="json"))
-        save_review(run_dir, draft, manual)
-        write_json(run_dir / "phase1_result.json", {"passed": True, "review_status": "pending",
-                   "persona_count": 10, "distribution_issues": [], "scout_status": "pending"})
-        return draft
+        site = await read_site(manual["metadata"].url, manual["metadata"].allowed_domains)
+        write_json(run_dir / "site.json", site)
+        print("首页摘录：" + (f"已读取 {len(site['text'])} 字" if site["status"] == "ok" else f"未读取（{site['reason']}）"), flush=True)
+        source = with_site(manual, site)
+        about = material(manual)
+        async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
+            product = await summarize_product(client, config, capability, source)
+            write_json(run_dir / "product.json", product.model_dump(mode="json"))
+            suggestion = await recommend(client, config, capability, source, product, about)
+        result = {"stage": "analyzed", "passed": True, "review_status": "pending", "material": about,
+                  "recommendation": suggestion.model_dump(), "minimum_personas": minimum_count(len(manual["flows"]))}
+        write_json(run_dir / "recommendation.json", result["recommendation"])
+        write_json(run_dir / "phase1_result.json", result)
+        print(f"推荐：{suggestion.persona_count} 人，{suggestion.duration_days} 天。{suggestion.reason}", flush=True)
+        return result
     except Exception as error:
         write_json(run_dir / "phase1_result.json", {"passed": False, "review_status": "pending", "error": error_summary(error, run_dir)})
         raise
+
+
+async def generate(run_dir, persona_count=None, duration_days=None):
+    """Personas and run configuration for an analyzed run, with the user's (or the recommended) size and length."""
+    run_dir = Path(run_dir)
+    analyzed = json.loads((run_dir / "phase1_result.json").read_text(encoding="utf-8"))
+    if analyzed.get("stage") != "analyzed" or (run_dir / "draft.json").exists():
+        raise ValueError("只能为已分析、尚未生成人物的运行生成人物")
+    count = persona_count or analyzed["recommendation"]["persona_count"]
+    days = duration_days or analyzed["recommendation"]["duration_days"]
+    if not MIN_PERSONAS <= count <= MAX_PERSONAS or not 1 <= days <= MAX_DAYS:
+        raise ValueError(f"人数须在 {MIN_PERSONAS}–{MAX_PERSONAS}，天数须在 1–{MAX_DAYS}")
+    manual = read_manual(run_dir / "manual.md")
+    config = settings()
+    require(config, "base_url", "api_key", "model")
+    capability = require_capabilities(run_dir, config)
+    site = json.loads((run_dir / "site.json").read_text(encoding="utf-8")) if (run_dir / "site.json").exists() else None
+    product = ProductSummary.model_validate_json((run_dir / "product.json").read_text(encoding="utf-8"))
+    print(f"生成 {count} 人，{days} 天", flush=True)
+    try:
+        draft = await generate_draft(config, capability, with_site(manual, site), product, count, days)
+        write_json(run_dir / "draft.json", draft.model_dump(mode="json"))
+        save_review(run_dir, draft, manual)
+        write_json(run_dir / "phase1_result.json", {**analyzed, "stage": "drafted", "persona_count": count, "duration_days": days,
+                   "distribution_issues": [], "scout_status": "pending"})
+        return draft
+    except Exception as error:
+        # The analysis stays usable: the user may retry, with the same or other numbers.
+        write_json(run_dir / "phase1_result.json", {**analyzed, "generation_error": error_summary(error, run_dir)})
+        raise
+
+
+async def prepare(manual_path, run_dir, capability_run=None, persona_count=None, duration_days=None):
+    """analyze + generate in one go, for the command line."""
+    await analyze(manual_path, run_dir, capability_run)
+    return await generate(run_dir, persona_count, duration_days)
 
 
 def main():
@@ -212,23 +265,37 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     check = commands.add_parser("validate")
     check.add_argument("manual", type=Path)
-    generate = commands.add_parser("prepare")
-    generate.add_argument("manual", type=Path)
-    generate.add_argument("--run-dir", type=Path)
-    generate.add_argument("--capability-run", type=Path, help="显式复用同模型、同思考模式的能力探测结果")
+    for name in ["analyze", "prepare"]:
+        command = commands.add_parser(name)
+        command.add_argument("manual", type=Path)
+        command.add_argument("--run-dir", type=Path)
+        command.add_argument("--capability-run", type=Path, help="显式复用同模型、同思考模式的能力探测结果")
+    build = commands.add_parser("generate")
+    build.add_argument("run_dir", type=Path)
+    for command in [commands.choices["prepare"], build]:
+        command.add_argument("--personas", type=int, help="人数；不给时用主 Agent 的推荐")
+        command.add_argument("--days", type=int, help="模拟天数；不给时用主 Agent 的推荐")
     approval = commands.add_parser("review")
     approval.add_argument("run_dir", type=Path)
     args = parser.parse_args()
     try:
         if args.command == "validate":
             manual = read_manual(args.manual)
-            print(f"说明书校验通过：{manual['metadata'].name}，{len(manual['flows'])} 个关键流程")
+            about = material(manual)
+            print(f"说明书校验通过：{manual['metadata'].name}，{len(manual['flows'])} 个关键流程；{about['summary']}")
         elif args.command == "review":
             review(args.run_dir.resolve())
+        elif args.command == "generate":
+            asyncio.run(generate(args.run_dir.resolve(), args.personas, args.days))
+            print(f"阶段 1 草稿已生成，等待人工审核：{args.run_dir.resolve() / 'review.md'}")
         else:
             run_dir = (args.run_dir or ROOT / "runs" / datetime.now(timezone.utc).strftime("phase1-%Y%m%dT%H%M%S%fZ")).resolve()
-            asyncio.run(prepare(args.manual, run_dir, args.capability_run))
-            print(f"阶段 1 草稿已生成，等待人工审核：{run_dir / 'review.md'}")
+            if args.command == "analyze":
+                asyncio.run(analyze(args.manual, run_dir, args.capability_run))
+                print(f"已分析，确认人数和天数后生成人物：python -m orchestrator.phase1 generate {run_dir} --personas N --days D")
+            else:
+                asyncio.run(prepare(args.manual, run_dir, args.capability_run, args.personas, args.days))
+                print(f"阶段 1 草稿已生成，等待人工审核：{run_dir / 'review.md'}")
     except (ValueError, OSError) as error:
         print("错误：" + validation_message(error))
         raise SystemExit(1)

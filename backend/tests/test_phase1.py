@@ -42,7 +42,7 @@ def plan_slots(manual):
         flow = manual["flows"][index % len(manual["flows"])] if index < 7 else None
         slots.append(CohortSlot(persona_id=f"p{index + 1:02d}", realname=f"测试用户{index + 1}", profession=f"职业{index + 1}", gender="女" if index % 2 else "男", age=22 + index * 3,
                                 tech_level=tech, device=device, patience=patience, motivation="有明确任务" if flow else "随便看看",
-                                participation=participation, withhold_tendency=withholding, browse_slot=slot,
+                                participation=participation, withhold_tendency=withholding, browse_slot=slot, browse_day=1,
                                 account_role="new_visitor", assignment={"type": "task" if flow else "explore", "flow": flow.name if flow else None},
                                 reason="测试槽位"))
     return slots
@@ -94,7 +94,7 @@ def test_invalid_manual_fields_rejected(tmp_path, before, after):
 
 
 def test_template_comments_do_not_count_as_content():
-    with pytest.raises(ValueError, match="缺少必填章节"):
+    with pytest.raises(ValueError, match="占位名称"):
         read_manual(ROOT.parent / "docs/product_manual_template.md")
 
 

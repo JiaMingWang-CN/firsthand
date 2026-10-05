@@ -8,9 +8,10 @@ from core.usage import measured_request
 
 
 class ProviderModel(OpenAICompatibleModel):
-    def __init__(self, config):
+    def __init__(self, config, sampling=None):
+        """sampling: the persona's wire-ready parameters (orchestrator.personas.sampling_options); none keeps temperature 0."""
         self.provider_config = config
-        options = {"temperature": 0, "max_tokens": 512,
+        options = {"temperature": 0, "max_tokens": 512, **(sampling or {}),
                    **get_adapter(config).thinking_options("chat_completions", config.get("thinking_type"))}
         super().__init__(model_type=config["model"], url=config["base_url"], api_key=config["api_key"],
                          model_config_dict=options, timeout=60, max_retries=0)

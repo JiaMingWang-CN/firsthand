@@ -22,7 +22,7 @@ from core.limits import async_slot
 from core.providers import module_route
 from core.runtime import chat_json_schema_supported, error_summary, require, write_json
 from core.usage import UsageRecorder
-from orchestrator.personas import request_json
+from orchestrator.personas import request_json, sampling_options
 
 
 def task_prompt(persona, manual, expectations):
@@ -205,6 +205,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                         provider=route.config["provider"], thinking_type=config.get("thinking_type"),
                         max_model_concurrency=config.get("max_model_concurrency", 10),
                         max_browser_concurrency=config.get("max_browser_concurrency", 1), timeout=60, max_retries=0,
+                        sampling=sampling_options(capability, persona.sampling, "chat_completions"),
                         dont_force_structured_output=not chat_json_schema_supported(capability),
                         add_schema_to_system_prompt=not chat_json_schema_supported(capability))
                     agent = Agent(task=prompt, llm=llm, browser_session=browser, tools=tools, sensitive_data=sensitive_data,

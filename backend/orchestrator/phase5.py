@@ -11,6 +11,7 @@ from openai import AsyncOpenAI
 
 from core.runtime import ROOT, error_summary, require_capabilities, settings, write_json
 from core.usage import UsageRecorder
+from orchestrator.manual import material, read_manual
 from report.agent import build_report, investigate, verify_report
 from report.evidence import EvidenceStore
 from report.render import render
@@ -38,6 +39,12 @@ async def execute(source, root, capability_dir, use_model):
     claims, trace, notes = {}, [], []
     if not phase4.get("passed"):
         notes.append(f"阶段 4 验收未通过（{phase4.get('status', 'passed=false')}）：模拟本身不完整或不合格，以下所有数字和结论只能作为排查参考。")
+    context = json.loads((source / "run_context.json").read_text(encoding="utf-8"))
+    manual_path = Path(context["source_run"]) / "manual.md"
+    if manual_path.is_file():
+        about = material(read_manual(manual_path))
+        if about["level"] != "complete":
+            notes.append(about["summary"] + "。" + "；".join(f"缺少 {gap['item']}：{gap['effect']}" for gap in about["gaps"]) + "。")
     if use_model:
         config = settings()
         capability = require_capabilities(capability_dir, config)
@@ -54,7 +61,6 @@ async def execute(source, root, capability_dir, use_model):
         notes.append("未调用模型：问题清单与亮点为空，其余章节来自完整记录。")
     report = build_report(store, claims, notes)
     errors = verify_report(report, store)
-    context = json.loads((source / "run_context.json").read_text(encoding="utf-8"))
     model_path = Path(context["source_run"]) / "product_model.json"
     product = json.loads(model_path.read_text(encoding="utf-8"))["metadata"]["name"] if model_path.is_file() else "产品"
     write_json(root / "report.json", report)

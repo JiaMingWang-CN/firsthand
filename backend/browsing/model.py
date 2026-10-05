@@ -24,6 +24,8 @@ class ProviderChatOpenAI(ChatOpenAI):
     thinking_type: str | None = None
     max_model_concurrency: int = 10
     max_browser_concurrency: int = 1
+    # The persona's own sampling (already filtered by the capability probe); replaces Browser Use's temperature default.
+    sampling: dict = field(default_factory=dict)
     # Counted at the SDK boundary: proof that screenshots actually reach the model.
     requests_sent: int = field(default=0, init=False)
     requests_with_images: int = field(default=0, init=False)
@@ -63,6 +65,7 @@ class ProviderChatOpenAI(ChatOpenAI):
 
         async def counted_create(*args, **kwargs):
             kwargs.update(adapter.thinking_options("chat_completions", self.thinking_type))
+            kwargs.update(self.sampling)
             schema = kwargs.get("response_format", {}).get("json_schema")
             if schema:
                 kwargs.update(adapter.output_options("chat_completions", schema))

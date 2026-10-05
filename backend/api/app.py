@@ -40,6 +40,23 @@ class Confirm(BaseModel):
     confirm: Literal[True]
 
 
+class Size(BaseModel):
+    persona_count: int
+    duration_days: int
+
+
+class SamplingEdit(BaseModel):
+    temperature: float
+    top_p: float
+    presence_penalty: float
+
+
+class DraftEdit(BaseModel):
+    draft_sha256: str
+    duration_days: int | None = None
+    sampling: dict[str, SamplingEdit] | None = None
+
+
 def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
     app = FastAPI(title="muchhuman", docs_url="/api/docs", openapi_url="/api/openapi.json")
     reader = Reader(runs_root, recordings)
@@ -128,6 +145,15 @@ def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
     @app.get("/api/drafts/{draft_id}")
     def draft_review(draft_id: str):
         return drafts.review(reader.root, draft_id, jobs.all())
+
+    @app.post("/api/drafts/{draft_id}/personas")
+    def generate(draft_id: str, body: Size):
+        return drafts.start_generate(reader.root, jobs, draft_id, body.persona_count, body.duration_days)
+
+    @app.post("/api/drafts/{draft_id}/edits")
+    def edit_draft(draft_id: str, body: DraftEdit):
+        sampling = {pid: item.model_dump() for pid, item in body.sampling.items()} if body.sampling else None
+        return drafts.update_draft(reader.root, draft_id, body.draft_sha256, body.duration_days, sampling)
 
     @app.post("/api/drafts/{draft_id}/decision")
     def decide(draft_id: str, body: Decision):

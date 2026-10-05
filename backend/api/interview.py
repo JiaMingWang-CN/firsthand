@@ -153,7 +153,7 @@ class Interviewer:
 
         history = [turn.model_dump() for turn in ask.history]
         result = await self.generate(InterviewAnswer, prompt(context, ask.question, history, has_experience), validate, f"采访 {pid}",
-                                     usage_dir=interview_dir(store.root))
+                                     usage_dir=interview_dir(store.root), sampling=store.people[pid]["persona"].get("sampling"))
         return {"persona_id": pid, **result.model_dump()}
 
 
@@ -162,7 +162,7 @@ def llm_generate(capability_dir, runs_root=None):
 
     Without an explicit capability directory the newest one under runs_root that fits the current model configuration is
     used (every new run's draft directory carries the profile it was made with)."""
-    async def generate(schema, text, validate, label, usage_dir=None):
+    async def generate(schema, text, validate, label, usage_dir=None, sampling=None):
         try:
             config = settings()
             require(config, "base_url", "api_key", "model")
@@ -180,10 +180,10 @@ def llm_generate(capability_dir, runs_root=None):
         try:
             async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
                 if usage_dir is None:
-                    return await request_json(client, config, capability, schema, text, validate=validate, label=label)
+                    return await request_json(client, config, capability, schema, text, validate=validate, label=label, sampling=sampling)
                 Path(usage_dir).mkdir(parents=True, exist_ok=True)
                 with UsageRecorder(config, usage_dir):  # every attempt, including rejected and failed ones
-                    return await request_json(client, config, capability, schema, text, validate=validate, label=label)
+                    return await request_json(client, config, capability, schema, text, validate=validate, label=label, sampling=sampling)
         except APIError as error:
             # The provider's message can echo the request URL, prompt or credentials, so only type and status leave.
             status = getattr(error, "status_code", None)

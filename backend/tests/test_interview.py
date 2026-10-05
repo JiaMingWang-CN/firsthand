@@ -16,7 +16,7 @@ URL = "/api/runs/phase4-x/personas/{}/interview"
 
 
 def stub(result, calls):
-    async def generate(schema, text, validate, label, usage_dir=None):
+    async def generate(schema, text, validate, label, usage_dir=None, sampling=None):
         calls.append({"schema": schema, "text": text, "label": label})
         validate(result)
         return result
@@ -122,7 +122,7 @@ def test_unknown_persona_and_run_are_not_found(runs_root):
 
 def test_model_failures_map_to_gateway_statuses(runs_root):
     def failing(error):
-        async def generate(schema, text, validate, label, usage_dir=None):
+        async def generate(schema, text, validate, label, usage_dir=None, sampling=None):
             raise error
         return generate
     for error, status, reason in [(InterviewUnavailable("未配置"), 503, None), (InterviewFailed("三次不合法", "invalid_answer"), 502, "invalid_answer"),
@@ -158,7 +158,7 @@ def test_provider_http_errors_are_not_a_server_error(runs_root, monkeypatch, kin
     import openai
     error = provider_error(getattr(openai, kind), status)
 
-    async def failing(client, config, capability, schema, text, validate=None, label=None):
+    async def failing(client, config, capability, schema, text, validate=None, label=None, sampling=None):
         raise error
 
     class Client:
@@ -195,7 +195,7 @@ def test_without_an_explicit_capability_directory_the_newest_matching_one_under_
         async def __aenter__(self): return self
         async def __aexit__(self, *args): return False
 
-    async def fake_request_json(client, cfg, capability, schema, text, validate=None, label=None):
+    async def fake_request_json(client, cfg, capability, schema, text, validate=None, label=None, sampling=None):
         return "parsed"
 
     for module in (interview, runs):
@@ -229,7 +229,7 @@ def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatc
         async def __aexit__(self, *args):
             return False
 
-    async def fake_request_json(client, cfg, capability, schema, text, validate=None, label=None):
+    async def fake_request_json(client, cfg, capability, schema, text, validate=None, label=None, sampling=None):
         seen["call"] = (schema, text, label)
         if text == "boom":
             raise ValueError("三次不合法")
@@ -263,7 +263,7 @@ def test_interview_tokens_go_to_a_ledger_beside_the_run_and_show_up_in_the_overv
     from types import SimpleNamespace
     from core.usage import measured_request
 
-    async def request_json(client, config, capability, schema, text, validate=None, label=None):
+    async def request_json(client, config, capability, schema, text, validate=None, label=None, sampling=None):
         # two provider requests, as when the first answer is rejected and rewritten
         for _ in range(2):
             await measured_request(lambda: _response(), "chat_completions", "m")

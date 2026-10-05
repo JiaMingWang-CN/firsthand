@@ -30,13 +30,15 @@ def response_tool(tool):
 
 
 async def create(client, config, messages, max_tokens, deadline, label, *, tools=None, tool_choice=None,
-                 parallel_tool_calls=None, json_schema=None, json_object=False):
+                 parallel_tool_calls=None, json_schema=None, json_object=False, sampling=None):
     """Return (message, usage); message exposes .content and .tool_calls[].function.name/.arguments on both APIs.
 
     json_schema is {"name", "schema", "strict"}; tool definitions and tool_choice use the Chat Completions shape.
+    sampling holds wire-ready parameters for this API (orchestrator.personas.sampling_options), or nothing.
     """
     options = {key: value for key, value in [("tools", tools), ("tool_choice", tool_choice),
                                              ("parallel_tool_calls", parallel_tool_calls)] if value is not None}
+    options.update(sampling or {})
     api = llm_api(config)
     adapter = get_adapter(config)
     options.update(adapter.thinking_options(api, config.get("thinking_type")))

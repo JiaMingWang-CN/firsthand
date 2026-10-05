@@ -104,11 +104,13 @@ class Jobs:
         return sorted((job for job in jobs if job), key=lambda job: job["created_at"], reverse=True)
 
     def view(self, job_id):
+        # Liveness first: a runner saves its final record before leaving _live, so a record read afterwards that still
+        # says "running" really belongs to no thread here (read the other way round, a job finishing in between looks detached).
+        with self._lock:
+            live = job_id in self._live
         job = self.record(job_id)
         if job is None:
             return None
-        with self._lock:
-            live = job_id in self._live
         if job["state"] == "running" and not live:
             # Started by an earlier API process: its children may still be running, but nothing here waits on them.
             job = {**job, "state": "detached"}
@@ -122,10 +124,11 @@ class Jobs:
 
     def progress(self, job):
         """What the job's run directories say so far; read-only, works for detached jobs too."""
-        if job["kind"] == "prepare":
+        if job["kind"] in {"prepare", "generate"}:
             run = self.root / job["draft"]
             result = read_json(run / "phase1_result.json")
-            return {"capability": (run / "capability_profile.json").is_file(), "draft": (run / "draft.json").is_file(),
+            return {"capability": (run / "capability_profile.json").is_file(), "site": (run / "site.json").is_file(),
+                    "product": (run / "product.json").is_file(), "draft": (run / "draft.json").is_file(),
                     "passed": None if result is None else result.get("passed")}
         run = self.root / job["simulation"]
         timeline = read_json(run / "timeline.json", {}) or {}

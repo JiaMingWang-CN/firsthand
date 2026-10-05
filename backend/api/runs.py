@@ -38,7 +38,10 @@ def matching_capabilities(root, config):
             require_capabilities(path, config)
         except (ValueError, KeyError, OSError):
             continue
-        found.append({"id": path.name, "created_at": datetime.fromtimestamp(profile.stat().st_mtime, timezone.utc).isoformat()})
+        checks = (json.loads(profile.read_text(encoding="utf-8")).get("checks") or {})
+        found.append({"id": path.name, "created_at": datetime.fromtimestamp(profile.stat().st_mtime, timezone.utc).isoformat(),
+                      # Profiles probed before per-persona sampling existed cannot enable it.
+                      "sampling": checks.get("sampling", {}).get("supported", False)})
     return sorted(found, key=lambda item: item["created_at"], reverse=True)
 
 

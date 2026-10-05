@@ -37,6 +37,6 @@ async def answer_exit(client, config, capability, persona, store):
                      "findings": {key: value.model_dump() for key, value in finding_map(memory).items()},
                      "withheld_turns": hidden, "read_posts": list(posts.values())}, ensure_ascii=False))
         result = await request_json(client, config, capability, ExitAnswer, prompt,
-            validate=lambda item: validate_exit(item, memory, set(posts)), label=f"问卷 {pid}")
+            validate=lambda item: validate_exit(item, memory, set(posts)), label=f"问卷 {pid}", sampling=persona.sampling)
     validate_exit(result, memory, set(posts))
     store.survey(pid, result, consistency_flags(result, memory, published_findings(store, pid)))
