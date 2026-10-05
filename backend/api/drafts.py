@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from api.jobs import read_json, stamp
-from api.runs import NotFound, RUN_ID, sibling
+from api.runs import NotFound, RUN_ID, matching_capabilities, sibling
 from core.persona import Draft
 from core.runtime import require, require_capabilities, settings
 from orchestrator.manual import read_manual
@@ -48,18 +48,7 @@ def check_manual(text):
 
 def capabilities(root):
     """Directories whose capability profile matches the current model configuration, newest first."""
-    config = settings()
-    found = []
-    for path in Path(root).iterdir():
-        profile = path / "capability_profile.json"
-        if not path.is_dir() or not RUN_ID.fullmatch(path.name) or not profile.is_file():
-            continue
-        try:
-            require_capabilities(path, config)
-        except (ValueError, KeyError, OSError):
-            continue
-        found.append({"id": path.name, "created_at": datetime.fromtimestamp(profile.stat().st_mtime, timezone.utc).isoformat()})
-    return sorted(found, key=lambda item: item["created_at"], reverse=True)
+    return matching_capabilities(root, settings())
 
 
 def draft_path(root, draft_id):

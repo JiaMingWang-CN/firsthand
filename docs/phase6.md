@@ -21,7 +21,7 @@
 .venv-browsing/Scripts/python.exe -m api --runs runs --capability-run <能力文件目录> --port 8000
 ```
 
-录像接口用 `config/.env` 里的 `STEEL_API_KEY` 向 Steel 取播放列表，密钥不出服务器；没有密钥时录像返回 503，其余照常。`--capability-run` 只在采访时需要（同阶段 5：目录须含与当前提供商、模型、协议、思考配置匹配的 `capability_profile.json`）；不给时其余接口照常，采访返回 503。
+录像接口用 `config/.env` 里的 `STEEL_API_KEY` 向 Steel 取播放列表，密钥不出服务器；没有密钥时录像返回 503，其余照常。`--capability-run` 只在采访时用到（同阶段 5：目录须含与当前提供商、模型、协议、思考配置匹配的 `capability_profile.json`）。不给时，接口在 `--runs` 下自动选**最新的、与当前模型配置匹配**的能力文件（每次新建运行的草稿目录都带着它探测出的 `capability_profile.json`）；找不到时采访返回 503 并说明去“新建运行”生成一次草稿，其余接口照常。
 
 默认只监听 `127.0.0.1`。运行产物含私有会话与连接信息，不要对外网开放。交互式文档在 `/api/docs`。依赖 `fastapi`、`uvicorn`、`httpx`（测试用 `TestClient`）已写入 `browsing/requirements.txt` 与锁文件。
 
@@ -95,7 +95,9 @@ POST /api/runs/{id}/personas/{pid}/interview
 
 ### 启动
 
-两个服务各自启动（`.claude/launch.json` 里有 `api` 与 `ui` 两项）：
+在仓库根目录 `npm run dev` 同时启动后端（8000）与前端（5180），Ctrl+C 一并结束；采访默认自动使用 `backend/runs` 下最新的匹配能力文件；要指定某一个时加环境变量 `CAPABILITY_RUN=runs/<目录>`（PowerShell：`$env:CAPABILITY_RUN="runs/..."; npm run dev`）。
+
+也可以两个服务各自启动（`.claude/launch.json` 里有 `api` 与 `ui` 两项）：
 
 ```powershell
 # 后端，在 backend/ 下

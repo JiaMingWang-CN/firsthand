@@ -3,24 +3,47 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client.js'
-import { AlertTriangle, Check, Loader, X, Circle } from 'lucide-vue-next'
+import { AlertTriangle, Check, Loader, X, Circle, ExternalLink, Eye } from 'lucide-vue-next'
 
 const route = useRoute()
 const jobId = computed(() => String(route.params.jobId))
 const state = ref({ status: 'loading', job: null, error: '' })
 let timer = 0
 
+// 现场：运行中的人物在做什么。pick 为空时跟随后端选的“正在浏览的人物”；点选某一步可固定查看那一步的截图
+const live = ref({ personas: [], selected: null })
+const pick = ref('')
+const stepPick = ref(null)
+async function loadLive() {
+  try {
+    live.value = await api.jobLive(jobId.value, pick.value)
+  } catch (e) {
+    if (pick.value) { pick.value = ''; live.value = await api.jobLive(jobId.value).catch(() => live.value) }  // 选中的人物不在了
+  }
+}
+
 async function load() {
   clearTimeout(timer)
   try {
     const job = await api.job(jobId.value)
     state.value = { status: 'ready', job, error: '' }
+    if (job.kind === 'simulate') await loadLive()
     if (job.state === 'running') timer = setTimeout(load, 2000)
   } catch (e) {
     state.value = { status: 'error', job: null, error: e.message }
   }
 }
-watch(jobId, load, { immediate: true })
+watch(jobId, () => { pick.value = ''; stepPick.value = null; live.value = { personas: [], selected: null }; load() }, { immediate: true })
+function choose(pid) { pick.value = pid; stepPick.value = null; loadLive() }
+const watching = computed(() => live.value.selected)
+const steps = computed(() => (watching.value ? [...watching.value.steps].reverse() : []))
+const shownStep = computed(() => {
+  const all = watching.value?.steps ?? []
+  return all.find((s) => s.n === stepPick.value) ?? [...all].reverse().find((s) => s.screenshot) ?? null
+})
+const shotUrl = computed(() => (shownStep.value?.screenshot ? api.jobShot(jobId.value, watching.value.id, shownStep.value.screenshot) : ''))
+const PSTATE = { running: ['confused', '浏览中'], completed: ['pos', '已完成'], failed: ['neg', '失败'], cancelled: ['neg', '已取消'], pending: ['', '排队'] }
+const hhmm = (iso) => (iso ? iso.slice(11, 16) : '')
 onBeforeUnmount(() => clearTimeout(timer))
 
 const job = computed(() => state.value.job)
@@ -82,6 +105,44 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
         <p class="faint small">开始于 {{ when(job.created_at) }}<template v-if="job.finished_at"> · 结束于 {{ when(job.finished_at) }}</template></p>
       </section>
 
+      <section v-if="job.kind === 'simulate' && live.personas.length" class="panel watch">
+        <div class="panel-head"><h3><Eye class="hi" />现场</h3><span class="aside faint">按各自的步骤日志与截图实时更新；浏览结束后的完整回放在“打开这次运行”里</span></div>
+        <div class="who" role="tablist" aria-label="人物">
+          <button v-for="p in live.personas" :key="p.id" type="button" role="tab" class="pill" :class="{ on: watching?.id === p.id }" :aria-selected="watching?.id === p.id" @click="choose(p.id)">
+            <span class="dot" :class="PSTATE[p.state]?.[0]"></span><b class="num">{{ p.id }}</b><span>{{ p.name }}</span>
+          </button>
+        </div>
+        <template v-if="watching">
+          <div class="who-head">
+            <div><b>{{ watching.name }}</b><span class="faint"> · {{ watching.profession }} · {{ watching.age }} 岁 · {{ watching.city }}<template v-if="watching.local_time"> · 本地 {{ hhmm(watching.local_time) }}</template></span></div>
+            <span class="tag" :class="PSTATE[watching.state]?.[0]"><span class="dot"></span>{{ PSTATE[watching.state]?.[1] ?? watching.state }}</span>
+            <a v-if="watching.viewer_url" class="btn btn-secondary sm" :href="watching.viewer_url" target="_blank" rel="noopener noreferrer"><ExternalLink />在 Steel 中实时观看</a>
+          </div>
+          <div class="stage">
+            <figure class="shot">
+              <img v-if="shotUrl" :src="shotUrl" :alt="`${watching.name} 第 ${shownStep.n} 步之后的页面`" />
+              <div v-else class="faint noshot"><Loader v-if="watching.state === 'running'" class="spin" />{{ watching.state === 'running' ? '浏览器刚打开，等第一步完成后出现截图…' : '这位人物没有截图' }}</div>
+              <figcaption v-if="shownStep && shotUrl" class="faint">第 {{ shownStep.n }} 步操作后的页面</figcaption>
+            </figure>
+            <ol class="steplist" aria-label="步骤">
+              <li v-if="!steps.length" class="faint">还没有开始第一步。</li>
+              <li v-for="s in steps" :key="s.n" :class="{ on: shownStep?.n === s.n }">
+                <button type="button" class="stepbtn" @click="stepPick = s.n">
+                  <span class="sn num">{{ s.n }}</span>
+                  <span class="sb">
+                    <span v-if="s.eval" class="ev">{{ s.eval }}</span>
+                    <span v-if="s.goal" class="goal">▸ {{ s.goal }}</span>
+                    <code v-for="(a, i) in s.actions" :key="i" class="act">{{ a }}</code>
+                    <span v-for="(r, i) in s.results" :key="'r' + i" class="faint res">{{ r }}</span>
+                  </span>
+                </button>
+                <details v-if="s.memory" class="mem"><summary class="faint">记下的内容</summary><p>{{ s.memory }}</p></details>
+              </li>
+            </ol>
+          </div>
+        </template>
+      </section>
+
       <section class="panel">
         <div class="panel-head"><h3>日志</h3><span class="aside faint">最近 {{ job.log.length }} 行 · 已去除密钥</span></div>
         <pre v-if="job.log.length" class="log">{{ job.log.join('\n') }}</pre>
@@ -111,6 +172,35 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
 .links { gap: var(--sp-2); margin: var(--sp-3) 0; }
 .small { font-size: var(--fs-xs); margin: var(--sp-2) 0 0; }
 .log { background: var(--surface-2); border-radius: var(--r-md); padding: var(--sp-3); font-family: var(--font-mono); font-size: var(--fs-xs); max-height: 420px; overflow: auto; white-space: pre-wrap; margin: 0; }
+.watch { margin-bottom: var(--sp-4); }
+.hi { width: 16px; height: 16px; stroke-width: 1.5; vertical-align: -3px; margin-right: 6px; }
+.who { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.pill.on { border-color: var(--text); color: var(--text); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
+.pill .dot.pos { background: var(--pos); }
+.pill .dot.neg { background: var(--neg); }
+.pill .dot.confused { background: var(--confused); }
+.who-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+.who-head > div { margin-right: auto; }
+.stage { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr); gap: var(--sp-4); align-items: start; }
+.shot { margin: 0; position: sticky; top: var(--sp-4); }
+.shot img { width: 100%; border: 1px solid var(--border); border-radius: var(--r-md); display: block; background: var(--surface-2); }
+.shot figcaption { font-size: var(--fs-xs); margin-top: 4px; }
+.noshot { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-height: 200px; border: 1px dashed var(--border-strong); border-radius: var(--r-md); text-align: center; padding: var(--sp-4); font-size: var(--fs-sm); }
+.steplist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); max-height: 560px; overflow: auto; }
+.steplist li { border: 1px solid var(--border); border-radius: var(--r-md); }
+.steplist li.on { border-color: var(--text); }
+.stepbtn { display: flex; gap: var(--sp-3); width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); background: none; border: none; font: inherit; color: inherit; cursor: pointer; }
+.sn { flex: none; width: 22px; height: 22px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: var(--fs-xs); }
+.sb { display: grid; gap: 4px; min-width: 0; font-size: var(--fs-sm); }
+.ev { color: var(--text-2); }
+.goal { font-weight: 600; }
+.act { font-size: var(--fs-xs); background: var(--surface-2); padding: 2px 6px; border-radius: var(--r-sm); word-break: break-all; }
+.res { font-size: var(--fs-xs); }
+.mem { padding: 0 var(--sp-3) var(--sp-2) calc(var(--sp-3) * 2 + 22px); font-size: var(--fs-xs); }
+.mem p { margin: 4px 0 0; color: var(--text-2); }
+@media (max-width: 959px) { .stage { grid-template-columns: 1fr; } .shot { position: static; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

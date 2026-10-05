@@ -17,7 +17,7 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
     ApiError,
     api: {
       runs: call('runs', () => []),
-      checkManual: call('checkManual', (text) => (text.includes('---') ? state.checked : new ApiError(422, '说明书缺少 YAML front matter（开头和结尾的 ---）'))),
+      checkManual: call('checkManual', (text) => (state.checkError ? new ApiError(422, state.checkError) : text.includes('---') ? state.checked : new ApiError(422, '说明书缺少 YAML front matter（开头和结尾的 ---）'))),
       capabilities: call('capabilities', () => state.capabilities),
       newDraft: call('newDraft', () => ({ id: 'prepare-1', draft: 'phase1-new' })),
       drafts: call('drafts', () => state.drafts),
@@ -26,6 +26,8 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
       simulate: call('simulate', () => ({ id: 'simulate-1' })),
       jobs: call('jobs', () => state.jobs),
       job: call('job', () => state.job),
+      jobLive: call('jobLive', () => state.live),
+      jobShot: (id, pid, name) => `/api/jobs/${id}/shots/${pid}/${name}`,
     },
   }
 })
@@ -65,7 +67,7 @@ beforeEach(() => {
   Object.assign(state, {
     checked: { name: '示例产品', url: 'https://example.com', allowed_domains: ['example.com'], test_accounts: ['new_visitor'], forbidden_actions: 2, flows: [{ name: '注册', account_role: 'new_visitor' }], sections: [], known_issues: true },
     capabilities: [{ id: 'phase0-mimo', created_at: '2026-10-04T00:00:00Z' }],
-    draft: structuredClone(DRAFT), drafts: [], jobs: [], job: null, decideError: null,
+    draft: structuredClone(DRAFT), drafts: [], jobs: [], job: null, decideError: null, checkError: null, live: { personas: [], selected: null },
   })
 })
 afterEach(() => { while (mounted.length) mounted.pop().unmount() })
@@ -90,6 +92,35 @@ test('新建运行：校验不通过时说明原因；通过后复用能力文�
   await confirm(w)
   expect(calls.find(([name]) => name === 'newDraft')).toEqual(['newDraft', '---\nname: x\n---\n', 'phase0-mimo'])
   await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/drafts/phase1-new'))  // 页面组件按需加载
+})
+
+test('新建运行：校验前列出必填项，未通过时标出报错点名的章节', async () => {
+  const w = await open('/new')
+  expect(w.findAll('.checklist li.todo').length).toBe(9)
+  state.checkError = '缺少必填章节或内容为空：产品定位、目标用户'
+  await w.find('textarea').setValue('---\nname: x\n---\n')
+  await button(w, '校验').trigger('click')
+  await settle()
+  expect(w.findAll('.checklist li.bad').map((li) => li.find('code').text())).toEqual(['# 产品定位', '# 目标用户'])
+  expect(button(w, '下一步：模型能力')).toBeUndefined()
+})
+
+test('新建运行：没有可复用的能力文件时说明探测发生在生成时，按钮与确认弹窗都写明会先探测', async () => {
+  state.capabilities = []
+  const w = await open('/new')
+  await w.find('textarea').setValue('---\nname: x\n---\n')
+  await button(w, '校验').trigger('click')
+  await settle()
+  await button(w, '下一步：模型能力').trigger('click')
+  await settle()
+  expect(w.find('.note').text()).toContain('探测不在这一步执行')
+  await button(w, '下一步：生成人物').trigger('click')
+  expect(button(w, '生成人物草稿')).toBeUndefined()
+  await button(w, '探测模型能力并生成人物').trigger('click')
+  await settle()
+  expect(document.querySelector('.dlg').textContent).toContain('先探测模型能力')
+  await confirm(w)
+  expect(calls.find(([name]) => name === 'newDraft')[2]).toBe('')
 })
 
 test('审核：批准时带上展示版本的哈希；分布变更须勾选确认；批准后可开始模拟并跳到任务页', async () => {
@@ -157,6 +188,27 @@ test('任务页：按运行目录显示时间片与人物进度，阶段 4 写�
   await new Promise((r) => setTimeout(r, 2100))
   await settle()
   expect(w.findAll('a').find((a) => a.text() === '打开这次运行').attributes('href')).toBe('#/runs/phase4-x/report')
+})
+
+test('任务页：现场显示正在浏览的人物、步骤与最新截图，可切换人物，只在浏览中给 Steel 链接', async () => {
+  const running = { id: 'p02', name: '乙', profession: '设计师', age: 30, city: '上海', state: 'running', local_time: '2026-10-05T10:10:00+08:00', viewer_url: 'https://app.steel.dev/sessions/abc',
+    steps: [{ n: 1, eval: '首页加载成功。', memory: '读到姓名', goal: '点击全部项目', actions: ['click index: 26'], results: ['Clicked'], screenshot: 's001_after.png' },
+      { n: 2, eval: '进入列表页。', memory: '', goal: '向下滚动', actions: ['scroll down'], results: [], screenshot: null }] }
+  state.job = { id: 'simulate-1', kind: 'simulate', state: 'running', draft: 'phase1-new', simulation: 'phase4-x', report: 'phase5-x', created_at: '2026-10-05T02:00:00Z',
+    steps: [{ name: '体验与社区讨论（阶段 4）', state: 'running' }], progress: { slices_done: 1, slices: 24, personas: 2, personas_done: 1, personas_failed: 0 }, log: [] }
+  state.live = { personas: [{ id: 'p01', name: '甲', state: 'completed' }, { id: 'p02', name: '乙', state: 'running' }], selected: running }
+  const w = await open('/jobs/simulate-1')
+  const watch = w.find('.watch')
+  expect(watch.text()).toContain('乙')
+  expect(watch.find('img').attributes('src')).toBe('/api/jobs/simulate-1/shots/p02/s001_after.png')  // 第 2 步还没有截图，显示最近一张
+  expect(watch.find('.shot figcaption').text()).toContain('第 1 步')
+  expect(watch.findAll('.steplist > li').map((li) => li.find('.sn').text())).toEqual(['2', '1'])  // 最新的在最上面
+  expect(watch.find('a[href="https://app.steel.dev/sessions/abc"]').attributes('rel')).toContain('noopener')
+  state.live = { ...state.live, selected: { ...running, id: 'p01', name: '甲', state: 'completed', viewer_url: null } }
+  await watch.findAll('.pill')[0].trigger('click')
+  await settle()
+  expect(calls.filter(([name]) => name === 'jobLive').at(-1)).toEqual(['jobLive', 'simulate-1', 'p01'])
+  expect(w.findAll('.watch a').some((a) => a.text().includes('Steel'))).toBe(false)
 })
 
 test('运行列表：显示进行中的任务和待审核的草稿', async () => {

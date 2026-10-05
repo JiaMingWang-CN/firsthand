@@ -2,7 +2,10 @@
 
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
+
+from core.runtime import require_capabilities
 
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # Only screenshots leave the server as files; traces, sessions and databases hold private connection data.
@@ -22,6 +25,21 @@ def read_json(path, default=None):
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return default
+
+
+def matching_capabilities(root, config):
+    """Directories under root whose capability profile fits the current model configuration, newest first."""
+    found = []
+    for path in Path(root).iterdir():
+        profile = path / "capability_profile.json"
+        if not path.is_dir() or not RUN_ID.fullmatch(path.name) or not profile.is_file():
+            continue
+        try:
+            require_capabilities(path, config)
+        except (ValueError, KeyError, OSError):
+            continue
+        found.append({"id": path.name, "created_at": datetime.fromtimestamp(profile.stat().st_mtime, timezone.utc).isoformat()})
+    return sorted(found, key=lambda item: item["created_at"], reverse=True)
 
 
 def is_simulation(path):

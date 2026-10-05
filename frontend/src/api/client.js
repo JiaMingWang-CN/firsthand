@@ -52,6 +52,8 @@ export const api = {
   simulate: (id) => post(`/api/drafts/${enc(id)}/simulations`, { confirm: true }),
   jobs: () => request('/api/jobs'),
   job: (id) => request(`/api/jobs/${enc(id)}`),
+  jobLive: (id, persona) => request(`/api/jobs/${enc(id)}/live${persona ? `?persona=${enc(persona)}` : ''}`),
+  jobShot: (id, pid, name) => `/api/jobs/${enc(id)}/shots/${enc(pid)}/${enc(name)}`,
 }
 
 function post(path, body) {

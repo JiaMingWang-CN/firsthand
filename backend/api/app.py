@@ -8,7 +8,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
-from api import drafts
+from api import drafts, live
 from api.drafts import Invalid, Unconfigured
 from api.interview import Ask, InterviewFailed, InterviewUnavailable, Interviewer, llm_generate
 from api.jobs import Busy, Jobs
@@ -43,7 +43,7 @@ class Confirm(BaseModel):
 def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
     app = FastAPI(title="muchhuman", docs_url="/api/docs", openapi_url="/api/openapi.json")
     reader = Reader(runs_root, recordings)
-    interviewer = interviewer or Interviewer(llm_generate(None))
+    interviewer = interviewer or Interviewer(llm_generate(None, runs_root))
     jobs = jobs or Jobs(reader.root)
 
     @app.middleware("http")
@@ -147,5 +147,19 @@ def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
         if found is None:
             raise NotFound(f"Unknown job: {job_id}")
         return {**found, "log": jobs.log_tail(job_id)}
+
+    def simulation_job(job_id):
+        found = jobs.view(job_id) if drafts.RUN_ID.fullmatch(job_id) else None
+        if found is None or found["kind"] != "simulate":
+            raise NotFound(f"Unknown simulation job: {job_id}")
+        return found
+
+    @app.get("/api/jobs/{job_id}/live")
+    def job_live(job_id: str, persona: str | None = None):
+        return live.live(reader.root, simulation_job(job_id), persona)
+
+    @app.get("/api/jobs/{job_id}/shots/{persona_id}/{name}")
+    def job_shot(job_id: str, persona_id: str, name: str):
+        return FileResponse(live.screenshot(reader.root, simulation_job(job_id), persona_id, name), media_type="image/png")
 
     return app

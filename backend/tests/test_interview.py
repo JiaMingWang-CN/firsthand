@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 
 from api import interview
 from api.app import create_app
+from api import runs
 from api.interview import Ask, InterviewAnswer, InterviewFailed, InterviewUnavailable, Interviewer, dossier, llm_generate
 from api.runs import NotFound
 from api.service import Reader
@@ -175,6 +176,43 @@ def test_provider_http_errors_are_not_a_server_error(runs_root, monkeypatch, kin
     assert response.json().get("reason") == ("provider" if code == 502 else None)
     assert kind in response.json()["detail"] and (status is None or str(status) in response.json()["detail"])
     assert "SECRET-KEY" not in response.text and "echo of" not in response.text  # provider bodies and URLs stay out of responses
+
+
+def test_without_an_explicit_capability_directory_the_newest_matching_one_under_runs_is_used(monkeypatch, tmp_path):
+    import os
+
+    config = {"base_url": "http://x", "api_key": "k", "model": "m"}
+    seen = {}
+
+    def fits(directory, cfg):  # the old profile was made for another model
+        if directory.name == "phase1-old" or directory.name == "phase1-other-model":
+            raise ValueError("model mismatch")
+        seen["dir"] = directory.name
+        return {"ready": True}
+
+    class Client:
+        def __init__(self, **kwargs): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *args): return False
+
+    async def fake_request_json(client, cfg, capability, schema, text, validate=None, label=None):
+        return "parsed"
+
+    for module in (interview, runs):
+        monkeypatch.setattr(module, "require_capabilities", fits)
+    monkeypatch.setattr(interview, "settings", lambda: config)
+    monkeypatch.setattr(interview, "AsyncOpenAI", Client)
+    monkeypatch.setattr(interview, "request_json", fake_request_json)
+    (tmp_path / "_jobs").mkdir()
+    generate = llm_generate(None, tmp_path)
+    with pytest.raises(InterviewUnavailable, match="没有与当前模型配置匹配"):
+        asyncio.run(generate(InterviewAnswer, "hi", None, "采访 p01"))
+    for index, name in enumerate(["phase1-old", "phase1-new", "phase1-other-model"]):
+        (tmp_path / name).mkdir()
+        (tmp_path / name / "capability_profile.json").write_text("{}", encoding="utf-8")
+        os.utime(tmp_path / name / "capability_profile.json", (1_800_000_000 + index * 10,) * 2)
+    assert asyncio.run(generate(InterviewAnswer, "hi", None, "采访 p01")) == "parsed"
+    assert seen["dir"] == "phase1-new"  # newest that fits; the newest of all (other model) and the old one are skipped
 
 
 def test_llm_generate_gates_on_capabilities_and_reports_model_failure(monkeypatch, tmp_path):

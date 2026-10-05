@@ -41,7 +41,7 @@ const keepQuery = (name) => (['live', 'community'].includes(name) && route.query
     </div>
 
     <div class="foot">
-      <div class="demo"><span class="dot"></span><span>真实运行数据 · 只读</span></div>
+      <div class="demo"><span class="dot"></span><span>真实运行数据</span></div>
       <button class="it themebtn" type="button" @click="toggleTheme" :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
         <component :is="ui.theme === 'dark' ? Sun : Moon" /><span>{{ ui.theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
       </button>

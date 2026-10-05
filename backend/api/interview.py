@@ -8,7 +8,7 @@ from typing import Literal
 from openai import APIError, AsyncOpenAI, AuthenticationError, PermissionDeniedError
 from pydantic import BaseModel, ConfigDict, Field
 
-from api.runs import NotFound, interview_dir
+from api.runs import NotFound, interview_dir, matching_capabilities
 from core.persona import Data, Text
 from core.runtime import require, require_capabilities, settings
 from core.usage import UsageRecorder
@@ -157,15 +157,24 @@ class Interviewer:
         return {"persona_id": pid, **result.model_dump()}
 
 
-def llm_generate(capability_dir):
-    """Production generator: the configured model, gated by the capability profile."""
+def llm_generate(capability_dir, runs_root=None):
+    """Production generator: the configured model, gated by the capability profile.
+
+    Without an explicit capability directory the newest one under runs_root that fits the current model configuration is
+    used (every new run's draft directory carries the profile it was made with)."""
     async def generate(schema, text, validate, label, usage_dir=None):
         try:
-            if capability_dir is None:
-                raise ValueError("start the API with --capability-run <directory containing capability_profile.json>")
             config = settings()
             require(config, "base_url", "api_key", "model")
-            capability = require_capabilities(capability_dir, config)
+            directory = capability_dir
+            if directory is None and runs_root is not None:
+                found = matching_capabilities(runs_root, config)
+                if not found:
+                    raise ValueError("runs 目录里没有与当前模型配置匹配的能力文件：先在“新建运行”里生成一次人物草稿（会探测并写出能力文件），或用 --capability-run 指定")
+                directory = Path(runs_root) / found[0]["id"]
+            if directory is None:
+                raise ValueError("start the API with --capability-run <directory containing capability_profile.json>")
+            capability = require_capabilities(directory, config)
         except (ValueError, OSError, KeyError) as error:
             raise InterviewUnavailable(str(error)) from error
         try:
