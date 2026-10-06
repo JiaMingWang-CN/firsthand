@@ -20,16 +20,21 @@ watch(() => route.params.runId, () => { if (needsRun.value) ensureRun(String(rou
 const gate = computed(() => (!needsRun.value ? 'open' : live.id !== route.params.runId ? 'loading' : live.status))
 
 // 时间联动：选中的模拟时刻同步到 URL（?t=D1-21:10）
-watch(() => route.query.t, (q) => {
+watch([() => route.query.t, () => gate.value], ([q, ready]) => {
+  // Wait for the requested run's span, not the previous run's clock or default one-day span.
+  if (ready !== 'ready') return
   const m = parseSim(String(q || ''))
   if (m != null && Math.abs(m - clock.t) > 1) seek(m)
 }, { immediate: true })
 let urlTimer = 0
-watch(() => Math.floor(clock.t), (m) => {
-  if (!route.meta.timeLinked) return
+// Also on becoming ready: a run that loads at the clock's previous value changes no minute.
+watch([() => Math.floor(clock.t), () => gate.value], () => {
   clearTimeout(urlTimer)
+  if (!route.meta.timeLinked || gate.value !== 'ready') return
+  const runId = route.params.runId
   urlTimer = setTimeout(() => {
-    const t = fmt(m).replace(' ', '-')
+    if (gate.value !== 'ready' || route.params.runId !== runId || !route.meta.timeLinked) return
+    const t = fmt(Math.floor(clock.t)).replace(' ', '-')
     if (route.query.t !== t) router.replace({ query: { ...route.query, t } })
   }, clock.playing ? 600 : 150)
 })
@@ -49,7 +54,7 @@ function onKey(e) {
   if (e.key === ' ' && route.meta.runBar && !e.target.closest('button, a')) { togglePlay(); e.preventDefault() }
 }
 onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+onBeforeUnmount(() => { clearTimeout(urlTimer); window.removeEventListener('keydown', onKey) })
 </script>
 
 <template>

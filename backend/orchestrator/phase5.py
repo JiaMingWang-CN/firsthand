@@ -40,7 +40,8 @@ async def execute(source, root, capability_dir, use_model):
     if not phase4.get("passed"):
         notes.append(f"阶段 4 验收未通过（{phase4.get('status', 'passed=false')}）：模拟本身不完整或不合格，以下所有数字和结论只能作为排查参考。")
     context = json.loads((source / "run_context.json").read_text(encoding="utf-8"))
-    manual_path = Path(context["source_run"]) / "manual.md"
+    inputs = source / "approved_source" if context.get("source_snapshot") or (source / "approved_source").is_dir() else Path(context["source_run"])
+    manual_path = inputs / "manual.md"
     if manual_path.is_file():
         about = material(read_manual(manual_path))
         if about["level"] != "complete":
@@ -61,7 +62,7 @@ async def execute(source, root, capability_dir, use_model):
         notes.append("未调用模型：问题清单与亮点为空，其余章节来自完整记录。")
     report = build_report(store, claims, notes)
     errors = verify_report(report, store)
-    model_path = Path(context["source_run"]) / "product_model.json"
+    model_path = inputs / "product_model.json"
     product = json.loads(model_path.read_text(encoding="utf-8"))["metadata"]["name"] if model_path.is_file() else "产品"
     write_json(root / "report.json", report)
     (root / "report.md").write_text(render(report, source, root, product, evidence_index=store.records), encoding="utf-8")
@@ -71,7 +72,8 @@ async def execute(source, root, capability_dir, use_model):
     unchanged = fingerprint(source) == before
     if not unchanged:
         errors.append("来源运行目录在生成期间发生变化")
-    result = {"passed": not errors and (not use_model or bool(report["sections"]["issues"] or report["sections"]["highlights"])),
+    has_findings = any(record["category"] == "experience" and "kind" in record for record in store.records.values())
+    result = {"passed": not errors and (not use_model or not has_findings or bool(report["sections"]["issues"] or report["sections"]["highlights"])),
               "errors": errors, "model_used": use_model, "source_run": str(source), "source_context_sha256": hashlib.sha256(
                   (source / "run_context.json").read_bytes()).hexdigest(), "source_files_unchanged": unchanged,
               "issues": len(report["sections"]["issues"]), "highlights": len(report["sections"]["highlights"]),

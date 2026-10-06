@@ -28,7 +28,7 @@ async def execute(context_path, persona_id):
     config = settings()
     if configuration_hash(config) != context["configuration_sha256"]:
         raise ValueError("Configuration changed during the run; worker will not execute")
-    source = context["source_run"]
+    source = Path(context_path).parent / "approved_source" if context.get("source_snapshot") else context["source_run"]
     draft, manual = require_approved(source)
     capability = require_capabilities(source, config)
     if draft_hash(source) != context["approved_draft_sha256"]:

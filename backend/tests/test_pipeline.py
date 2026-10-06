@@ -5,6 +5,7 @@ OASIS process is involved; the review rules themselves are the real orchestrator
 """
 
 import json
+import os
 import threading
 import time
 from pathlib import Path
@@ -23,6 +24,8 @@ SETTINGS = {**CONFIG, "steel_api_key": "STEEL-SECRET", "api_key": "MODEL-SECRET"
 
 
 class FakeProcess:
+    pid = os.getpid()  # the fake stage runs inside this test process
+
     def __init__(self, code):
         self.code = code
 
@@ -59,6 +62,8 @@ class FakePipeline:
         if module == "orchestrator.phase4":
             run = Path(args[args.index("--run-dir") + 1])
             run.mkdir(parents=True)
+            from orchestrator.phase4 import snapshot_source
+            snapshot_source(args[0], run)
             write_json(run / "timeline.json", {"slices": [{"state": "completed"}] * 3, "jobs": {"p01": {"state": "completed"}, "p02": {"state": "failed"}}})
             write_json(run / "phase4_result.json", {"passed": code == 0})
         if module == "orchestrator.phase5":
@@ -169,7 +174,7 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
     done = wait_for(client, job["id"])
     assert [module for module, _ in pipeline.calls[2:]] == ["orchestrator.phase4", "orchestrator.phase5"]
     phase5 = pipeline.calls[3][1]
-    assert phase5[0] == str(root / job["simulation"]) and phase5[-2:] == ["--capability-run", str(root / draft_id)]
+    assert phase5[0] == str(root / job["simulation"]) and phase5[-2:] == ["--capability-run", str(root / job["simulation"] / "approved_source")]
     assert done["progress"] == {"slices_done": 3, "slices": 24, "personas": 10, "personas_done": 1, "personas_failed": 1,
                                 "phase4_passed": True, "report_passed": True}
     assert [step["state"] for step in done["steps"]] == ["succeeded", "succeeded"]

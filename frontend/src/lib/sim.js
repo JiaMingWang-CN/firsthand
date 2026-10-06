@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { personas, steps, findings, posts, reads, withheld, flows, timeline } from './data.js'
+import { personas, steps, findings, posts, reads, withheld, flows, timeline, replaceAll } from './data.js'
 
 export const DAY = 1440
 export const pad = (n) => String(n).padStart(2, '0')
@@ -45,7 +45,7 @@ export function rebuild() {
     for (const c of p.comments) events.push({ kind: 'comment', pid: c.author, t: c.t, ref: c.id, post: p.id })
   }
   for (const r of reads) events.push({ kind: 'read', pid: r.pid, t: r.t, ref: r.post })
-  socialEvents.splice(0, socialEvents.length, ...events.sort((a, b) => a.t - b.t))
+  replaceAll(socialEvents, events.sort((a, b) => a.t - b.t))
   const assigned = personas.filter((p) => p.assignment !== 'explore')
   tasked.splice(0, tasked.length, ...assigned)
   taskedDone.splice(0, taskedDone.length, ...assigned.filter((p) => p.outcome === 'success'))

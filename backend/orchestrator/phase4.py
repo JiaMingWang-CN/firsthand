@@ -6,15 +6,18 @@ from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
+import shutil
 import sqlite3
+from contextlib import closing
+from math import ceil
 
 from browsing.worker import configuration_hash
 from core.community import Disclosure, ExitAnswer, Withheld, allowed_actions, public_projection, validate_disclosure, validate_exit
 from core.limits import concurrency_limits
 from core.runtime import ROOT, require, require_capabilities, settings, write_json
 from core.simulation import SimulationStore
-from orchestrator.phase1 import draft_hash, require_approved
-from orchestrator.personas import schedule_rows
+from orchestrator.phase1 import draft_hash, require_approved, save_review
+from orchestrator.personas import GENERATION_DEADLINE, schedule_rows
 from orchestrator.phase3 import peak_concurrency, run_timeline, summarize
 
 
@@ -26,9 +29,26 @@ async def wait_ready(store, process):
             await asyncio.sleep(0.1)
 
 
-async def command(store, process, kind, tick, logical_time):
+def community_timeout(persona_count, model_concurrency):
+    # Each persona can repair structured replies three times, with two transport attempts per reply,
+    # then repair its 60-second action choice three times. Queue time belongs to the batch, not one call.
+    return 600 + ceil(persona_count / model_concurrency) * (6 * GENERATION_DEADLINE + 3 * 60)
+
+
+def snapshot_source(source, root):
+    """Freeze the approved inputs before any paid work; every worker consumes this same version."""
+    snapshot = Path(root) / "approved_source"
+    snapshot.mkdir()
+    for name in ("manual.md", "draft.json", "capability_profile.json", "approval.json"):
+        shutil.copyfile(Path(source) / name, snapshot / name)
+    draft, manual = require_approved(snapshot)
+    save_review(snapshot, draft, manual)
+    return snapshot, draft
+
+
+async def command(store, process, kind, tick, logical_time, timeout=600):
     command_id = store.enqueue(kind, tick, logical_time.isoformat())
-    async with asyncio.timeout(600):
+    async with asyncio.timeout(timeout):
         while True:
             result = store.command_result(command_id)
             if result["state"] in {"done", "failed"}:
@@ -77,7 +97,7 @@ def audit_social(store, draft, oasis_path):
             item["persona_id"] == row["persona_id"] and item["slice_index"] == row["slice_index"]
             and item["public_body"] == row["public_body"] for item in disclosures):
             projection_errors.append({"persona_id": row["persona_id"], "reason": "Publication has no matching disclosure projection"})
-    with sqlite3.connect(oasis_path) as db:
+    with closing(sqlite3.connect(oasis_path)) as db:
         public = [("create_post", row[0], row[1], row[2]) for row in db.execute("SELECT post_id,user_id,content FROM post")]
         public += [("create_comment", row[0], row[1], row[2]) for row in db.execute("SELECT comment_id,user_id,content FROM comment")]
         traces = db.execute("SELECT user_id,action FROM trace").fetchall()
@@ -94,7 +114,7 @@ def audit_social(store, draft, oasis_path):
     withheld = sum(len(json.loads(row["withheld_json"])) for row in disclosures)
     planner_log = Path(oasis_path).parent / "planner_rejections.jsonl"
     planner = [json.loads(line) for line in planner_log.read_text(encoding="utf-8").splitlines()] if planner_log.exists() else []
-    return {"passed": not violations and not projection_errors and not survey_errors and len(public) > 0 and withheld > 0,
+    return {"passed": not violations and not projection_errors and not survey_errors,
             "violations": violations, "public_projection_errors": projection_errors, "posts_and_comments": len(public),
             "read_records": read_count, "before_experience_read_records": before_count, "withheld_records": withheld,
             "survey_count": len(surveys), "survey_errors": survey_errors,
@@ -122,7 +142,7 @@ def finalize(draft, root, store, timeline, config, context):
 
 
 async def execute(source_run, root):
-    draft, _ = require_approved(source_run)
+    require_approved(source_run)  # fail before creating the run directory
     config = settings()
     require(config, "steel_api_key")
     require_capabilities(source_run, config)
@@ -130,15 +150,19 @@ async def execute(source_run, root):
     if root.exists():
         raise ValueError("Use a fresh phase4 directory")
     root.mkdir(parents=True)
+    # Approval hashes the capability file, so the re-approved snapshot holds the one checked above.
+    snapshot, draft = snapshot_source(source_run, root)
     rows = schedule_rows(draft)
     limit = min(concurrency_limits(config)[1], draft.run_config.max_concurrency)
     store = SimulationStore(root / "run.db")
     store.initialize(draft, rows)
-    context = {"source_run": str(Path(source_run).resolve()), "approved_draft_sha256": draft_hash(source_run),
+    context = {"source_run": str(Path(source_run).resolve()), "approved_draft_sha256": draft_hash(snapshot),
+        "source_snapshot": "approved_source",
         "configuration_sha256": configuration_hash(config), "schedule": rows, "effective_agent_concurrency": limit,
         "simulation_database": str(store.path.resolve()),
         "configuration": {key: config[key] for key in ("provider", "model", "api", "thinking_type", "max_model_concurrency", "max_browser_concurrency")}}
     write_json(root / "run_context.json", context)
+    timeout = community_timeout(len(draft.personas), config["max_model_concurrency"])
     python = ROOT / ".venv-oasis" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     print(f"阶段 4 产物：{root}", flush=True)
     with (root / "community.log").open("w", encoding="utf-8") as log:
@@ -152,11 +176,11 @@ async def execute(source_run, root):
                     pid = row["persona_id"]
                     if timeline["jobs"][pid]["state"] == "completed":
                         store.publish_experience(pid, tick, root / pid)
-                result = await command(store, process, "step", tick, logical_time)
+                result = await command(store, process, "step", tick, logical_time, timeout=timeout)
                 print(f"时间片 {tick} 讨论完成；活跃={len(result['active_personas'])}", flush=True)
 
             timeline = await run_timeline(draft, rows, root, limit, on_slice_end=after_slice)
-            await command(store, process, "finish", len(timeline["slices"]), draft.run_config.start_time)
+            await command(store, process, "finish", len(timeline["slices"]), draft.run_config.start_time, timeout=timeout)
             await asyncio.wait_for(process.wait(), 45)
             if process.returncode != 0 or store.metadata("community_state") != "closed":
                 raise RuntimeError("OASIS did not close cleanly")

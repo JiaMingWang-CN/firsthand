@@ -8,7 +8,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from api.jobs import read_json, stamp
+from api.jobs import Jobs, read_json, stamp
 from api.runs import NotFound, RUN_ID, matching_capabilities, sibling
 from core.persona import MAX_DAYS, MAX_PERSONAS, MIN_PERSONAS, Draft
 from core.runtime import require, require_capabilities, settings, write_json
@@ -152,6 +152,13 @@ def review(root, draft_id, jobs):
 
 
 def decide(root, draft_id, decision, draft_sha256, accept_overrides=False):
+    jobs = Jobs(root)
+    with jobs.transaction():
+        jobs.assert_draft_idle(draft_id)
+        return _decide(root, draft_id, decision, draft_sha256, accept_overrides)
+
+
+def _decide(root, draft_id, decision, draft_sha256, accept_overrides):
     path = draft_path(root, draft_id)
     if decision == "reject":
         reject(path)
@@ -214,11 +221,22 @@ def start_generate(root, jobs, draft_id, persona_count, duration_days):
 
 
 def update_draft(root, draft_id, draft_sha256, duration_days=None, sampling=None):
-    """The reviewer's edits to the shown version: timeline length and per-persona sampling. Approval must be given again."""
+    """Edits and simulation reservations share the same cross-process transaction."""
+    jobs = Jobs(root)
+    with jobs.transaction():
+        jobs.assert_draft_idle(draft_id)
+        return _update_draft(root, draft_id, draft_sha256, duration_days, sampling)
+
+
+def _update_draft(root, draft_id, draft_sha256, duration_days, sampling):
     path = draft_path(root, draft_id)
     if draft_hash(path) != draft_sha256:
         raise Invalid("草稿与刚才展示的版本不同，请先重新加载")
     draft, manual = load_draft(path)
+    legacy = [run_id for run_id in simulations_of(root, draft_id)
+              if not (Path(root) / run_id / "approved_source" / "draft.json").is_file()]
+    if legacy:
+        raise Invalid("这份草稿是没有输入快照的旧运行的来源，修改会改变历史展示。请新建草稿；旧运行保持原样")
     data = draft.model_dump(mode="json")
     if duration_days is not None:
         if not 1 <= duration_days <= MAX_DAYS:
@@ -243,6 +261,11 @@ def update_draft(root, draft_id, draft_sha256, duration_days=None, sampling=None
 
 
 def start_simulation(root, jobs, draft_id):
+    with jobs.transaction():
+        return _start_simulation(root, jobs, draft_id)
+
+
+def _start_simulation(root, jobs, draft_id):
     path = draft_path(root, draft_id)
     try:
         draft, _ = require_approved(path)  # the CLI checks again; failing here spares the user a dead job
@@ -258,5 +281,5 @@ def start_simulation(root, jobs, draft_id):
     return jobs.start("simulate", [
         {"name": "体验与社区讨论（阶段 4）", "module": "orchestrator.phase4", "args": [path, "--run-dir", Path(root) / simulation]},
         {"name": "生成报告（阶段 5）", "module": "orchestrator.phase5",
-         "args": [Path(root) / simulation, "--run-dir", Path(root) / report, "--capability-run", path]},
+         "args": [Path(root) / simulation, "--run-dir", Path(root) / report, "--capability-run", Path(root) / simulation / "approved_source"]},
     ], draft=draft_id, simulation=simulation, report=report, expected=expected)

@@ -9,6 +9,19 @@ const sample = JSON.parse(readFileSync(new URL('./fixtures/sample.json', import.
 const model = adapt(structuredClone(sample))
 const byId = Object.fromEntries(model.personas.map((p) => [p.id, p]))
 
+test('长时间线的大量帖子和评论不会超过 Math.max 的参数限制', () => {
+  const input = structuredClone(sample)
+  const post = input.community.posts[0]
+  input.community.posts = Array.from({ length: 150000 }, (_, i) => ({ ...post, post_id: i + 1, comments: [] }))
+  input.community.posts[0].comments = Array.from({ length: 150000 }, (_, i) => ({
+    comment_id: i + 1, persona_id: post.persona_id, created_at: post.created_at, content: '评论',
+  }))
+  const result = adapt(input)
+  assert.equal(result.posts.length, 150000)
+  assert.equal(result.posts[0].comments.length, 150000)
+  assert.ok(Number.isFinite(result.span.total))
+})
+
 test('后端严重度 1–5 翻转为 S1–S4（S1 致命）', () => {
   assert.deepEqual([5, 4, 3, 2, 1].map(severityOf), [1, 2, 3, 4, 4])
 })

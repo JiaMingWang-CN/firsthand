@@ -21,9 +21,10 @@ async def serve(context_path):
     config = settings()
     if configuration_hash(config) != context["configuration_sha256"]:
         raise ValueError("Configuration changed before starting discussion")
-    draft, _ = require_approved(context["source_run"])
-    capability = require_capabilities(context["source_run"], config)
-    if draft_hash(context["source_run"]) != context["approved_draft_sha256"]:
+    source = root / "approved_source" if context.get("source_snapshot") else context["source_run"]
+    draft, _ = require_approved(source)
+    capability = require_capabilities(source, config)
+    if draft_hash(source) != context["approved_draft_sha256"]:
         raise ValueError("Approved plan changed before discussion")
     store = SimulationStore(root / "run.db")
     community_root = root / "community"

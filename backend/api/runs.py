@@ -61,6 +61,11 @@ def sibling(root, recorded):
     return root / name if name else None
 
 
+def source_path(run, root, context):
+    snapshot = run / "approved_source"
+    return snapshot if context.get("source_snapshot") or snapshot.is_dir() else sibling(root, context.get("source_run"))
+
+
 def interview_dir(run):
     """Interviews of a run keep their own ledger beside, not inside, the run directory: the run stays read-only
     and its own totals stay those of the simulation."""
@@ -98,7 +103,7 @@ def list_runs(root):
             continue
         result = read_json(path / "phase4_result.json", {})
         context = read_json(path / "run_context.json", {})
-        phase1 = sibling(root, context.get("source_run"))
+        phase1 = source_path(path, root, context)
         product = read_json(phase1 / "product_model.json", {}) if phase1 else {}
         started, finished = job_span(path)
         configuration = context.get("configuration", {})

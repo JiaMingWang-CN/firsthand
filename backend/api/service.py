@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from api.media import RecordingUnavailable, by_step, media_position, segments, summarize
-from api.runs import NotFound, RunInvalid, SERVED_FILE, interview_dir, job_span, read_json, report_index, run_path, sibling
+from api.runs import NotFound, RunInvalid, SERVED_FILE, interview_dir, job_span, read_json, report_index, run_path, source_path
 from report.evidence import EvidenceStore
 
 
@@ -89,7 +89,7 @@ class Reader:
         path = run_path(self.root, run_id)
         store = self.store(run_id)
         result, context = read_json(path / "phase4_result.json", {}), self.context(run_id)
-        phase1 = sibling(self.root, context.get("source_run"))
+        phase1 = source_path(path, self.root, context)
         configuration = context.get("configuration", {})
         timeline = read_json(path / "timeline.json", {}) or {}
         return {

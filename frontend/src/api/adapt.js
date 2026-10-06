@@ -242,7 +242,12 @@ export function adapt({ overview, personas: rows, experiences, community, report
   }))
 
   // —— 运行信息 ——
-  const maxT = Math.max(0, ...Object.values(steps).flat().map((s) => s.t + 1), ...posts.flatMap((p) => [p.t, ...p.comments.map((c) => c.t)]))
+  let maxT = 0
+  for (const list of Object.values(steps)) for (const s of list) maxT = Math.max(maxT, s.t + 1)
+  for (const p of posts) {
+    maxT = Math.max(maxT, p.t)
+    for (const c of p.comments) maxT = Math.max(maxT, c.t)
+  }
   const span = Math.max((config.duration_days ?? 1) * DAY, Math.ceil(maxT / 60) * 60)
   const meta = product.metadata ?? {}
   const summary = product.summary ?? {}

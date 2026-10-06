@@ -343,7 +343,9 @@ async def plan_cohort(client, config, capability, manual, product, count=10, day
                                                      "remaining": cohort_issues_remaining(slots, count, manual, days)})},
                                ensure_ascii=False))
 
-        def validate_plan(plan, first=first, final=final):
+        def validate_plan(plan, first=first, final=final, size=size):
+            if len(plan.slots) != size:
+                raise ValueError(f"槽位数量必须为 {size}，实际返回 {len(plan.slots)}")
             combined = slots + plan.slots
             problems = assignment_errors(plan.slots, manual, days, first)
             problems += cohort_issues(combined, product, manual, days) if final else quota_overflow(combined, count, manual, days)
@@ -359,6 +361,8 @@ async def plan_cohort(client, config, capability, manual, product, count=10, day
                                   validate=validate_plan, label=label)
         rationale = rationale or plan.rationale
         slots += sorted(plan.slots, key=lambda slot: slot.persona_id)
+    if len(slots) != count:
+        raise ValueError(f"槽位数量必须为确认的人数 {count}")
     return rationale, slots
 
 

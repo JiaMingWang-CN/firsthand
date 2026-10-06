@@ -124,6 +124,18 @@ describe('快速切换运行', () => {
   })
 })
 
+test('大规模社区记录不会超过函数参数数量限制', async () => {
+  const list = Array.from({ length: 150000 }, (_, i) => ({ pid: 'p01', t: i, post: 'post-1' }))
+  const target = []
+  data.replaceAll(target, list)
+  expect(target.length).toBe(list.length)
+  data.replaceAll(data.reads, list)
+  const { rebuild, socialEvents } = await import('../src/lib/sim.js')
+  rebuild()
+  expect(socialEvents.filter((e) => e.kind === 'read').length).toBe(list.length)
+  data.replaceAll(data.reads, [])
+}, 15000)
+
 test('切换运行时关闭上一个运行遗留的抽屉，免得它指向新运行里不存在的人物', async () => {
   await ensureRun('run-a')
   store.openDrawer({ type: 'persona', pid: 'p01' })

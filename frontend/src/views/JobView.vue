@@ -69,7 +69,7 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
     <div v-if="state.status === 'loading'" class="panel"><p class="faint">正在读取任务…</p></div>
     <div v-else-if="state.status === 'error'" class="panel" role="alert"><p>{{ state.error }}</p></div>
     <template v-else>
-      <div v-if="job.state === 'detached'" class="warn block"><AlertTriangle /><div>这个任务由之前的 API 进程启动，API 重启后无法再跟踪它的子进程；它可能仍在后台运行。下面的进度仍按运行目录里的文件显示。</div></div>
+      <div v-if="job.state === 'detached'" class="warn block"><AlertTriangle /><div>这个任务的协调进程已经失联，它的阶段进程可能仍在后台运行，所以它继续占用模拟或草稿的预留。下面的进度仍按运行目录里的文件显示。确认没有阶段进程在运行后，在 backend 目录执行 <code>python -m api.abandon_job {{ job.id }}</code> 释放占用（旧版本任务需加 <code>--force</code>）；不会自动重跑付费步骤。</div></div>
 
       <section class="panel">
         <ol class="steps">

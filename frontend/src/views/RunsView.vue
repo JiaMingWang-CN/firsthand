@@ -39,7 +39,7 @@ const DRAFT = { analyzing: '分析中', configuring: '待确认人数', generati
 const waiting = computed(() => drafts.value.filter((d) => d.status in DRAFT))
 const jobText = (j) => (j.kind === 'simulate'
   ? `模拟 · 时间片 ${j.progress.slices_done}/${j.progress.slices} · 完成体验 ${j.progress.personas_done}/${j.progress.personas}`
-  : '生成人物草稿') + (j.state === 'detached' ? ' · API 重启后无法跟踪' : '')
+  : '生成人物草稿') + (j.state === 'detached' ? ' · 协调进程失联，需确认后释放' : '')
 </script>
 
 <template>

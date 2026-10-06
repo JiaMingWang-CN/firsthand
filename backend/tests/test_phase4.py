@@ -217,7 +217,8 @@ def test_input_action_timeout_is_not_misclassified_as_dom_failure():
     assert counter.dom_failures == 1
 
 
-def test_browser_worker_receives_third_party_expectations_from_shared_database(tmp_path, monkeypatch):
+@pytest.mark.parametrize("use_snapshot", [False, True])
+def test_browser_worker_receives_third_party_expectations_from_shared_database(tmp_path, monkeypatch, use_snapshot):
     from browsing import worker, experience
     person = fixture_persona(False)
     store = SimulationStore(tmp_path / "run.db")
@@ -225,17 +226,23 @@ def test_browser_worker_receives_third_party_expectations_from_shared_database(t
     store.record_reads(person.persona_id, 1, [{"post_id": 11, "content": "有人说页面很清楚"}], False)
     context = {"source_run": "source", "configuration_sha256": "config", "approved_draft_sha256": "approved",
                "simulation_database": str(store.path), "schedule": [{"persona_id": person.persona_id, "slice_index": 2}]}
+    if use_snapshot:
+        context["source_snapshot"] = "approved_source"
     (tmp_path / "run_context.json").write_text(json.dumps(context), encoding="utf-8")
-    received = []
+    received, sources = [], []
+    def approved(path):
+        sources.append(path)
+        return SimpleNamespace(personas=[person]), None
     async def run(config, capability, manual, persona, directory, expectations):
         received.extend(expectations)
         save_fake_experience(tmp_path, persona)
         return {"passed": True}
     monkeypatch.setattr(worker, "settings", lambda: {})
     monkeypatch.setattr(worker, "configuration_hash", lambda config: "config")
-    monkeypatch.setattr(worker, "require_approved", lambda path: (SimpleNamespace(personas=[person]), None))
+    monkeypatch.setattr(worker, "require_approved", approved)
     monkeypatch.setattr(worker, "require_capabilities", lambda *args: {})
     monkeypatch.setattr(worker, "draft_hash", lambda path: "approved")
     monkeypatch.setattr(experience, "run_experience", run)
     assert asyncio.run(worker.execute(tmp_path / "run_context.json", person.persona_id))["passed"]
     assert len(received) == 1 and "#11" in received[0] and "尚非我的亲身体验" in received[0]
+    assert sources == [tmp_path / "approved_source" if use_snapshot else "source"]

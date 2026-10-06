@@ -21,7 +21,13 @@ export const live = reactive({ id: null, status: 'idle', error: null })
 
 /** 原地替换，保持容器引用不变 */
 export function replaceAll(target, value) {
-  if (Array.isArray(target)) { target.splice(0, target.length, ...value); return }
+  if (target === value) return
+  if (Array.isArray(target)) {
+    target.length = 0
+    // Long timelines have hundreds of thousands of records; never spread them into one call.
+    for (let offset = 0; offset < value.length; offset += 10000) target.push(...value.slice(offset, offset + 10000))
+    return
+  }
   for (const key of Object.keys(target)) delete target[key]
   Object.assign(target, value)
 }

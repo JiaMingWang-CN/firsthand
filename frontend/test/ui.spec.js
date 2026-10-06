@@ -11,12 +11,13 @@ const TRACE = [
 ]
 
 const calls = vi.hoisted(() => ({ recording: [], interview: [], hls: [] }))
-const state = vi.hoisted(() => ({ overviewError: null, recording: null, interviewError: null }))
+const state = vi.hoisted(() => ({ overviewError: null, recording: null, interviewError: null, days: 1 }))
 
 vi.mock('../src/api/client.js', async (importOriginal) => {
   const { ApiError } = await importOriginal()
   const data = () => {
     const copy = structuredClone(sample)
+    copy.overview.run_config.duration_days = state.days
     copy.experiences.p03.steps[0].trace = TRACE
     // fixture 只保留了 3 名人物，而报告来自 10 人运行：把报告收窄到这 3 人，保持数据自洽
     const kept = new Set(copy.personas.map((p) => p.persona_id))
@@ -77,6 +78,7 @@ const { default: App } = await import('../src/App.vue')
 const { router } = await import('../src/router.js')
 const data = await import('../src/lib/data.js')
 const store = await import('../src/lib/store.js')
+const { fmt } = await import('../src/lib/sim.js')
 
 const mounted = []
 async function open(path) {
@@ -97,6 +99,7 @@ beforeEach(() => {
   data.live.status = 'idle'
   state.overviewError = null
   state.interviewError = null
+  state.days = 1
   state.recording = { playlist_url: `/api/runs/${RUN}/personas/p03/recording.m3u8`, seek: { s005_before: 70, s005_after: 84 } }
   calls.recording.length = calls.interview.length = calls.hls.length = 0
   store.closeAllDrawers()
@@ -115,6 +118,24 @@ describe('每个带 runId 的页面都能用真实样本渲染', () => {
       expect(errors).toEqual([])
     })
   }
+})
+
+test.each([['D1-09:00', 1, 540], ['D40-09:00', 50, 39 * 1440 + 540]])(
+  '时间深链接 %s 在异步加载完成后仍定位到指定时刻', async (t, days, minute) => {
+    state.days = days
+    data.timeline.total = 1440 // 加载前的旧跨度不能把第 40 天裁到第 1 天
+    await open(`/runs/${RUN}/live?t=${t}`)
+    expect(store.clock.t).toBe(minute)
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    expect(router.currentRoute.value.query.t).toBe(t)
+  },
+)
+
+test('没有时间参数打开运行，加载完成后把当前时刻写入 URL', async () => {
+  store.clock.t = 1440 // 上一个运行同样停在终点：加载不会改变时钟
+  await open(`/runs/${RUN}/live`)
+  await new Promise((resolve) => setTimeout(resolve, 200))
+  expect(router.currentRoute.value.query.t).toBe(fmt(Math.floor(store.clock.t)).replace(' ', '-'))
 })
 
 test('后端拒绝运行时显示原因，重试后恢复', async () => {
