@@ -368,3 +368,23 @@ def test_the_report_says_when_the_material_was_thin(source, tmp_path):
     asyncio.run(execute(run, tmp_path / "phase5-thin", None, False))
     notes = json.loads((tmp_path / "phase5-thin" / "report.json").read_text(encoding="utf-8"))["overview"]["coverage_notes"]
     assert any("参考性有限" in note and "缺少 关键流程" in note for note in notes)
+
+
+def test_the_review_page_opened_before_the_analysis_writes_anything_shows_it_is_analyzing(tmp_path, configured, draft):
+    import threading
+    from test_pipeline import SAMPLE, wait_for
+    root = tmp_path / "runs"
+    root.mkdir()
+    gate = threading.Event()
+    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, gate=gate))))
+    started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
+    early = client.get(f"/api/drafts/{started['draft']}")
+    assert early.status_code == 200 and early.json()["status"] == "analyzing" and early.json()["valid"] is False
+    gate.set()
+    wait_for(client, started["id"])
+    assert client.get(f"/api/drafts/{started['draft']}").json()["status"] == "configuring"
+    failing = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, codes={"orchestrator.phase1": 1}))))
+    broken = failing.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
+    wait_for(failing, broken["id"], "failed")
+    assert failing.get(f"/api/drafts/{broken['draft']}").json()["status"] == "failed"
+    assert failing.get("/api/drafts/phase1-20990101T000000000000Z").status_code == 404

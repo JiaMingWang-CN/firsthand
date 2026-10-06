@@ -112,6 +112,11 @@ def list_drafts(root, jobs):
 
 def review(root, draft_id, jobs):
     """Everything the reviewer must see before approving, plus the hash of exactly this version."""
+    started = next((job for job in jobs if job["kind"] == "prepare" and job["draft"] == draft_id), None)
+    if started and not (Path(root) / draft_id / "manual.md").is_file():
+        # The UI opens this page as soon as the analysis job starts, before the job has written the run directory.
+        return {"id": draft_id, "status": "analyzing" if started["state"] == "running" else "failed", "product": None,
+                "created_at": started["created_at"], "error": None, "valid": False}
     path = draft_path(root, draft_id)
     head = summary(root, path, jobs)
     result = read_json(path / "phase1_result.json", {}) or {}
