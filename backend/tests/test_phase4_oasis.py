@@ -109,6 +109,14 @@ def test_camel_planner_receives_public_only_context_and_correct_chat_thinking(tm
     assert "content" not in post_tool["function"]["parameters"]["properties"]
 
 
+def test_output_cap_is_not_used_as_agent_context_window():
+    # CAMEL reads max_tokens as the context limit; 512 made it slice every feed into ~30-token memory chunks.
+    from discussion.model import ProviderModel
+    backend = ProviderModel({"provider": "deepseek", "model": "deepseek-chat", "base_url": "https://test.invalid/v1",
+                             "api_key": "test", "thinking_type": "disabled"})
+    assert backend.model_config_dict["max_tokens"] == 512 and backend.token_limit > 8192
+
+
 def test_invalid_planner_calls_never_execute_and_fall_back_to_no_action(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     from discussion.community import choose_action

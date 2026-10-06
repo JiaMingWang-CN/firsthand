@@ -117,6 +117,49 @@ def test_stall_limit_stops_repeated_failed_interactions():
     assert sum(event["event"] == "experience_step" for event in collector.events) == 2
 
 
+def test_policy_denial_does_not_count_as_consecutive_failure():
+    # Browser Use counts every single-action error; a rule denial is a coverage limit, not a model/browser failure.
+    recorder = experience.StepRecorder(FakeCollector(), fixture_persona(False))
+    agent = SimpleNamespace(history=FakeHistory(), state=SimpleNamespace(stopped=False, last_result=[], consecutive_failures=0))
+    async def step(error):
+        await recorder.before(agent)
+        agent.state.consecutive_failures += 1
+        agent.history.history.append(SimpleNamespace(result=[ActionResult(error=error)],
+            model_output=SimpleNamespace(action=[action({"click": {"index": 1}})], evaluation_previous_goal="")))
+        await recorder.after(agent)
+    async def run():
+        await step("Model output was truncated")
+        await step(policy.DENIED_PREFIX + "禁止外发消息")
+    asyncio.run(run())
+    assert agent.state.consecutive_failures == 1
+
+
+def test_click_check_sees_text_typed_on_the_same_page(monkeypatch):
+    tools = policy.GuardedTools(fixture_persona(False), fixture_manual(), FakeCollector(), None, {}, {}, experience.Completion)
+    prompts = []
+    async def forward(*args, **kwargs):
+        return ActionResult(extracted_content="ok")
+    async def decide(client, config, capability, schema, prompt, **kwargs):
+        prompts.append(prompt)
+        return policy.ActionDecision(allowed=True, reason="站内问答")
+    page = {"url": "https://example.com/contact"}
+    async def url():
+        return page["url"]
+    async def node(index):
+        return SimpleNamespace(node_name="TEXTAREA" if index == 1 else "BUTTON", attributes={},
+                               get_all_children_text=lambda: "发送", parent_node=None)
+    monkeypatch.setattr(Tools, "act", forward)
+    monkeypatch.setattr(policy, "request_json", decide)
+    session = SimpleNamespace(get_current_page_url=url, get_dom_element_by_index=node)
+    async def run():
+        await tools.act(action({"input": {"index": 1, "text": "这个项目怎么部署？"}}), session)
+        await tools.act(action({"click": {"index": 2}}), session)
+        page["url"] = "https://example.com/other"
+        await tools.act(action({"click": {"index": 2}}), session)
+    asyncio.run(run())
+    assert "这个项目怎么部署？" in prompts[1] and "这个项目怎么部署？" not in prompts[2]
+
+
 def test_new_page_state_and_first_technical_read_count_as_progress():
     collector = FakeCollector()
     recorder = experience.StepRecorder(collector, fixture_persona(True))

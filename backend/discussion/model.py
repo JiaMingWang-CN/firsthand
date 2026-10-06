@@ -16,6 +16,11 @@ class ProviderModel(OpenAICompatibleModel):
         super().__init__(model_type=config["model"], url=config["base_url"], api_key=config["api_key"],
                          model_config_dict=options, timeout=60, max_retries=0)
 
+    @property
+    def token_limit(self):
+        # CAMEL would otherwise take max_tokens (the output cap) as the agent's context window.
+        return self.model_type.token_limit
+
     def _run(self, *args, **kwargs):
         with sync_slot(self.provider_config):
             return super()._run(*args, **kwargs)

@@ -14,7 +14,7 @@ from steel import AsyncSteel
 
 from browsing.evidence import EvidenceCollector, redact
 from browsing.model import ProviderChatOpenAI
-from browsing.policy import GuardedTools, account_secrets
+from browsing.policy import DENIED_PREFIX, GuardedTools, account_secrets
 from browsing.navigation import NavigationGuard
 from browsing.probe import LogCounter
 from core.experience import Assessment, Completion, ExperienceMemory, ExperienceStep, finding_citation_error, load_experience
@@ -88,6 +88,10 @@ class StepRecorder:
                 progress = True
                 self.reads.add(key)
         self.stalls = 0 if progress else self.stalls + 1
+        # Browser Use counted this rule denial as a failure (on_step_end runs after its count); repeated
+        # blocked attempts are bounded by stall_limit instead of ending the experience as a failed run.
+        if len(results) == 1 and results[0].get("error", "").startswith(DENIED_PREFIX):
+            agent.state.consecutive_failures = max(0, agent.state.consecutive_failures - 1)
         self.steps.append(ExperienceStep(step=len(self.steps) + 1, before=self.before_snapshot.evidence_id,
             after=after.evidence_id, seconds=round(time.monotonic() - self.step_started, 3),
             actions=redact(actions, self.collector.secrets), results=redact(results, self.collector.secrets),
@@ -205,6 +209,8 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                         provider=route.config["provider"], thinking_type=config.get("thinking_type"),
                         max_model_concurrency=config.get("max_model_concurrency", 10),
                         max_browser_concurrency=config.get("max_browser_concurrency", 1), timeout=60, max_retries=0,
+                        # Browser Use's 4096 default truncated long Chinese memory/next-goal fields mid-JSON.
+                        max_completion_tokens=8192,
                         sampling=sampling_options(capability, persona.sampling, "chat_completions"),
                         dont_force_structured_output=not chat_json_schema_supported(capability),
                         add_schema_to_system_prompt=not chat_json_schema_supported(capability))
