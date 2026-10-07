@@ -178,9 +178,9 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
 .steps button:hover { background: var(--surface-2); }
 .sn { width: 28px; color: var(--text-3); font-size: var(--fs-xs); }
 .st { width: 40px; color: var(--sim); font-size: var(--fs-xs); }
-.bar { width: 3px; height: 16px; border-radius: 2px; flex: none; }
+.bar { width: 3px; height: 16px; border-radius: 0; flex: none; }
 .a { flex: 1; }
-.tr { margin-left: 6px; font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 0 5px; border-radius: 3px; }
+.tr { margin-left: 6px; font-size: 11px; color: var(--accent); background: var(--accent-soft); padding: 0 5px; border-radius: 0; }
 .stack { display: grid; gap: var(--sp-3); }
 .small { font-size: var(--fs-xs); margin: 0; }
 .li { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); padding: 4px 0; flex-wrap: wrap; }
@@ -188,6 +188,6 @@ function interview() { closeAllDrawers(); router.push({ name: 'interview', param
 .lnk:hover { text-decoration: underline; }
 .b5 { display: grid; grid-template-columns: 56px auto 1fr; gap: var(--sp-3); align-items: center; font-size: var(--fs-sm); padding: 2px 0; }
 .meter { display: inline-flex; gap: 3px; }
-.meter i { width: 22px; height: 6px; border-radius: 3px; background: var(--surface-2); display: block; }
+.meter i { width: 22px; height: 6px; border-radius: 0; background: var(--surface-2); display: block; }
 .meter i.on { background: var(--text-2); }
 </style>

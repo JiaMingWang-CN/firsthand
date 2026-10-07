@@ -164,7 +164,7 @@ function openEvent(e) {
 .mark:nth-child(odd) { bottom: 50px; }
 .rowlane { position: absolute; left: 0; right: 0; height: 30px; }
 .heat { position: absolute; top: 5px; height: 20px; background: var(--sim); display: block; }
-.browse { position: absolute; top: 9px; height: 12px; min-width: 6px; border-radius: 3px; display: block; }
+.browse { position: absolute; top: 9px; height: 12px; min-width: 6px; border-radius: 0; display: block; }
 .stepmark { position: absolute; top: 6px; width: 1px; height: 18px; background: var(--text); opacity: .55; display: block; pointer-events: none; }
 .lg-step { width: 1px; height: 12px; background: var(--text-2); display: inline-block; }
 .legend .sp { flex: 1; }
@@ -180,10 +180,10 @@ function openEvent(e) {
 .playhead { position: absolute; top: -4px; bottom: 20px; width: 2px; margin-left: -1px; background: var(--sim); cursor: ew-resize; z-index: 3; }
 .playhead::before { content: ""; position: absolute; left: -5px; top: -2px; width: 12px; height: 12px; border-radius: 50%; background: var(--sim); box-shadow: 0 0 0 3px var(--surface); }
 .ph-label.flip { left: auto; right: 10px; }
-.ph-label { position: absolute; top: -3px; left: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--sim); background: var(--sim-soft); padding: 0 5px; border-radius: 3px; white-space: nowrap; line-height: 16px; }
+.ph-label { position: absolute; top: -3px; left: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--sim); background: var(--sim-soft); padding: 0 5px; border-radius: 0; white-space: nowrap; line-height: 16px; }
 .legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-3); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.lg-browse { width: 18px; height: 8px; border-radius: 2px; background: var(--text-2); display: inline-block; }
+.lg-browse { width: 18px; height: 8px; border-radius: 0; background: var(--text-2); display: inline-block; }
 .lg { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--text-2); display: inline-block; }
 .lg.post { background: var(--text-2); }
 .lg.comment { background: linear-gradient(90deg, var(--text-2) 50%, transparent 50%); }

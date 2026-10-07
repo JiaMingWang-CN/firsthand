@@ -108,8 +108,11 @@ const jobText = (j) => (j.kind === 'simulate'
 .si { width: 12px; height: 12px; vertical-align: -2px; stroke-width: 1.5; }
 .rid { font-size: var(--fs-xs); }
 .tx { margin-left: var(--sp-2); }
-.pipe { margin-bottom: var(--sp-4); }
-.pipe ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
-.pipe li { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); flex-wrap: wrap; }
+.pipe { margin-bottom: var(--sp-6); }
+.pipe ul { list-style: none; margin: 0; padding: 0; }
+.pipe li { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); flex-wrap: wrap; padding: 12px 0; border-bottom: 1px solid var(--border); }
+td { white-space: normal !important; vertical-align: top; padding-top: 10px !important; padding-bottom: 10px !important; }
+td.num { overflow-wrap: anywhere; min-width: 7em; }
+td.realtime { white-space: nowrap !important; }
 .pipe .faint { font-size: var(--fs-xs); }
 </style>

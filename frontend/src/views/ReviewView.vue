@@ -425,7 +425,7 @@ onBeforeUnmount(() => clearTimeout(timer))
 .kv dd { margin: 0; }
 .rationale { font-size: var(--fs-sm); color: var(--text-2); line-height: 1.7; }
 .dist { margin: 0; padding-left: var(--sp-5); font-size: var(--fs-xs); color: var(--text-2); line-height: 1.8; }
-.pad { padding: var(--sp-4) var(--sp-5) 0; }
+.pad { padding-top: 0; }
 tr.click { cursor: pointer; }
 tr.detail td { background: var(--surface-2); white-space: normal; font-size: var(--fs-sm); line-height: 1.7; }
 tr.detail p { margin: 0 0 var(--sp-1); }
@@ -441,7 +441,7 @@ tr.detail p { margin: 0 0 var(--sp-1); }
 .hi { width: 16px; height: 16px; stroke-width: 1.5; vertical-align: -3px; margin-right: 6px; }
 .days { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .days .input { width: 80px; }
-.pad-note { margin: var(--sp-3) var(--sp-5) 0; }
+.pad-note { margin: var(--sp-3) 0 0; }
 .sampling { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); cursor: default; }
 .sampling label { display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--text-3); }
 .sampling .input { width: 96px; }

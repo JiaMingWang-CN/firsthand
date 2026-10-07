@@ -22,8 +22,8 @@ watch(() => confirmState.open, async (o) => { if (o) { await nextTick(); btn.val
 
 <style scoped>
 .scrim { position: fixed; inset: 0; z-index: 80; background: color-mix(in srgb, var(--text) 30%, transparent); display: grid; place-items: center; padding: var(--sp-4); }
-.dlg { width: min(460px, 100%); background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-2); padding: var(--sp-5); border: 1px solid var(--border); }
-h3 { font-size: var(--fs-lg); line-height: 1.5; }
+.dlg { width: min(460px, 100%); background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-2); padding: var(--sp-5); border: 1px solid var(--ink); }
+h3 { font: 700 18px/1.5 var(--font-serif); }
 p { color: var(--text-2); font-size: var(--fs-sm); margin: var(--sp-2) 0 var(--sp-5); }
 .acts { display: flex; justify-content: flex-end; gap: var(--sp-2); }
 </style>

@@ -199,7 +199,7 @@ const flow = computed(() => {
 .steps li.succeeded svg, .checks li.ok svg { color: var(--pos); }
 .meter { margin-bottom: var(--sp-3); }
 .meter .label { font-size: var(--fs-sm); margin-bottom: 4px; }
-.bar { height: 6px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
+.bar { height: 6px; background: var(--surface-2); border-radius: 0; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--sim); transition: width var(--dur-slow) var(--ease); }
 .neg { color: var(--neg); }
 .checks { list-style: none; padding: 0; margin: 0 0 var(--sp-3); display: flex; gap: var(--sp-4); font-size: var(--fs-sm); }
@@ -211,7 +211,7 @@ const flow = computed(() => {
 .watch { margin-bottom: var(--sp-4); }
 .hi { width: 16px; height: 16px; stroke-width: 1.5; vertical-align: -3px; margin-right: 6px; }
 .who { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-bottom: var(--sp-3); }
-.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border: 1px solid var(--border); border-radius: 0; background: var(--surface); color: var(--text-2); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .pill.on { border-color: var(--text); color: var(--text); }
 .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-3); }
 .pill .dot.pos { background: var(--pos); }

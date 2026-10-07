@@ -104,14 +104,14 @@ const permText = (p) => {
 <style scoped>
 .cols { grid-template-columns: minmax(0, 1fr) 320px; margin-top: var(--sp-5); align-items: start; }
 .small { font-size: var(--fs-xs); margin: 0 0 var(--sp-3); }
-.plist { display: grid; gap: var(--sp-3); }
-.post { display: block; }
+.plist { display: grid; }
+.post { display: block; padding: var(--sp-4) 0; border-bottom: 1px solid var(--border); }
 .pb { min-width: 0; }
 .who { gap: var(--sp-2); font-size: var(--fs-xs); }
 h3 { font-size: var(--fs-lg); line-height: 1.5; margin: var(--sp-2) 0 var(--sp-1); }
 .pt { background: none; border: none; padding: 0; text-align: left; font: inherit; font-weight: 700; color: var(--text); cursor: pointer; }
 .pt:hover { text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
-.body { margin: 0; font-size: var(--fs-sm); line-height: 1.75; max-width: 720px; }
+.body { margin: 0; font: 15px/1.8 var(--font-serif); max-width: 720px; }
 .meta { margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-3); }
 .mi { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-3); }
 .mi svg { width: 14px; height: 14px; stroke-width: 1.5; }

@@ -59,15 +59,15 @@ const usageTip = computed(() => {
 <style scoped>
 .runbar {
   position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: var(--sp-5);
-  padding: var(--sp-2) var(--sp-6); min-height: 60px;
-  background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
+  padding: var(--sp-2) 48px; min-height: 60px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent); backdrop-filter: blur(6px);
   border-bottom: 1px solid var(--border);
 }
 .lbl { font-size: var(--fs-xs); color: var(--text-3); display: block; line-height: 1.3; }
 .clock { flex: none; }
 .simtime.big { font-size: var(--fs-sm); padding: 2px 8px; }
 .prog { flex: 1; min-width: 180px; }
-.bar { height: 4px; border-radius: 2px; background: var(--surface-2); overflow: hidden; }
+.bar { height: 4px; border-radius: 0; background: var(--surface-2); overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--sim); transition: width var(--dur) linear; }
 .pl { display: flex; gap: var(--sp-4); margin-top: 6px; flex-wrap: wrap; }
 .cost { flex: none; text-align: right; }
@@ -76,9 +76,9 @@ const usageTip = computed(() => {
 .calls { font-size: var(--fs-xs); color: var(--text-3); }
 .ctl { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
 .replay { font-size: var(--fs-xs); color: var(--text-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 6px; }
-@media (max-width: 1279px) { .runbar { padding: var(--sp-2) var(--sp-4); gap: var(--sp-3); } .calls, .replay { display: none; } }
+@media (max-width: 1279px) { .runbar { padding: var(--sp-2) 20px; gap: var(--sp-3); } .calls, .replay { display: none; } }
 @media (max-width: 959px) {
-  .runbar { flex-wrap: wrap; top: 49px; }
+  .runbar { flex-wrap: wrap; }
   .prog { order: 3; flex-basis: 100%; }
   .pl { gap: var(--sp-3); }
   .seg { display: none; }

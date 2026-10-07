@@ -1,99 +1,110 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { product, live } from '../lib/data.js'
+import { product, live, personas, timeline, run } from '../lib/data.js'
 import { ui, toggleTheme } from '../lib/store.js'
-import { History, Plus, FileText, Radio, Users, MessagesSquare, Mic, Sun, Moon } from 'lucide-vue-next'
+import { STEPS, flowState, ROUTE_STEP } from '../lib/shell.js'
 
 const route = useRoute()
 const runId = computed(() => route.params.runId)
 const runLinks = [
-  { name: 'report', label: '报告', icon: FileText },
-  { name: 'live', label: '运行现场', icon: Radio },
-  { name: 'personas', label: '人物', icon: Users },
-  { name: 'community', label: '社区', icon: MessagesSquare },
-  { name: 'interview', label: '采访', icon: Mic },
+  { name: 'report', label: '报告' },
+  { name: 'live', label: '运行现场' },
+  { name: 'personas', label: '人物' },
+  { name: 'community', label: '社区' },
+  { name: 'interview', label: '采访' },
 ]
 const keepQuery = (name) => (['live', 'community'].includes(name) && route.query.t ? { t: route.query.t } : {})
 const ready = computed(() => live.id === runId.value && product.name)
+// 当前在流程的哪一步：带流程条的页面以它为准，其余页面按路由固定对应
+const at = computed(() => flowState.at ?? ROUTE_STEP[route.name] ?? null)
+const stepClass = (i) => (at.value == null ? '' : i < at.value || (flowState.done && i === at.value) ? 'done' : i === at.value ? 'now' : '')
+const meta = computed(() => [
+  `${personas.length} 人 · ${Math.max(1, Math.round(timeline.total / 1440))} 天 · 每格 ${timeline.sliceMinutes} 分钟`,
+  run.usage?.models?.[0]?.model,
+].filter(Boolean))
 </script>
 
 <template>
-  <nav class="nav" aria-label="主导航">
-    <RouterLink to="/runs" class="brand" aria-label="muchhuman 首页">
-      <span class="logo" aria-hidden="true"><i></i><i></i></span>
-      <span class="bt"><b>muchhuman</b><small>模拟人物 · 真实体验</small></span>
-    </RouterLink>
-
-    <div class="grp">
-      <div class="gl">工作台</div>
-      <RouterLink to="/runs" class="it" :class="{ on: route.name === 'runs' }"><History /><span>运行</span></RouterLink>
-      <RouterLink to="/new" class="it" :class="{ on: route.name === 'new' }"><Plus /><span>新建运行</span></RouterLink>
+  <aside class="rail" aria-label="主导航">
+    <div>
+      <RouterLink to="/runs" class="mark" aria-label="muchhuman 首页">muchhuman</RouterLink>
+      <div class="motto">让模拟的人先替你用一遍</div>
     </div>
 
-    <div class="grp" v-if="route.params.runId">
-      <div class="gl">当前运行</div>
-      <div class="cur" :title="runId">
-        <span class="ct">{{ ready ? product.name : '加载中…' }}</span>
-        <span class="cs num">{{ runId }}</span>
+    <nav aria-label="工作台">
+      <RouterLink to="/runs" :class="{ on: route.name === 'runs' }">运行</RouterLink>
+      <RouterLink to="/new" :class="{ on: route.name === 'new' }">新建运行</RouterLink>
+    </nav>
+
+    <div v-if="runId" class="cur">
+      <h4>当前运行</h4>
+      <div class="rmeta" :title="runId">
+        <b>{{ ready ? product.name : '加载中…' }}</b>
+        <div class="num">{{ runId }}</div>
+        <template v-if="ready"><div v-for="m in meta" :key="m">{{ m }}</div></template>
       </div>
-      <RouterLink v-for="l in runLinks" :key="l.name" :to="{ name: l.name, params: { runId }, query: keepQuery(l.name) }"
-                  class="it" :class="{ on: route.name === l.name }"><component :is="l.icon" /><span>{{ l.label }}</span></RouterLink>
+      <nav aria-label="当前运行">
+        <RouterLink v-for="l in runLinks" :key="l.name" :to="{ name: l.name, params: { runId }, query: keepQuery(l.name) }"
+                    :class="{ on: route.name === l.name }">{{ l.label }}</RouterLink>
+      </nav>
     </div>
 
-    <div class="foot">
-      <div class="demo"><span class="dot"></span><span>真实运行数据</span></div>
-      <button class="it themebtn" type="button" @click="toggleTheme" :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">
-        <component :is="ui.theme === 'dark' ? Sun : Moon" /><span>{{ ui.theme === 'dark' ? '浅色主题' : '深色主题' }}</span>
-      </button>
-      <div class="keys"><span><kbd>Esc</kbd> 关闭</span><span><kbd>J</kbd><kbd>K</kbd> 切换</span><span><kbd>/</kbd> 搜索</span><span><kbd>空格</kbd> 播放</span></div>
+    <div>
+      <h4>流程</h4>
+      <ol class="rsteps">
+        <li v-for="(s, i) in STEPS" :key="s" :class="stepClass(i)" :aria-current="i === at && !flowState.done ? 'step' : undefined">
+          <span class="dot"></span><span class="no">{{ String(i + 1).padStart(2, '0') }}</span><span>{{ s }}</span>
+        </li>
+      </ol>
     </div>
-  </nav>
+
+    <div class="rfoot">
+      <div class="keys"><span><kbd>Esc</kbd> 关闭</span><span><kbd>J</kbd><kbd>K</kbd> 切换</span><span><kbd>/</kbd> 搜索</span><span><kbd>空格</kbd> 播放</span></div>
+      <button type="button" class="themebtn" @click="toggleTheme" :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'">{{ ui.theme === 'dark' ? '切换到浅色' : '切换到深色' }}</button>
+    </div>
+  </aside>
 </template>
 
 <style scoped>
-.nav { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: var(--sp-5); padding: var(--sp-5) var(--sp-3) var(--sp-4); border-right: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 55%, var(--bg)); overflow-y: auto; }
-.brand { display: flex; align-items: center; gap: 11px; padding: 2px var(--sp-2); color: var(--text); text-decoration: none !important; }
-.logo { width: 30px; height: 30px; border-radius: 9px; background: linear-gradient(135deg, var(--brand-a), var(--brand-b)); display: grid; grid-template-columns: 1fr 1fr; align-items: center; justify-items: center; padding: 0 5px; flex: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 4px 14px -4px color-mix(in srgb, var(--brand-a) 60%, transparent); }
-.logo i { width: 8px; height: 8px; border-radius: 50%; background: #fff; display: block; }
-.logo i + i { background: transparent; border: 1.5px dashed #fff; }
-.bt { display: flex; flex-direction: column; line-height: 1.25; }
-.bt b { font-size: 15px; font-weight: 700; letter-spacing: -.025em; }
-.bt small { font-size: 11px; color: var(--text-3); margin-top: 1px; }
-.grp { display: flex; flex-direction: column; gap: 1px; }
-.gl { font-size: 10.5px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--text-3); padding: 0 var(--sp-2) 6px; }
-.it { position: relative; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: var(--text-2); font-size: var(--fs-sm); font-weight: 550; text-decoration: none !important; border: none; background: none; cursor: pointer; width: 100%; text-align: left; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
-.it svg { width: 16px; height: 16px; stroke-width: 1.75; flex: none; color: var(--text-3); transition: color var(--dur-fast) var(--ease); }
-.it:hover { background: color-mix(in srgb, var(--surface-3) 70%, transparent); color: var(--text); }
-.it:hover svg { color: var(--text-2); }
-.it.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(13,16,21,.06), 0 0 0 1px var(--border); }
-.it.on svg { color: var(--accent); }
-.it.on::before { content: ""; position: absolute; left: -12px; top: 9px; bottom: 9px; width: 3px; border-radius: 0 3px 3px 0; background: linear-gradient(var(--brand-a), var(--brand-b)); }
-.cur { margin: 0 0 6px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; border-radius: 10px; border: 1px dashed var(--border-strong); min-width: 0; }
-.ct { font-size: var(--fs-sm); font-weight: 600; line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cs { font-size: 10.5px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.foot { margin-top: auto; display: flex; flex-direction: column; gap: 4px; padding-top: var(--sp-3); border-top: 1px solid var(--border); }
-.demo { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--text-3); padding: 4px 10px; }
-.demo .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pos); box-shadow: 0 0 0 3px var(--pos-soft); }
-.keys { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--text-3); padding: 6px 10px 0; }
+.rail { position: sticky; top: 0; height: 100vh; overflow-y: auto; border-right: 1px solid var(--ink); padding: 28px 26px 24px 24px; display: flex; flex-direction: column; gap: 26px; background: var(--surface-2); z-index: 1; }
+/* 侧栏右缘的刻度尺 */
+.rail::after { content: ""; position: absolute; top: 0; right: 0; width: 7px; height: 100%; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, var(--text-3) 0 1px, transparent 1px 12px), repeating-linear-gradient(to bottom, var(--ink) 0 1px, transparent 1px 60px);
+  background-size: 4px 100%, 7px 100%; background-repeat: repeat-y; background-position: right top, right top; opacity: .45; }
+.mark { font: 700 22px/1 var(--font-serif); text-decoration: none; letter-spacing: .01em; }
+.motto { font: 12px var(--font-mono); color: var(--text-3); margin-top: 6px; }
+nav { display: grid; gap: 2px; font-size: 14px; }
+nav a { text-decoration: none; color: var(--text-2); padding: 3px 0; }
+nav a:hover { color: var(--text); }
+nav a.on { color: var(--text); font-weight: 600; }
+nav a.on::before { content: "▸ "; color: var(--signal); }
+h4 { font: 600 11px var(--font-mono); letter-spacing: .14em; color: var(--text-3); margin: 0 0 8px; }
+.cur { display: grid; gap: 10px; }
+.cur h4 { margin: 0; }
+.rmeta { font-size: 13px; color: var(--text-2); min-width: 0; }
+.rmeta b { display: block; font: 700 16px/1.3 var(--font-serif); color: var(--text); margin-bottom: 4px; overflow-wrap: anywhere; }
+.rmeta div { font: 12px/1.8 var(--font-mono); color: var(--text-3); overflow-wrap: anywhere; }
+.rsteps { list-style: none; margin: 0; padding: 0; position: relative; }
+.rsteps::before { content: ""; position: absolute; left: 9px; top: 8px; bottom: 8px; width: 1px; background: var(--border-strong); }
+.rsteps li { position: relative; display: grid; grid-template-columns: 20px 26px 1fr; align-items: baseline; padding: 4px 0; font-size: 14px; color: var(--text-3); }
+.rsteps .dot { width: 9px; height: 9px; border: 1px solid var(--text-3); background: var(--surface-2); border-radius: 50%; margin: 0 0 0 5px; transform: translateY(1px); }
+.rsteps .no { font: 11px var(--font-mono); }
+.rsteps li.done { color: var(--text-2); }
+.rsteps li.done .dot { background: var(--text-2); border-color: var(--text-2); }
+.rsteps li.now { color: var(--text); font-weight: 600; }
+.rsteps li.now .dot { background: var(--signal); border-color: var(--signal); box-shadow: 0 0 0 3px var(--surface-2), 0 0 0 4px var(--signal); }
+.rfoot { margin-top: auto; display: grid; gap: 12px; }
+.keys { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--text-3); }
 .keys span { display: inline-flex; align-items: center; gap: 3px; }
+.themebtn { justify-self: start; font: 12px var(--font-mono); background: none; border: 1px solid var(--border-strong); color: var(--text-2); padding: 3px 8px; cursor: pointer; }
+.themebtn:hover { color: var(--text); border-color: var(--ink); }
 
-@media (max-width: 1279px) and (min-width: 960px) {
-  .nav { padding: var(--sp-5) var(--sp-2); align-items: center; }
-  .bt, .gl, .cur, .demo, .keys, .it span { display: none; }
-  .it { width: 40px; justify-content: center; padding: 0; }
-  .it.on::before { left: -8px; }
-  .brand { padding: 0; }
-  .foot { border-top: none; }
-}
-@media (max-width: 959px) {
-  .nav { position: sticky; top: 0; height: auto; flex-direction: row; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-right: none; border-bottom: 1px solid var(--border); overflow-x: auto; z-index: 30; background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(12px); }
-  .bt small, .gl, .cur, .demo, .keys, .themebtn span { display: none; }
-  .grp { flex-direction: row; }
-  .grp:first-of-type { display: none; }
-  .it { width: auto; white-space: nowrap; }
-  .it.on::before { display: none; }
-  .foot { margin: 0 0 0 auto; flex-direction: row; border-top: none; padding-top: 0; }
-  .themebtn { width: 34px; justify-content: center; }
+@media (max-width: 1100px) {
+  .rail { position: static; height: auto; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px 24px; border-right: 0; border-bottom: 1px solid var(--ink); padding: 14px 20px; }
+  .rail::after, h4, .rsteps, .rmeta, .keys, .motto { display: none; }
+  nav { display: flex; gap: 16px; }
+  .cur { display: flex; gap: 16px; align-items: center; }
+  .rfoot { margin: 0 0 0 auto; }
 }
 </style>

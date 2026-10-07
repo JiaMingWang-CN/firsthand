@@ -122,9 +122,9 @@ const spark = (pid) => {
 .sp { flex: 1; }
 .now { font-size: var(--fs-xs); }
 .vi { width: 14px; height: 14px; stroke-width: 1.5; vertical-align: -2px; }
-.cards { align-items: stretch; }
-.pc { cursor: pointer; transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease); display: flex; flex-direction: column; }
-.pc:hover { box-shadow: var(--shadow-1); border-color: var(--border-strong); }
+.cards { align-items: stretch; gap: var(--sp-5) var(--sp-6); }
+.pc { cursor: pointer; display: flex; flex-direction: column; border-top: 1px solid var(--ink); padding-top: var(--sp-4); }
+.pc:hover { background: color-mix(in srgb, var(--surface-2) 45%, transparent); }
 .foot { display: flex; gap: var(--sp-5); flex-wrap: wrap; align-items: flex-end; border-top: 1px solid var(--border); margin-top: auto; padding-top: var(--sp-3); font-size: var(--fs-sm); }
 .pc :deep(.persona-card) { margin-bottom: var(--sp-4); }
 .fc { display: flex; flex-direction: column; gap: 2px; }

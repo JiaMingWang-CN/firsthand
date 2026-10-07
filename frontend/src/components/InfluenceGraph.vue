@@ -85,11 +85,11 @@ svg { display: block; max-width: 100%; height: auto; min-width: 640px; }
 .node:hover rect, .node:focus-visible rect { stroke: var(--text); }
 .legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); font-size: var(--fs-xs); color: var(--text-3); margin-top: var(--sp-2); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.sq { width: 10px; height: 10px; border-radius: 2px; background: var(--text-2); display: inline-block; }
+.sq { width: 10px; height: 10px; border-radius: 0; background: var(--text-2); display: inline-block; }
 .ci { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--text-2); display: inline-block; }
 .ln { width: 18px; border-top: 1px dashed var(--text-2); display: inline-block; }
 .ln.strong { border-top: 2px solid var(--text-2); }
-.bar { width: 18px; height: 6px; border-radius: 2px; background: var(--text-2); display: inline-block; }
+.bar { width: 18px; height: 6px; border-radius: 0; background: var(--text-2); display: inline-block; }
 .tblw { max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-md); }
 .wrap { white-space: normal; min-width: 180px; }
 </style>

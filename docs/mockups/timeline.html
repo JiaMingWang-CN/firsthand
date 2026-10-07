@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>运行时刻表 · 草图</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #f3efe6; --paper-2: #ebe5d8; --ink: #1c1a16; --ink-2: #57524a; --ink-3: #8f887b; --rule: #d6cfc0; --rule-2: #c3baa8;
+  --signal: #c2412d; --link: #3d5a80; --good: #2f6b4f; --warn: #b07a1c;
+  --serif: "Noto Serif SC", "Songti SC", serif; --mono: "JetBrains Mono", ui-monospace, monospace;
+  --sans: -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #16150f; --paper-2: #1f1d17; --ink: #ece6d8; --ink-2: #b4ac9c; --ink-3: #7c7567; --rule: #2e2b23; --rule-2: #403b31;
+    --signal: #e0644d; --link: #7fa3cf; --good: #6fb48f; --warn: #d9a548;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #16150f; --paper-2: #1f1d17; --ink: #ece6d8; --ink-2: #b4ac9c; --ink-3: #7c7567; --rule: #2e2b23; --rule-2: #403b31;
+  --signal: #e0644d; --link: #7fa3cf; --good: #6fb48f; --warn: #d9a548;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--paper); color: var(--ink); font: 14px/1.55 var(--sans); }
+.wrap { max-width: 1480px; margin: 0 auto; padding: 28px 24px 48px; }
+
+/* 页头：像实验记录的抬头，一行事实，不要宣传语 */
+.masthead { display: grid; grid-template-columns: 1fr auto; gap: 8px 24px; align-items: end; border-bottom: 2px solid var(--ink); padding-bottom: 12px; }
+.masthead h1 { font: 700 28px/1.2 var(--serif); margin: 0; letter-spacing: .01em; }
+.masthead .id { font: 12px var(--mono); color: var(--ink-3); }
+.ledger { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0; font: 12px var(--mono); color: var(--ink-2); }
+.ledger span { padding-right: 14px; margin-right: 14px; border-right: 1px solid var(--rule-2); }
+.ledger span:last-child { border: 0; }
+.ledger b { color: var(--ink); font-weight: 600; }
+.theme { font: 12px var(--mono); background: none; border: 1px solid var(--rule-2); color: var(--ink-2); padding: 3px 8px; cursor: pointer; }
+
+/* 时钟条 */
+.clock { display: flex; align-items: center; gap: 12px; margin: 16px 0 6px; font: 12px var(--mono); color: var(--ink-2); }
+.clock button { font: 12px var(--mono); background: var(--ink); color: var(--paper); border: 0; padding: 4px 10px; cursor: pointer; }
+.clock input { flex: 1; accent-color: var(--signal); }
+.clock .now { min-width: 120px; color: var(--ink); }
+
+/* 图例：用文字说清楚，不靠颜色猜 */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--ink-2); margin: 0 0 10px; }
+.legend i { display: inline-block; vertical-align: -2px; margin-right: 6px; }
+
+.board { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 0; border-top: 1px solid var(--rule-2); }
+.chart { overflow-x: auto; border-right: 1px solid var(--rule-2); }
+svg { display: block; }
+.row-label { font: 600 13px var(--serif); fill: var(--ink); }
+.row-sub { font: 11px var(--mono); fill: var(--ink-3); }
+.axis { font: 10.5px var(--mono); fill: var(--ink-3); }
+.row-hit { fill: transparent; cursor: pointer; }
+.row-hit:hover, .row-hit.on { fill: var(--paper-2); }
+
+/* 侧栏：档案卡，不是 SaaS 卡片 */
+.side { padding: 16px 18px; font-size: 13px; }
+.side h2 { font: 700 20px/1.3 var(--serif); margin: 0; }
+.side .meta { font: 12px var(--mono); color: var(--ink-3); margin: 4px 0 12px; }
+.side dl { display: grid; grid-template-columns: 70px 1fr; gap: 4px 10px; margin: 0 0 14px; }
+.side dt { color: var(--ink-3); }
+.side dd { margin: 0; }
+.side h3 { font: 600 12px var(--mono); color: var(--ink-3); letter-spacing: .08em; margin: 18px 0 6px; border-top: 1px solid var(--rule); padding-top: 10px; }
+.quote { font: 14px/1.7 var(--serif); margin: 0 0 10px; padding-left: 10px; border-left: 2px solid var(--ink); }
+.quote small { display: block; font: 11px var(--mono); color: var(--ink-3); }
+.empty { color: var(--ink-3); font-style: italic; }
+.ok { color: var(--good); } .bad { color: var(--signal); } .mid { color: var(--warn); }
+.hint { color: var(--ink-3); font-size: 12px; margin-top: 10px; }
+@media (max-width: 900px) { .board { grid-template-columns: 1fr; } .chart { border-right: 0; } .side { border-top: 1px solid var(--rule-2); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="masthead">
+    <div>
+      <div class="id" id="runid"></div>
+      <h1 id="title"></h1>
+    </div>
+    <button class="theme" id="theme" type="button">深色 / 浅色</button>
+    <div class="ledger" id="ledger"></div>
+  </header>
+
+  <div class="clock">
+    <button id="play" type="button">▶ 回放</button>
+    <input id="t" type="range" min="0" max="24" step="0.05" value="24" aria-label="模拟时钟">
+    <span class="now" id="now"></span>
+  </div>
+
+  <div class="legend">
+    <span><i><svg width="26" height="12"><rect x="1" y="1" width="24" height="10" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></i>浏览（竖纹 = 每一步，越高越满意，红 = 困惑）</span>
+    <span><i><svg width="12" height="12"><rect x="2" y="2" width="8" height="8" fill="currentColor"/></svg></i>发帖</span>
+    <span><i><svg width="12" height="12"><circle cx="6" cy="6" r="4" fill="currentColor"/></svg></i>评论</span>
+    <span><i><svg width="12" height="12"><path d="M3 9 L6 3 L9 9" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></i>点赞</span>
+    <span><i><svg width="12" height="12"><circle cx="6" cy="6" r="3.5" fill="none" stroke="var(--signal)" stroke-width="1.5"/></svg></i>想说没说</span>
+    <span><i><svg width="26" height="12"><line x1="1" y1="6" x2="25" y2="6" stroke="var(--ink-3)" stroke-width="2"/></svg></i>在社区里</span>
+    <span><i><svg width="26" height="12"><path d="M1 10 C 10 0, 16 0, 25 10" fill="none" stroke="var(--link)" stroke-width="1.2"/></svg></i>体验前读到了谁的帖子（点一行显示）</span>
+  </div>
+
+  <div class="board">
+    <div class="chart" id="chart"></div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+const D = {"run": "phase4-20261007T040013029593Z", "product": "wjm.dpdns.org", "start": "2026-10-07T00:00:00Z", "slices": 24, "slice_minutes": 60, "people": [{"id": "p01", "name": "祁泊榕", "job": "软件开发工程师", "age": 29, "part": "poster", "patience": "low", "slice": 0, "local": "2026-10-07T08:15:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "在 wjm.dpdns.org 完成了全部 5 个项目的自由探索与技术评估，信息密度高、数字自洽，达到评估目标。核实结论：1) metastartai.com—", "infra": false, "steps": [{"s": 15.359, "sat": 4, "conf": 2}, {"s": 15.016, "sat": 4, "conf": 2}, {"s": 14.968, "sat": 4, "conf": 2}, {"s": 13.797, "sat": 5, "conf": 1}, {"s": 10.61, "sat": 4, "conf": 2}, {"s": 12.265, "sat": 5, "conf": 1}, {"s": 9.922, "sat": 4, "conf": 2}, {"s": 16.5, "sat": 5, "conf": 1}, {"s": 58.891, "sat": 4, "conf": 2}, {"s": 16.453, "sat": 5, "conf": 1}, {"s": 17.39, "sat": 3, "conf": 4}, {"s": 14.313, "sat": 4, "conf": 2}, {"s": 14.469, "sat": 5, "conf": 1}, {"s": 14.422, "sat": 5, "conf": 1}], "issues": 0, "highlights": 5, "nps": 8}, {"id": "p02", "name": "詹婻", "job": "人工智能算法实习生", "age": 23, "part": "commenter", "patience": "low", "slice": 4, "local": "2026-10-07T12:40:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "以新访客身份完成 wjm.dpdns.org 首页探索与核实：确认开发者王佳明（保定理工学院本科生）及其五个项目方向，其中 NL2SQL 毕设卡明确写有“七阶段", "infra": false, "steps": [{"s": 38.094, "sat": 3, "conf": 2}, {"s": 21.891, "sat": 4, "conf": 2}, {"s": 12.5, "sat": 5, "conf": 1}, {"s": 11.765, "sat": 4, "conf": 3}, {"s": 10.656, "sat": 3, "conf": 3}, {"s": 18.704, "sat": 2, "conf": 4}, {"s": 14.203, "sat": 2, "conf": 4}, {"s": 17.64, "sat": 4, "conf": 3}, {"s": 23.203, "sat": 4, "conf": 2}, {"s": 72.969, "sat": 2, "conf": 4}, {"s": 14.5, "sat": 3, "conf": 3}, {"s": 14.531, "sat": 4, "conf": 2}, {"s": 18.532, "sat": 4, "conf": 3}, {"s": 10.093, "sat": 4, "conf": 3}], "issues": 0, "highlights": 3, "nps": 7}, {"id": "p03", "name": "巴蔚诚", "job": "数据服务创业公司创始人", "age": 41, "part": "lurker", "patience": "low", "slice": 7, "local": "2026-10-07T15:05:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "以潜在客户视角完成站内自由探索，未执行任何禁止操作（无支付、无删除、无对外发信、无提交个人信息）。核实结果如下：1) 首页：作者王佳明自我定位为独立全栈开发者，", "infra": false, "steps": [{"s": 23.5, "sat": 4, "conf": 2}, {"s": 14.907, "sat": 4, "conf": 2}, {"s": 29.39, "sat": 5, "conf": 1}, {"s": 17.313, "sat": 4, "conf": 2}, {"s": 42.297, "sat": 5, "conf": 2}, {"s": 29.781, "sat": 3, "conf": 4}, {"s": 13.437, "sat": 4, "conf": 3}, {"s": 11.078, "sat": 4, "conf": 3}, {"s": 16.391, "sat": 4, "conf": 3}, {"s": 16.5, "sat": 4, "conf": 2}, {"s": 14.391, "sat": 5, "conf": 1}, {"s": 16.39, "sat": 5, "conf": 1}], "issues": 0, "highlights": 4, "nps": 8}, {"id": "p04", "name": "甘穆筱", "job": "互联网公司技术招聘经理", "age": 35, "part": "commenter", "patience": "normal", "slice": 2, "local": "2026-10-07T10:20:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "核验任务真实达成。我以招聘方身份在站内完成全流程浏览：首页确认了候选人王佳明的教育背景（保定理工学院计算机科学与技术本科在读，2023.09–2027.07）、", "infra": false, "steps": [{"s": 22.203, "sat": 4, "conf": 2}, {"s": 17.109, "sat": 5, "conf": 1}, {"s": 14.188, "sat": 5, "conf": 1}, {"s": 18.671, "sat": 4, "conf": 2}, {"s": 17.891, "sat": 5, "conf": 1}, {"s": 22.016, "sat": 4, "conf": 2}, {"s": 18.734, "sat": 5, "conf": 1}, {"s": 13.953, "sat": 4, "conf": 2}, {"s": 11.203, "sat": 4, "conf": 3}, {"s": 20.047, "sat": 4, "conf": 2}, {"s": 15.766, "sat": 5, "conf": 1}, {"s": 17.515, "sat": 5, "conf": 1}, {"s": 18.485, "sat": 5, "conf": 1}, {"s": 16.406, "sat": 4, "conf": 2}, {"s": 21.297, "sat": 5, "conf": 1}, {"s": 15.797, "sat": 5, "conf": 1}, {"s": 15.719, "sat": 4, "conf": 2}, {"s": 13.609, "sat": 4, "conf": 3}, {"s": 15.094, "sat": 4, "conf": 2}, {"s": 15.703, "sat": 5, "conf": 1}, {"s": 17.047, "sat": 5, "conf": 1}, {"s": 12.672, "sat": 5, "conf": 1}, {"s": 12.625, "sat": 5, "conf": 1}, {"s": 15.343, "sat": 4, "conf": 2}, {"s": 10.375, "sat": 3, "conf": 3}, {"s": 10.828, "sat": 3, "conf": 3}, {"s": 11.344, "sat": 4, "conf": 2}, {"s": 16.656, "sat": 5, "conf": 1}, {"s": 20.704, "sat": 5, "conf": 1}], "issues": 0, "highlights": 6, "nps": 8}, {"id": "p05", "name": "储潭", "job": "高校计算机系学生", "age": 21, "part": "poster", "patience": "normal", "slice": 13, "local": "2026-10-07T21:30:00+08:00", "outcome": "failed", "source": "infrastructure", "reason": "浏览基础设施或模型调用失败，不能据此认定产品缺陷", "infra": true, "steps": [{"s": 24.297, "sat": null, "conf": null}, {"s": 17.516, "sat": null, "conf": null}, {"s": 12.984, "sat": null, "conf": null}, {"s": 11.235, "sat": null, "conf": null}, {"s": 11.5, "sat": null, "conf": null}, {"s": 11.953, "sat": null, "conf": null}, {"s": 21.609, "sat": null, "conf": null}, {"s": 13.078, "sat": null, "conf": null}, {"s": 11.719, "sat": null, "conf": null}, {"s": 12.594, "sat": null, "conf": null}, {"s": 11.0, "sat": null, "conf": null}, {"s": 20.922, "sat": null, "conf": null}, {"s": 73.25, "sat": null, "conf": null}, {"s": 42.797, "sat": null, "conf": null}, {"s": 35.296, "sat": null, "conf": null}, {"s": 15.407, "sat": null, "conf": null}, {"s": 20.093, "sat": null, "conf": null}, {"s": 14.485, "sat": null, "conf": null}, {"s": 17.203, "sat": null, "conf": null}, {"s": 16.0, "sat": null, "conf": null}, {"s": 10.797, "sat": null, "conf": null}, {"s": 13.015, "sat": null, "conf": null}, {"s": 13.61, "sat": null, "conf": null}, {"s": 20.297, "sat": null, "conf": null}, {"s": 16.281, "sat": null, "conf": null}, {"s": 15.703, "sat": null, "conf": null}, {"s": 18.063, "sat": null, "conf": null}, {"s": 15.5, "sat": null, "conf": null}, {"s": 17.546, "sat": null, "conf": null}], "issues": 0, "highlights": 0, "nps": null}, {"id": "p06", "name": "费弥", "job": "自由前端开发者", "age": 27, "part": "reactor", "patience": "normal", "slice": 11, "local": "2026-10-07T19:10:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "以同行对比视角完成王佳明个人网站（wjm.dpdns.org）的自由探索，所有帖子中提及的关键数据均已在站内页面亲眼核实：首页确认“我习惯独自把项目从 0 推到", "infra": false, "steps": [{"s": 27.204, "sat": 4, "conf": 2}, {"s": 36.828, "sat": 5, "conf": 1}, {"s": 23.687, "sat": 4, "conf": 2}, {"s": 13.797, "sat": 2, "conf": 4}, {"s": 14.094, "sat": 2, "conf": 4}, {"s": 14.156, "sat": 3, "conf": 3}, {"s": 17.313, "sat": 5, "conf": 1}, {"s": 19.109, "sat": 4, "conf": 2}, {"s": 13.187, "sat": 4, "conf": 2}, {"s": 15.016, "sat": 5, "conf": 1}, {"s": 13.156, "sat": 4, "conf": 2}, {"s": 15.032, "sat": 5, "conf": 1}, {"s": 12.828, "sat": 4, "conf": 2}, {"s": 21.422, "sat": 3, "conf": 3}, {"s": 13.75, "sat": 4, "conf": 2}, {"s": 11.937, "sat": 4, "conf": 2}, {"s": 13.031, "sat": 5, "conf": 1}], "issues": 0, "highlights": 6, "nps": 7}, {"id": "p07", "name": "秦奥", "job": "智能交通企业商务总监", "age": 45, "part": "lurker", "patience": "low", "slice": 9, "local": "2026-10-07T17:25:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "作为付费决策者秦奥，我在 wjm.dpdns.org 站内完成了核心核验目标，且全程未注册、未留资、未对外发送任何信息，未触发验证码或反爬限制。核验结论如下：1", "infra": false, "steps": [{"s": 13.0, "sat": 3, "conf": 3}, {"s": 14.906, "sat": 4, "conf": 2}, {"s": 16.625, "sat": 4, "conf": 2}, {"s": 10.11, "sat": 3, "conf": 3}, {"s": 71.187, "sat": 2, "conf": 4}, {"s": 13.219, "sat": 4, "conf": 2}, {"s": 24.578, "sat": 4, "conf": 3}, {"s": 18.047, "sat": 5, "conf": 1}, {"s": 18.781, "sat": 4, "conf": 3}, {"s": 7.156, "sat": 2, "conf": 4}, {"s": 15.828, "sat": 3, "conf": 3}, {"s": 16.172, "sat": 4, "conf": 2}, {"s": 20.282, "sat": 5, "conf": 1}, {"s": 15.343, "sat": 5, "conf": 1}], "issues": 0, "highlights": 6, "nps": 7}, {"id": "p08", "name": "奚蔓", "job": "家族企业咨询顾问", "age": 38, "part": "reactor", "patience": "normal", "slice": 19, "local": "2026-10-08T03:45:00+08:00", "outcome": "abandoned", "source": "runtime_limit", "reason": "达到步骤上限或连续执行失败，任务未完成", "infra": false, "steps": [{"s": 23.313, "sat": 4, "conf": 2}, {"s": 16.171, "sat": 4, "conf": 3}, {"s": 29.266, "sat": 4, "conf": 3}, {"s": 21.078, "sat": 4, "conf": 2}, {"s": 20.656, "sat": 4, "conf": 3}, {"s": 26.485, "sat": 5, "conf": 2}, {"s": 17.187, "sat": 4, "conf": 3}, {"s": 19.016, "sat": 4, "conf": 3}, {"s": 16.5, "sat": 3, "conf": 4}, {"s": 16.516, "sat": 2, "conf": 4}, {"s": 12.578, "sat": 3, "conf": 3}, {"s": 18.047, "sat": 5, "conf": 2}, {"s": 18.234, "sat": 4, "conf": 2}, {"s": 14.187, "sat": 3, "conf": 4}, {"s": 17.813, "sat": 2, "conf": 4}, {"s": 20.672, "sat": 3, "conf": 3}, {"s": 15.547, "sat": 5, "conf": 2}, {"s": 18.953, "sat": 4, "conf": 2}, {"s": 17.015, "sat": 4, "conf": 3}, {"s": 20.063, "sat": 5, "conf": 2}, {"s": 10.687, "sat": 4, "conf": 3}, {"s": 12.641, "sat": 2, "conf": 4}, {"s": 14.734, "sat": 3, "conf": 3}, {"s": 12.0, "sat": 4, "conf": 3}, {"s": 12.125, "sat": 2, "conf": 4}, {"s": 21.704, "sat": 1, "conf": 4}], "issues": 0, "highlights": 11, "nps": 6}, {"id": "p09", "name": "韦朝", "job": "运营公司内容编辑", "age": 52, "part": "poster", "patience": "normal", "slice": 14, "local": "2026-10-07T22:55:00+08:00", "outcome": "failed", "source": "infrastructure", "reason": "浏览基础设施或模型调用失败，不能据此认定产品缺陷", "infra": true, "steps": [{"s": 12.844, "sat": null, "conf": null}, {"s": 14.922, "sat": null, "conf": null}, {"s": 14.265, "sat": null, "conf": null}, {"s": 13.766, "sat": null, "conf": null}, {"s": 11.437, "sat": null, "conf": null}, {"s": 12.938, "sat": null, "conf": null}, {"s": 16.156, "sat": null, "conf": null}, {"s": 34.641, "sat": null, "conf": null}, {"s": 13.859, "sat": null, "conf": null}, {"s": 16.5, "sat": null, "conf": null}, {"s": 14.469, "sat": null, "conf": null}, {"s": 16.64, "sat": null, "conf": null}, {"s": 37.0, "sat": null, "conf": null}, {"s": 16.297, "sat": null, "conf": null}, {"s": 17.391, "sat": null, "conf": null}, {"s": 19.609, "sat": null, "conf": null}, {"s": 38.391, "sat": null, "conf": null}, {"s": 12.609, "sat": null, "conf": null}, {"s": 13.375, "sat": null, "conf": null}, {"s": 11.828, "sat": null, "conf": null}, {"s": 11.297, "sat": null, "conf": null}, {"s": 14.219, "sat": null, "conf": null}, {"s": 27.141, "sat": null, "conf": null}, {"s": 13.734, "sat": null, "conf": null}, {"s": 12.219, "sat": null, "conf": null}, {"s": 14.094, "sat": null, "conf": null}, {"s": 13.437, "sat": null, "conf": null}, {"s": 14.938, "sat": null, "conf": null}, {"s": 66.031, "sat": null, "conf": null}, {"s": 12.25, "sat": null, "conf": null}], "issues": 0, "highlights": 0, "nps": null}, {"id": "p10", "name": "屈俪", "job": "计算机系副教授", "age": 49, "part": "commenter", "patience": "normal", "slice": 22, "local": "2026-10-08T06:50:00+08:00", "outcome": "success", "source": "agent_self_report", "reason": "以屈俪（新访客、评审视角）身份首次访问王佳明个人网站，按评审任务逐项完成核对：1) 毕业设计 NL2SQL 详情页确认了七阶段 SSE 流水线（召回→链接→生成", "infra": false, "steps": [{"s": 18.375, "sat": 4, "conf": 2}, {"s": 29.453, "sat": 4, "conf": 2}, {"s": 12.922, "sat": 5, "conf": 1}, {"s": 12.578, "sat": 4, "conf": 3}, {"s": 12.844, "sat": 3, "conf": 3}, {"s": 12.797, "sat": 3, "conf": 3}, {"s": 12.562, "sat": 4, "conf": 2}, {"s": 20.219, "sat": 5, "conf": 1}, {"s": 12.219, "sat": 4, "conf": 2}, {"s": 14.484, "sat": 3, "conf": 3}, {"s": 17.891, "sat": 4, "conf": 2}, {"s": 21.015, "sat": 5, "conf": 1}], "issues": 0, "highlights": 7, "nps": 8}], "marks": [{"pid": "p01", "slice": 0, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 1}, {"pid": "p01", "slice": 1, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 2}, {"pid": "p01", "slice": 2, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 3}, {"pid": "p04", "slice": 2, "kind": "create_comment", "body": "我这次用下来：\n首页即给出可核验的技术量化摘要。我看到的页面文字是“智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiant", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 3, "kind": "create_comment", "body": "我这次用下来：\n首页即给出可核验的技术量化摘要。我看到的页面文字是“智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiant", "target": 1, "post": null, "to": "p01"}, {"pid": "p02", "slice": 4, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 5, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 6, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 7, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p01", "slice": 9, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 4}, {"pid": "p02", "slice": 9, "kind": "create_comment", "body": "使用感受：\n首屏直接给出开发者身份与项目方向。我看到的页面文字是“独立全栈开发 · AI 应用开发 · 独立交付多个上线项目”。\nNL2SQL 毕设卡命中目标兴趣关键词。我看到的页面文字是“七阶段 SSE 实时流水线、SQL 安全四道闸门、", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 9, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p01", "slice": 11, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 5}, {"pid": "p02", "slice": 11, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p06", "slice": 11, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p01", "slice": 12, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p02", "slice": 12, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p02", "slice": 13, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p04", "slice": 13, "kind": "create_comment", "body": "我这次用下来：\n首页即给出可核验的技术量化摘要。我看到的页面文字是“智能交通企业出海官网 metastartai.com（Next.js 15 + Express 5 + PostgreSQL，中/英/俄三语）与出海营销站 randiant", "target": 1, "post": null, "to": "p01"}, {"pid": "p06", "slice": 13, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p02", "slice": 14, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p06", "slice": 14, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p01", "slice": 15, "kind": "create_post", "body": "我这次用下来：\n首页直接给出测试数量与技术栈，降低评估成本。我看到的页面文字是“我习惯独自把项目从 0 推到 1：需求拆解、数据库设计、前后端实现，直到生产部署与运维。”。\nmetastartai.com 提交数、页面规模与测试分类逐项自洽", "target": null, "post": 6}, {"pid": "p06", "slice": 15, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p02", "slice": 16, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p08", "slice": 19, "kind": "like_post", "body": "", "target": 1, "post": null, "to": "p01"}, {"pid": "p10", "slice": 22, "kind": "create_comment", "body": "我这次用下来：\n首页开宗明义给出身份与项目定位，降低评审成本。我看到的页面文字是“我是王佳明，保定理工学院计算机科学与技术专业本科生（2023.09–2027.07），方向是后端开发与 AI 应用开发。”。\nNL2SQL 详情页直接披露七阶", "target": 1, "post": null, "to": "p01"}], "links": [{"from": "p01", "to": "p02", "slice": 3, "post": 1}, {"from": "p01", "to": "p03", "slice": 6, "post": 1}, {"from": "p01", "to": "p04", "slice": 1, "post": 1}, {"from": "p01", "to": "p05", "slice": 15, "post": 1}, {"from": "p01", "to": "p06", "slice": 10, "post": 1}, {"from": "p01", "to": "p07", "slice": 8, "post": 1}, {"from": "p01", "to": "p08", "slice": 16, "post": 1}, {"from": "p01", "to": "p09", "slice": 23, "post": 1}, {"from": "p01", "to": "p08", "slice": 16, "post": 2}, {"from": "p01", "to": "p02", "slice": 3, "post": 2}, {"from": "p01", "to": "p02", "slice": 3, "post": 3}, {"from": "p01", "to": "p05", "slice": 15, "post": 2}, {"from": "p01", "to": "p05", "slice": 15, "post": 3}, {"from": "p01", "to": "p06", "slice": 10, "post": 2}, {"from": "p01", "to": "p06", "slice": 10, "post": 3}, {"from": "p01", "to": "p07", "slice": 8, "post": 2}, {"from": "p01", "to": "p07", "slice": 8, "post": 3}, {"from": "p01", "to": "p08", "slice": 16, "post": 3}, {"from": "p01", "to": "p09", "slice": 22, "post": 2}, {"from": "p01", "to": "p09", "slice": 23, "post": 3}, {"from": "p01", "to": "p10", "slice": 4, "post": 1}, {"from": "p01", "to": "p10", "slice": 4, "post": 2}, {"from": "p01", "to": "p10", "slice": 4, "post": 3}, {"from": "p01", "to": "p03", "slice": 6, "post": 2}, {"from": "p01", "to": "p03", "slice": 6, "post": 3}, {"from": "p01", "to": "p05", "slice": 15, "post": 4}, {"from": "p01", "to": "p06", "slice": 10, "post": 4}, {"from": "p01", "to": "p09", "slice": 23, "post": 4}, {"from": "p01", "to": "p05", "slice": 15, "post": 5}, {"from": "p01", "to": "p08", "slice": 16, "post": 4}, {"from": "p01", "to": "p08", "slice": 16, "post": 5}, {"from": "p01", "to": "p09", "slice": 23, "post": 5}, {"from": "p01", "to": "p09", "slice": 23, "post": 6}], "withheld": {"p01": [{"slice": 0, "n": 2}, {"slice": 1, "n": 2}, {"slice": 2, "n": 2}, {"slice": 7, "n": 2}, {"slice": 8, "n": 2}, {"slice": 9, "n": 1}, {"slice": 12, "n": 2}, {"slice": 13, "n": 2}, {"slice": 14, "n": 2}, {"slice": 15, "n": 1}], "p04": [{"slice": 2, "n": 1}, {"slice": 5, "n": 1}, {"slice": 7, "n": 1}, {"slice": 9, "n": 1}, {"slice": 13, "n": 1}], "p02": [{"slice": 4, "n": 2}, {"slice": 13, "n": 1}, {"slice": 16, "n": 2}], "p03": [{"slice": 7, "n": 6}, {"slice": 8, "n": 6}, {"slice": 9, "n": 6}, {"slice": 10, "n": 6}, {"slice": 11, "n": 6}, {"slice": 12, "n": 6}], "p07": [{"slice": 9, "n": 9}, {"slice": 10, "n": 9}, {"slice": 11, "n": 9}, {"slice": 12, "n": 9}, {"slice": 13, "n": 9}, {"slice": 14, "n": 9}, {"slice": 15, "n": 9}, {"slice": 22, "n": 9}], "p06": [{"slice": 11, "n": 8}, {"slice": 13, "n": 8}, {"slice": 14, "n": 8}, {"slice": 15, "n": 8}], "p08": [{"slice": 19, "n": 14}], "p10": [{"slice": 22, "n": 2}]}, "active": [{"pid": "p01", "slice": 0}, {"pid": "p04", "slice": 0}, {"pid": "p05", "slice": 0}, {"pid": "p06", "slice": 0}, {"pid": "p07", "slice": 0}, {"pid": "p01", "slice": 1}, {"pid": "p02", "slice": 1}, {"pid": "p03", "slice": 1}, {"pid": "p04", "slice": 1}, {"pid": "p05", "slice": 1}, {"pid": "p06", "slice": 1}, {"pid": "p07", "slice": 1}, {"pid": "p08", "slice": 1}, {"pid": "p09", "slice": 1}, {"pid": "p01", "slice": 2}, {"pid": "p04", "slice": 2}, {"pid": "p08", "slice": 2}, {"pid": "p02", "slice": 3}, {"pid": "p04", "slice": 3}, {"pid": "p05", "slice": 3}, {"pid": "p06", "slice": 3}, {"pid": "p07", "slice": 3}, {"pid": "p08", "slice": 3}, {"pid": "p09", "slice": 3}, {"pid": "p02", "slice": 4}, {"pid": "p07", "slice": 4}, {"pid": "p09", "slice": 4}, {"pid": "p10", "slice": 4}, {"pid": "p04", "slice": 5}, {"pid": "p05", "slice": 5}, {"pid": "p03", "slice": 6}, {"pid": "p04", "slice": 6}, {"pid": "p05", "slice": 6}, {"pid": "p06", "slice": 6}, {"pid": "p07", "slice": 6}, {"pid": "p09", "slice": 6}, {"pid": "p01", "slice": 7}, {"pid": "p03", "slice": 7}, {"pid": "p04", "slice": 7}, {"pid": "p05", "slice": 7}, {"pid": "p06", "slice": 7}, {"pid": "p07", "slice": 7}, {"pid": "p08", "slice": 7}, {"pid": "p01", "slice": 8}, {"pid": "p03", "slice": 8}, {"pid": "p05", "slice": 8}, {"pid": "p06", "slice": 8}, {"pid": "p07", "slice": 8}, {"pid": "p09", "slice": 8}, {"pid": "p01", "slice": 9}, {"pid": "p02", "slice": 9}, {"pid": "p03", "slice": 9}, {"pid": "p04", "slice": 9}, {"pid": "p05", "slice": 9}, {"pid": "p07", "slice": 9}, {"pid": "p09", "slice": 9}, {"pid": "p03", "slice": 10}, {"pid": "p05", "slice": 10}, {"pid": "p06", "slice": 10}, {"pid": "p07", "slice": 10}, {"pid": "p09", "slice": 10}, {"pid": "p01", "slice": 11}, {"pid": "p02", "slice": 11}, {"pid": "p03", "slice": 11}, {"pid": "p05", "slice": 11}, {"pid": "p06", "slice": 11}, {"pid": "p07", "slice": 11}, {"pid": "p09", "slice": 11}, {"pid": "p01", "slice": 12}, {"pid": "p02", "slice": 12}, {"pid": "p03", "slice": 12}, {"pid": "p05", "slice": 12}, {"pid": "p07", "slice": 12}, {"pid": "p01", "slice": 13}, {"pid": "p02", "slice": 13}, {"pid": "p04", "slice": 13}, {"pid": "p05", "slice": 13}, {"pid": "p06", "slice": 13}, {"pid": "p07", "slice": 13}, {"pid": "p08", "slice": 13}, {"pid": "p01", "slice": 14}, {"pid": "p02", "slice": 14}, {"pid": "p05", "slice": 14}, {"pid": "p06", "slice": 14}, {"pid": "p07", "slice": 14}, {"pid": "p08", "slice": 14}, {"pid": "p09", "slice": 14}, {"pid": "p01", "slice": 15}, {"pid": "p05", "slice": 15}, {"pid": "p06", "slice": 15}, {"pid": "p07", "slice": 15}, {"pid": "p08", "slice": 15}, {"pid": "p09", "slice": 15}, {"pid": "p02", "slice": 16}, {"pid": "p08", "slice": 16}, {"pid": "p08", "slice": 19}, {"pid": "p07", "slice": 22}, {"pid": "p09", "slice": 22}, {"pid": "p10", "slice": 22}, {"pid": "p09", "slice": 23}]};
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; };
+const PART = { poster: '发言', commenter: '评论', reactor: '点赞', lurker: '潜水' };
+const OUT = { success: ['完成', 'ok'], abandoned: ['未完成', 'mid'], failed: ['中断', 'bad'] };
+
+const people = [...D.people].sort((a, b) => a.slice - b.slice);
+const counts = (k) => D.marks.filter((m) => m.kind === k).length;
+const withheldTotal = Object.values(D.withheld).flat().reduce((s, w) => s + w.n, 0);
+$('runid').textContent = `${D.run} · 草图，用真实运行数据`;
+$('title').textContent = `${D.product}　运行时刻表`;
+$('ledger').innerHTML = [
+  `<b>${D.slices}</b> 小时 · 每格 ${D.slice_minutes} 分钟`, `<b>${people.length}</b> 人`,
+  `完成 <b>${people.filter((p) => p.outcome === 'success').length}</b> · 未完成 <b>${people.filter((p) => p.outcome === 'abandoned').length}</b> · 中断 <b>${people.filter((p) => p.outcome === 'failed').length}</b>`,
+  `发帖 <b>${counts('create_post')}</b> · 评论 <b>${counts('create_comment')}</b> · 点赞 <b>${counts('like_post')}</b>`,
+  `没说出口 <b>${withheldTotal}</b> 条`,
+].map((s) => `<span>${s}</span>`).join('');
+
+const start = new Date(D.start);
+const hourLabel = (i) => new Date(start.getTime() + i * 3600e3).toLocaleTimeString('zh-CN', { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hour12: false });
+
+// —— 版面 ——
+const LABEL = 170, ROW = 58, TOP = 34, COL = 46;
+const W = LABEL + COL * D.slices + 16, H = TOP + ROW * people.length + 10;
+const x = (slice) => LABEL + slice * COL;
+const rowOf = Object.fromEntries(people.map((p, i) => [p.id, i]));
+const yMid = (pid) => TOP + rowOf[pid] * ROW + ROW / 2;
+
+const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}` }, $('chart'));
+// 网格：只有细线
+for (let i = 0; i <= D.slices; i++) {
+  el('line', { x1: x(i), x2: x(i), y1: TOP - 6, y2: H - 10, stroke: 'var(--rule)', 'stroke-width': i % 6 === 0 ? 1 : 0.5 }, svg);
+  if (i < D.slices && i % 2 === 0) el('text', { x: x(i) + 3, y: TOP - 12, class: 'axis' }, svg).textContent = hourLabel(i);
+}
+const hits = {};
+people.forEach((p, i) => {
+  const y0 = TOP + i * ROW;
+  const hit = el('rect', { x: 0, y: y0, width: W, height: ROW, class: 'row-hit' }, svg);
+  hit.addEventListener('click', () => select(p.id));
+  hits[p.id] = hit;
+  el('line', { x1: 0, x2: W, y1: y0 + ROW, y2: y0 + ROW, stroke: 'var(--rule)', 'stroke-width': 0.6 }, svg);
+  el('text', { x: 8, y: y0 + 24, class: 'row-label' }, svg).textContent = `${p.name}`;
+  el('text', { x: 8, y: y0 + 41, class: 'row-sub' }, svg).textContent = `${p.id} · ${PART[p.part] ?? p.part} · ${p.age}岁`;
+  const nRead = new Set(D.links.filter((l) => l.to === p.id).map((l) => l.post)).size;
+  if (nRead) el('text', { x: 8, y: y0 + 54, class: 'row-sub', fill: 'var(--link)' }, svg).textContent = `来之前读过 ${nRead} 帖`;
+});
+
+// 动态层：随时钟重画
+const layer = el('g', {}, svg);
+const cursor = el('line', { y1: TOP - 6, y2: H - 10, stroke: 'var(--signal)', 'stroke-width': 1.5 }, svg);
+
+function draw(t) {
+  layer.innerHTML = '';
+  // 在社区里（活跃的时间片）：行底的一段粗线
+  for (const a of D.active) {
+    if (a.slice >= t || rowOf[a.pid] == null) continue;
+    const y = yMid(a.pid) + 18;
+    el('line', { x1: x(a.slice) + 3, x2: x(a.slice) + COL - 3, y1: y, y2: y, stroke: 'var(--ink-3)', 'stroke-width': 2, opacity: .55 }, layer);
+  }
+  // 影响线：作者发帖的位置 → 读者开始体验的位置
+  for (const l of D.links) {
+    const post = D.marks.find((m) => m.kind === 'create_post' && m.post === l.post);
+    const reader = people.find((p) => p.id === l.to);
+    if (!post || !reader || reader.slice >= t || rowOf[l.from] == null) continue;
+    const x1 = x(post.slice) + COL / 2, y1 = yMid(l.from) - 12, x2 = x(reader.slice) + 4, y2 = yMid(l.to) - 6;
+    el('path', { d: `M${x1} ${y1} C ${x1 + 30} ${y1}, ${x2 - 30} ${y2}, ${x2} ${y2}`, fill: 'none', stroke: 'var(--link)', 'stroke-width': 1.1, opacity: 0, 'data-from': l.from, 'data-to': l.to, class: 'link' }, layer);
+  }
+  // 浏览块：一格宽，竖纹是每一步
+  for (const p of people) {
+    if (p.slice >= t) continue;
+    const y = yMid(p.id), bx = x(p.slice) + 2, bw = COL - 4, by = y - 14, bh = 28;
+    const frac = Math.min(1, t - p.slice); // 回放时块从左往右长出来
+    const g = el('g', {}, layer);
+    const n = Math.max(p.steps.length, 1), shown = Math.ceil(n * frac);
+    p.steps.slice(0, shown).forEach((s, k) => {
+      const sx = bx + (k / n) * bw, sw = Math.max(bw / n - 0.6, 0.6);
+      const sat = s.sat ?? 3, h = (sat / 5) * bh;
+      el('rect', { x: sx, y: by + bh - h, width: sw, height: h, fill: (s.conf ?? 1) >= 4 ? 'var(--signal)' : 'var(--ink)', opacity: s.sat == null ? .25 : .82 }, g);
+    });
+    const dash = p.outcome === 'abandoned' ? '3 2' : p.outcome === 'failed' ? '1 2' : null;
+    el('rect', { x: bx - 1, y: by - 1, width: bw * frac + 2, height: bh + 2, fill: 'none', stroke: p.outcome === 'failed' ? 'var(--signal)' : 'var(--ink)', 'stroke-width': 1.2, ...(dash ? { 'stroke-dasharray': dash } : {}) }, g);
+  }
+  // 公开互动
+  const stack = {};
+  for (const m of D.marks) {
+    if (m.slice >= t || rowOf[m.pid] == null) continue;
+    const key = `${m.pid}:${m.slice}`; const k = stack[key] = (stack[key] ?? -1) + 1;
+    const cx = x(m.slice) + 8 + k * 9, cy = yMid(m.pid) - 22;
+    if (m.kind === 'create_post') el('rect', { x: cx - 4, y: cy - 4, width: 8, height: 8, fill: 'var(--ink)' }, layer);
+    else if (m.kind === 'create_comment') el('circle', { cx, cy, r: 4, fill: 'var(--ink)' }, layer);
+    else el('path', { d: `M${cx - 3.5} ${cy + 3} L${cx} ${cy - 4} L${cx + 3.5} ${cy + 3}`, fill: 'none', stroke: 'var(--ink-2)', 'stroke-width': 1.4 }, layer);
+  }
+  // 想说没说：行底的红色空心记号，数量写在旁边
+  for (const [pid, list] of Object.entries(D.withheld)) {
+    for (const w of list) {
+      if (w.slice >= t || rowOf[pid] == null) continue;
+      const cx = x(w.slice) + COL - 10, cy = yMid(pid) + 18;
+      el('circle', { cx, cy, r: 3.5, fill: 'var(--paper)', stroke: 'var(--signal)', 'stroke-width': 1.3 }, layer);
+      if (w.n > 1) el('text', { x: cx + 5, y: cy + 3.5, class: 'axis', fill: 'var(--signal)' }, layer).textContent = w.n;
+    }
+  }
+  cursor.setAttribute('x1', x(t)); cursor.setAttribute('x2', x(t));
+  $('now').textContent = t >= D.slices ? '已结束' : `模拟时间 ${hourLabel(Math.floor(t))}`;
+  highlight();
+}
+
+// —— 档案侧栏 ——
+let selected = null;
+function select(pid) { selected = selected === pid ? null : pid; renderSide(); highlight(); }
+function highlight() {
+  for (const [pid, h] of Object.entries(hits)) h.classList.toggle('on', pid === selected);
+  for (const l of layer.querySelectorAll('.link')) {
+    const on = selected && (l.dataset.from === selected || l.dataset.to === selected);
+    l.setAttribute('opacity', on ? .9 : 0);
+    l.setAttribute('stroke-width', on ? 2 : 1.1);
+  }
+}
+function renderSide() {
+  const side = $('side');
+  if (!selected) {
+    side.innerHTML = `<h2>点一行看这个人</h2><p class="hint">每一行是一个人，从左到右是模拟的 24 小时。他在哪个小时来用产品、浏览了几步、每一步满不满意、之后在社区里说了什么、没说什么，都在这一行上。</p>
+      <p class="hint">蓝色细线连到别人发的帖子：这个人来用产品之前，先在社区里读到了这些帖子。拖动上方的时钟或点“回放”，可以看到这一天是怎么一步步发生的。</p>`;
+    return;
+  }
+  const p = people.find((q) => q.id === selected);
+  const [outText, outCls] = OUT[p.outcome] ?? [p.outcome, ''];
+  const read = D.links.filter((l) => l.to === p.id).map((l) => people.find((q) => q.id === l.from)?.name).filter(Boolean);
+  const readBy = D.links.filter((l) => l.from === p.id).map((l) => people.find((q) => q.id === l.to)?.name).filter(Boolean);
+  const said = D.marks.filter((m) => m.pid === p.id && m.kind !== 'like_post' && m.body);
+  const held = (D.withheld[p.id] ?? []).reduce((s, w) => s + w.n, 0);
+  const sats = p.steps.map((s) => s.sat).filter((v) => v != null);
+  side.innerHTML = `
+    <h2>${p.name}</h2>
+    <div class="meta">${p.id} · ${p.job} · ${p.age} 岁</div>
+    <dl>
+      <dt>来访</dt><dd>${hourLabel(p.slice)}（第 ${p.slice + 1} 小时）</dd>
+      <dt>结果</dt><dd class="${outCls}">${outText}　<span class="row-sub">${p.steps.length} 步</span></dd>
+      <dt>满意度</dt><dd>${sats.length ? (sats.reduce((a, b) => a + b, 0) / sats.length).toFixed(1) + ' / 5' : '—'}</dd>
+      <dt>推荐意愿</dt><dd>${p.nps ?? '—'}${p.nps != null ? ' / 10' : ''}</dd>
+      <dt>发现</dt><dd>问题 ${p.issues} · 亮点 ${p.highlights}</dd>
+      <dt>先读到</dt><dd>${read.length ? [...new Set(read)].join('、') : '<span class="empty">没人发过帖</span>'}</dd>
+      <dt>被读到</dt><dd>${readBy.length ? [...new Set(readBy)].join('、') : '<span class="empty">—</span>'}</dd>
+    </dl>
+    ${p.outcome !== 'success' ? `<p class="hint">${p.reason}</p>` : ''}
+    <h3>说出口的</h3>
+    ${said.length ? said.map((m) => `<p class="quote">${m.body.replace(/</g, '&lt;')}<small>${m.kind === 'create_post' ? '发帖' : '评论'} · ${hourLabel(m.slice)}</small></p>`).join('') : '<p class="empty">没有公开发言</p>'}
+    <h3>没说出口的</h3>
+    <p>${held ? `${held} 条，原文只在报告里出现` : '<span class="empty">没有</span>'}</p>`;
+}
+
+// —— 时钟 ——
+const range = $('t');
+range.addEventListener('input', () => { stop(); draw(+range.value); });
+let timer = 0;
+function stop() { cancelAnimationFrame(timer); timer = 0; $('play').textContent = '▶ 回放'; }
+$('play').addEventListener('click', () => {
+  if (timer) return stop();
+  let t = +range.value >= D.slices ? 0 : +range.value, last = performance.now();
+  $('play').textContent = '❚❚ 暂停';
+  const tick = (now) => { t += (now - last) / 1000 * 1.6; last = now; if (t >= D.slices) { t = D.slices; stop(); } range.value = t; draw(t); if (timer !== 0 || t < D.slices) timer = t < D.slices ? requestAnimationFrame(tick) : 0; };
+  timer = requestAnimationFrame(tick);
+});
+$('theme').addEventListener('click', () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'light' : 'dark';
+});
+draw(D.slices);
+renderSide();
+</script>
+</body>
+</html>

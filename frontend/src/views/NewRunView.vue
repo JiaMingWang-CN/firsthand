@@ -283,12 +283,12 @@ async function analyze() {
 </template>
 
 <style scoped>
-.stepper { list-style: none; padding: 0; margin: 0 0 var(--sp-5); display: flex; gap: var(--sp-2); }
-.stepper li { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-full); border: 1px solid var(--border); color: var(--text-3); font-size: var(--fs-sm); font-weight: 600; background: var(--surface); }
-.stepper li.on { color: var(--text); border-color: var(--text); }
+.stepper { list-style: none; padding: 0; margin: 0 0 var(--sp-5); display: flex; gap: var(--sp-5); border-bottom: 1px solid var(--border); }
+.stepper li { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--text-3); font-size: 14px; font-weight: 600; }
+.stepper li.on { color: var(--text); border-bottom-color: var(--ink); }
 .stepper li.done { color: var(--text-2); }
-.sn { width: 20px; height: 20px; border-radius: 50%; background: var(--surface-2); display: grid; place-items: center; font-size: var(--fs-xs); }
-.on .sn { background: var(--text); color: var(--bg); }
+.sn { font: 12px var(--font-mono); display: inline-grid; place-items: center; }
+.on .sn { color: var(--signal); }
 .si { width: 16px; height: 16px; stroke-width: 1.5; }
 .s1 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: var(--sp-4); align-items: start; }
 .left { display: grid; gap: var(--sp-3); min-width: 0; }
@@ -312,7 +312,7 @@ async function analyze() {
 .ed-foot { border-top: 1px solid var(--border); font-size: var(--fs-xs); }
 .ed-foot .btn { margin-left: auto; }
 .ed-hint { font-size: var(--fs-xs); margin-left: auto; }
-.chip { font-size: var(--fs-xs); padding: 2px 8px; border-radius: var(--r-full); background: var(--surface-2); color: var(--text-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip { font-size: var(--fs-xs); padding: 2px 8px; border-radius: 0; background: var(--surface-2); color: var(--text-2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick { cursor: pointer; }
 .pick svg { width: 14px; height: 14px; stroke-width: 1.5; }
 .ed-text { border: none; outline: none; resize: vertical; min-height: 460px; padding: var(--sp-4); background: transparent; color: var(--text); font-family: var(--font-mono); font-size: var(--fs-xs); line-height: 1.7; tab-size: 2; }

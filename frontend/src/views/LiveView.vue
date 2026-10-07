@@ -200,7 +200,7 @@ function activityOf(pid) {
 .nm { gap: var(--sp-2); flex-wrap: nowrap; font-size: var(--fs-sm); }
 .pa { font-size: var(--fs-xs); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pg { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: var(--fs-xs); color: var(--text-3); width: 48px; flex: none; }
-.pbar { width: 48px; height: 3px; border-radius: 2px; background: var(--surface-2); overflow: hidden; display: block; }
+.pbar { width: 48px; height: 3px; border-radius: 0; background: var(--surface-2); overflow: hidden; display: block; }
 .pbar i { display: block; height: 100%; transition: width var(--dur) linear; }
 .lower { margin-top: var(--sp-4); align-items: start; }
 .log { list-style: none; padding: 0; margin: 0 0 var(--sp-3); max-height: 260px; overflow-y: auto; }
@@ -208,10 +208,10 @@ function activityOf(pid) {
 .log button:hover { background: var(--surface-2); }
 .sn { width: 28px; color: var(--text-3); font-size: var(--fs-xs); }
 .st { width: 40px; color: var(--sim); font-size: var(--fs-xs); }
-.mb { width: 3px; height: 16px; border-radius: 2px; flex: none; }
+.mb { width: 3px; height: 16px; border-radius: 0; flex: none; }
 .sa { flex: 1; min-width: 0; }
 .small { font-size: var(--fs-xs); }
-.newpill { display: block; margin: 0 auto var(--sp-3); border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft); border-radius: var(--r-full); padding: 2px 14px; font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
+.newpill { display: block; margin: 0 auto var(--sp-3); border: 1px solid var(--accent); color: var(--accent); background: var(--accent-soft); border-radius: 0; padding: 2px 14px; font-size: var(--fs-xs); font-weight: 600; cursor: pointer; }
 .feed { list-style: none; padding: 0; margin: 0; max-height: 420px; overflow-y: auto; }
 .feed li button { width: 100%; display: flex; gap: var(--sp-3); border: none; background: none; text-align: left; padding: var(--sp-2); border-radius: var(--r-md); cursor: pointer; }
 .feed li button:hover { background: var(--surface-2); }

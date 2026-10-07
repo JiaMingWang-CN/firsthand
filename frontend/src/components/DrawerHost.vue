@@ -59,7 +59,7 @@ const layers = computed(() => drawers.stack)
 .db { flex: 1; overflow-y: auto; padding: var(--sp-5); overscroll-behavior: contain; }
 .drawer-enter-from, .drawer-leave-to { transform: translateX(100%); opacity: .4; }
 @media (max-width: 959px) {
-  .drawer { width: 100% !important; right: 0 !important; }
+  .drawer { width: 100vw !important; right: 0 !important; }
   .drawer.under { display: none; }
   .resize { display: none; }
 }

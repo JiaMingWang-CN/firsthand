@@ -368,8 +368,8 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
 .trow { display: grid; grid-template-columns: 200px 1fr minmax(24px, auto); gap: var(--sp-3); align-items: center; height: 32px; font-size: var(--fs-sm); cursor: pointer; }
 .tk { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
 .only { height: 18px; font-size: 11px; }
-.barw { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
-.barw i { display: block; height: 100%; border-radius: 4px; }
+.barw { height: 8px; background: var(--surface-2); border-radius: 0; overflow: hidden; }
+.barw i { display: block; height: 100%; border-radius: 0; }
 .barw .pri { background: var(--vis-private); }
 .tn { text-align: right; color: var(--text-2); white-space: nowrap; }
 .incons { display: grid; gap: var(--sp-2); }

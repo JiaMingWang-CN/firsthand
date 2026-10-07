@@ -92,6 +92,6 @@ const stepOf = (ev) => steps[ev.pid][ev.step - 1]
 .cap { display: block; font-size: var(--fs-xs); color: var(--text-2); margin-top: 4px; }
 .lg { gap: var(--sp-3); font-size: var(--fs-xs); color: var(--text-2); margin-top: var(--sp-2); }
 .li { display: inline-flex; align-items: center; gap: 4px; }
-.li i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+.li i { width: 12px; height: 3px; border-radius: 0; display: inline-block; }
 .voices { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
 </style>

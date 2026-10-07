@@ -160,6 +160,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .strip button:hover { background: var(--surface-2); }
 .strip button.cur { background: var(--accent-soft); color: var(--text); }
 .sn { width: 28px; color: var(--text-3); }
-.moodbar { width: 3px; height: 14px; border-radius: 2px; flex: none; }
+.moodbar { width: 3px; height: 14px; border-radius: 0; flex: none; }
 .sa { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 </style>
