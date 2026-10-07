@@ -146,6 +146,10 @@ def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
     def draft_review(draft_id: str):
         return drafts.review(reader.root, draft_id, jobs.all())
 
+    @app.post("/api/drafts/{draft_id}/analysis")
+    def resume(draft_id: str, body: Confirm):
+        return drafts.start_resume(reader.root, jobs, draft_id)
+
     @app.post("/api/drafts/{draft_id}/personas")
     def generate(draft_id: str, body: Size):
         return drafts.start_generate(reader.root, jobs, draft_id, body.persona_count, body.duration_days)

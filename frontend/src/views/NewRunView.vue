@@ -6,6 +6,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import { askConfirm } from '../lib/store.js'
+import { TEXT_ONLY_NOTE } from '../lib/sim.js'
+import FlowSteps from '../components/FlowSteps.vue'
 import { Upload, Check, AlertTriangle, FileText, Cpu, Sparkles, Loader, Circle, X, Info, Globe } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -108,20 +110,31 @@ onMounted(async () => {
   }
 })
 const when = (iso) => new Date(iso).toLocaleString('zh-CN', { hour12: false })
+const textOnly = computed(() => capabilities.value.items.find((c) => c.id === capability.value)?.vision === false)
+
+// 流程条第 1 步“填写资料”里的三个小步，各自该做什么
+const HINT = {
+  1: '填写产品网址和允许访问的域名（或改用完整说明书），点“检查”，通过后点“下一步”。',
+  2: '选择复用已有的能力文件（省去探测的模型用量），或重新探测模型能力。',
+  3: '核对将要执行的步骤，点“开始分析”。分析在后台进行，页面会跳到审核页显示进度。',
+}
 
 const starting = ref(false)
 const startError = ref('')
 const plan = computed(() => [
-  capability.value ? `复用能力文件 ${capability.value}` : '重新探测模型能力（识图、工具调用、结构化输出、采样参数等）',
+  capability.value ? `复用能力文件 ${capability.value}${textOnly.value ? '（模型不支持识图，结果参考性有限）' : ''}`
+    : '重新探测模型能力（识图、工具调用、结构化输出、采样参数等）；不支持识图时先暂停，等你确认后再继续',
   '读取产品首页（只访问 allowed_domains 内的地址）',
   '主 Agent 根据资料和首页生成产品模型',
   '主 Agent 推荐模拟人数和天数，并说明理由',
 ])
 async function analyze() {
   const ok = await askConfirm({
-    title: capability.value ? '分析资料' : '探测模型能力并分析资料',
-    body: `将${capability.value ? '' : '先探测模型能力（需要几次模型调用），再'}读取首页、调用当前配置的模型生成产品模型和人数、天数推荐，会产生模型用量。推荐结果在下一页确认或修改后，才会生成人物。`,
-    confirmText: capability.value ? '开始分析' : '开始探测并分析',
+    title: textOnly.value ? '用不支持识图的模型分析资料' : capability.value ? '分析资料' : '探测模型能力并分析资料',
+    body: (textOnly.value ? `${TEXT_ONLY_NOTE}。这次运行的列表、审核页和报告都会标注“参考性有限”。
+
+` : '') + `将${capability.value ? '' : '先探测模型能力（需要几次模型调用），再'}读取首页、调用当前配置的模型生成产品模型和人数、天数推荐，会产生模型用量。推荐结果在下一页确认或修改后，才会生成人物。`,
+    confirmText: textOnly.value ? '接受并开始分析' : capability.value ? '开始分析' : '开始探测并分析',
   })
   if (!ok) return
   starting.value = true
@@ -146,6 +159,8 @@ async function analyze() {
         <p class="page-sub">最少只需要产品网址和允许访问的域名。资料越完整，人物和结论越可信；资料很少时会明确提示参考性有限。人数和天数由主 Agent 推荐，生成人物前可以修改。</p>
       </div>
     </header>
+
+    <FlowSteps :at="0">{{ HINT[step] }}</FlowSteps>
 
     <ol class="stepper">
       <li v-for="(s, i) in [['资料', FileText], ['模型能力', Cpu], ['分析与推荐', Sparkles]]" :key="i" :class="{ on: step === i + 1, done: step > i + 1 }">
@@ -237,6 +252,7 @@ async function analyze() {
         <label v-for="c in capabilities.items" :key="c.id" class="cap" :class="{ on: capability === c.id }">
           <input v-model="capability" type="radio" name="cap" :value="c.id" />
           <span><b class="num">{{ c.id }}</b><span class="faint">探测于 {{ when(c.created_at) }}，与当前模型配置一致，可直接复用</span>
+            <span v-if="c.vision === false" class="neg-text">不支持图像识别：人物只读页面文字和结构，结果参考性有限</span>
             <span v-if="!c.sampling" class="faint warn-text">没有通过采样参数检查（或探测时还没有这一项）：人物各自的温度、top_p 不会生效</span></span>
         </label>
         <label class="cap" :class="{ on: capability === '' }">
@@ -287,6 +303,7 @@ async function analyze() {
 .material { display: grid; gap: 6px; padding: var(--sp-3); border-radius: var(--r-md); background: var(--surface-2); font-size: var(--fs-sm); }
 .material .tag { justify-self: start; }
 .warn-text { color: var(--confused); }
+.neg-text { color: var(--neg); }
 .editor { position: relative; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; transition: border-color var(--dur-fast) var(--ease); }
 .editor:focus-within { border-color: var(--border-strong); }
 .editor.dragging { border-color: var(--accent); }

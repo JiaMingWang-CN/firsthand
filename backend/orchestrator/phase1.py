@@ -11,7 +11,7 @@ from pathlib import Path
 from openai import APIError, AsyncOpenAI
 
 from core.persona import MAX_DAYS, MAX_PERSONAS, MIN_PERSONAS, Draft, ProductSummary
-from core.runtime import ROOT, error_summary, require, require_capabilities, settings, write_json
+from core.runtime import ROOT, TEXT_ONLY_NOTE, error_summary, require, require_capabilities, sees_images, settings, write_json
 from orchestrator.manual import material, read_manual
 from orchestrator.personas import (distribution_issues, generate_draft, minimum_count, period, recommend, schedule_rows,
                                    summarize_product, validate_draft, validation_message, with_site)
@@ -49,6 +49,7 @@ def save_review(run_dir, draft, manual):
              "此文件是展示副本；修改 draft.json 后，在 CLI 中 reload。审批状态以与当前草稿匹配的 approval.json 为准。",
              "Scout 尚未执行；本文件不包含真实产品体验结论。", "",
              f"资料充分程度：{about['summary']}", *[f"- 缺少 {gap['item']}：{gap['effect']}" for gap in about["gaps"]], "",
+             *([TEXT_ONLY_NOTE, ""] if not sees_images(json.loads((run_dir / "capability_profile.json").read_text(encoding="utf-8"))) else []),
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
              "## 模拟配置", "", "```json", draft.run_config.model_dump_json(indent=2), "```", "",
              "浏览并发同时受环境中的模型上限、浏览器上限和能力探测建议值限制；Steel 套餐需匹配该配置。", "",
@@ -204,24 +205,51 @@ async def analyze(manual_path, run_dir, capability_run=None):
             capability = await probe_model(config, run_dir)
             if not capability["ready"]:
                 raise ValueError("模型能力未通过；中止生成人设")
-        site = await read_site(manual["metadata"].url, manual["metadata"].allowed_domains)
-        write_json(run_dir / "site.json", site)
-        print("首页摘录：" + (f"已读取 {len(site['text'])} 字" if site["status"] == "ok" else f"未读取（{site['reason']}）"), flush=True)
-        source = with_site(manual, site)
-        about = material(manual)
-        async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
-            product = await summarize_product(client, config, capability, source)
-            write_json(run_dir / "product.json", product.model_dump(mode="json"))
-            suggestion = await recommend(client, config, capability, source, product, about)
-        result = {"stage": "analyzed", "passed": True, "review_status": "pending", "material": about,
-                  "recommendation": suggestion.model_dump(), "minimum_personas": minimum_count(len(manual["flows"]))}
-        write_json(run_dir / "recommendation.json", result["recommendation"])
-        write_json(run_dir / "phase1_result.json", result)
-        print(f"推荐：{suggestion.persona_count} 人，{suggestion.duration_days} 天。{suggestion.reason}", flush=True)
-        return result
+            if not sees_images(capability):
+                # Nothing more is paid for until the user accepts the limited reference value (resume).
+                result = {"stage": "text_only", "passed": True, "review_status": "pending"}
+                write_json(run_dir / "phase1_result.json", result)
+                return result
+        return await analyze_product(run_dir, manual, config, capability)
     except Exception as error:
         write_json(run_dir / "phase1_result.json", {"passed": False, "review_status": "pending", "error": error_summary(error, run_dir)})
         raise
+
+
+async def resume(run_dir):
+    """Continue an analysis paused because the model cannot read images, once the user has accepted that."""
+    run_dir = Path(run_dir)
+    if json.loads((run_dir / "phase1_result.json").read_text(encoding="utf-8")).get("stage") != "text_only":
+        raise ValueError("只有等待确认纯文本模型的运行可以继续分析")
+    manual = read_manual(run_dir / "manual.md")
+    config = settings()
+    require(config, "base_url", "api_key", "model")
+    try:
+        return await analyze_product(run_dir, manual, config, require_capabilities(run_dir, config))
+    except Exception as error:
+        write_json(run_dir / "phase1_result.json", {"passed": False, "review_status": "pending", "error": error_summary(error, run_dir)})
+        raise
+
+
+async def analyze_product(run_dir, manual, config, capability):
+    """Start-page excerpt, product model and the main agent's cohort recommendation."""
+    if not sees_images(capability):
+        print(TEXT_ONLY_NOTE, flush=True)
+    site = await read_site(manual["metadata"].url, manual["metadata"].allowed_domains)
+    write_json(run_dir / "site.json", site)
+    print("首页摘录：" + (f"已读取 {len(site['text'])} 字" if site["status"] == "ok" else f"未读取（{site['reason']}）"), flush=True)
+    source = with_site(manual, site)
+    about = material(manual)
+    async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
+        product = await summarize_product(client, config, capability, source)
+        write_json(run_dir / "product.json", product.model_dump(mode="json"))
+        suggestion = await recommend(client, config, capability, source, product, about)
+    result = {"stage": "analyzed", "passed": True, "review_status": "pending", "material": about,
+              "recommendation": suggestion.model_dump(), "minimum_personas": minimum_count(len(manual["flows"]))}
+    write_json(run_dir / "recommendation.json", result["recommendation"])
+    write_json(run_dir / "phase1_result.json", result)
+    print(f"推荐：{suggestion.persona_count} 人，{suggestion.duration_days} 天。{suggestion.reason}", flush=True)
+    return result
 
 
 async def generate(run_dir, persona_count=None, duration_days=None):
@@ -255,8 +283,9 @@ async def generate(run_dir, persona_count=None, duration_days=None):
 
 
 async def prepare(manual_path, run_dir, capability_run=None, persona_count=None, duration_days=None):
-    """analyze + generate in one go, for the command line."""
-    await analyze(manual_path, run_dir, capability_run)
+    """analyze + generate in one go, for the command line; stops where analyze waits for a text-only confirmation."""
+    if (await analyze(manual_path, run_dir, capability_run))["stage"] == "text_only":
+        return None
     return await generate(run_dir, persona_count, duration_days)
 
 
@@ -270,6 +299,7 @@ def main():
         command.add_argument("manual", type=Path)
         command.add_argument("--run-dir", type=Path)
         command.add_argument("--capability-run", type=Path, help="显式复用同模型、同思考模式的能力探测结果")
+    commands.add_parser("resume", help="接受纯文本模型参考性有限后继续分析").add_argument("run_dir", type=Path)
     build = commands.add_parser("generate")
     build.add_argument("run_dir", type=Path)
     for command in [commands.choices["prepare"], build]:
@@ -285,16 +315,23 @@ def main():
             print(f"说明书校验通过：{manual['metadata'].name}，{len(manual['flows'])} 个关键流程；{about['summary']}")
         elif args.command == "review":
             review(args.run_dir.resolve())
+        elif args.command == "resume":
+            asyncio.run(resume(args.run_dir.resolve()))
+            print(f"已分析，确认人数和天数后生成人物：python -m orchestrator.phase1 generate {args.run_dir.resolve()} --personas N --days D")
         elif args.command == "generate":
             asyncio.run(generate(args.run_dir.resolve(), args.personas, args.days))
             print(f"阶段 1 草稿已生成，等待人工审核：{args.run_dir.resolve() / 'review.md'}")
         else:
             run_dir = (args.run_dir or ROOT / "runs" / datetime.now(timezone.utc).strftime("phase1-%Y%m%dT%H%M%S%fZ")).resolve()
             if args.command == "analyze":
-                asyncio.run(analyze(args.manual, run_dir, args.capability_run))
+                done = asyncio.run(analyze(args.manual, run_dir, args.capability_run))["stage"] == "analyzed"
+            else:
+                done = asyncio.run(prepare(args.manual, run_dir, args.capability_run, args.personas, args.days)) is not None
+            if not done:
+                print(f"{TEXT_ONLY_NOTE}。接受后继续分析：python -m orchestrator.phase1 resume {run_dir}")
+            elif args.command == "analyze":
                 print(f"已分析，确认人数和天数后生成人物：python -m orchestrator.phase1 generate {run_dir} --personas N --days D")
             else:
-                asyncio.run(prepare(args.manual, run_dir, args.capability_run, args.personas, args.days))
                 print(f"阶段 1 草稿已生成，等待人工审核：{run_dir / 'review.md'}")
     except (ValueError, OSError) as error:
         print("错误：" + validation_message(error))

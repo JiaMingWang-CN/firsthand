@@ -183,18 +183,19 @@ def test_responses_readiness_requires_chat_runtime_capabilities(tmp_path, monkey
     monkeypatch.setattr(model, "image_challenge", lambda: ("123 456 789", b"fixture"))
     config = dict(CONFIG, provider="mimo")
     profile = asyncio.run(model.probe_model(config, tmp_path))
-    assert profile["ready"] is (unsupported is None)
+    # A model that cannot read images still runs, as text-only.
+    assert profile["ready"] is (unsupported in {None, "vision"})
+    assert profile["vision"] is (unsupported != "vision")
     assert any(chat and tools for chat, _, tools in requests)
     assert sum(chat and images for chat, images, _ in requests) == 2
-    if unsupported:
+    if unsupported != "vision" and unsupported:
         with pytest.raises(ValueError):
             require_capabilities(tmp_path, config)
     else:
         assert require_capabilities(tmp_path, config)["ready"]
 
 
-@pytest.mark.parametrize("missing", ["chat_completions_conversation", "chat_completions_tool_call",
-                                    "chat_completions_vision_0", "chat_completions_vision_1"])
+@pytest.mark.parametrize("missing", ["chat_completions_conversation", "chat_completions_tool_call"])
 def test_saved_responses_profile_cannot_skip_failed_or_missing_chat_probe(tmp_path, missing):
     checks = {name: {"supported": True} for name in ("chat_completions_conversation",
               "chat_completions_tool_call", "chat_completions_vision_0", "chat_completions_vision_1")}

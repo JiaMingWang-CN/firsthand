@@ -5,7 +5,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 
-from core.runtime import require_capabilities
+from core.runtime import require_capabilities, sees_images
 
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # Only screenshots leave the server as files; traces, sessions and databases hold private connection data.
@@ -38,10 +38,11 @@ def matching_capabilities(root, config):
             require_capabilities(path, config)
         except (ValueError, KeyError, OSError):
             continue
-        checks = (json.loads(profile.read_text(encoding="utf-8")).get("checks") or {})
+        capability = json.loads(profile.read_text(encoding="utf-8"))
+        checks = capability.get("checks") or {}
         found.append({"id": path.name, "created_at": datetime.fromtimestamp(profile.stat().st_mtime, timezone.utc).isoformat(),
                       # Profiles probed before per-persona sampling existed cannot enable it.
-                      "sampling": checks.get("sampling", {}).get("supported", False)})
+                      "sampling": checks.get("sampling", {}).get("supported", False), "vision": sees_images(capability)})
     return sorted(found, key=lambda item: item["created_at"], reverse=True)
 
 
@@ -88,6 +89,12 @@ def report_index(root):
                      for item in sorted(items, key=lambda item: -item["_mtime"])] for source, items in found.items()}
 
 
+def text_only(inputs):
+    """The run's model could not read images: its browsing saw page structure only."""
+    capability = read_json(inputs / "capability_profile.json") if inputs else None
+    return capability is not None and not sees_images(capability)
+
+
 def job_span(path):
     """First start and last finish of the browsing jobs recorded in timeline.json."""
     jobs = (read_json(path / "timeline.json", {}) or {}).get("jobs", {}).values()
@@ -111,7 +118,7 @@ def list_runs(root):
             "id": path.name, "passed": result.get("passed"), "status": result.get("status"),
             "product": product.get("metadata", {}).get("name"),
             "provider": configuration.get("provider"), "model": configuration.get("model"),
-            "personas": len(context.get("schedule", [])),
+            "personas": len(context.get("schedule", [])), "text_only": text_only(phase1),
             "started_at": started, "finished_at": finished,
             "reports": reports.get(path.name, [])})
     return runs

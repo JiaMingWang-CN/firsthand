@@ -11,7 +11,7 @@ const TRACE = [
 ]
 
 const calls = vi.hoisted(() => ({ recording: [], interview: [], hls: [] }))
-const state = vi.hoisted(() => ({ overviewError: null, recording: null, interviewError: null, days: 1 }))
+const state = vi.hoisted(() => ({ overviewError: null, recording: null, interviewError: null, days: 1, textOnly: false }))
 
 vi.mock('../src/api/client.js', async (importOriginal) => {
   const { ApiError } = await importOriginal()
@@ -40,7 +40,7 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
         if (state.overviewError) throw state.overviewError
         const n = calls.interview.length
         const interview_usage = n ? { total: { requests: 2 * n, input_tokens: 1000 * n, cached_input_tokens: 0, output_tokens: 50 * n } } : null
-        return { ...data().overview, id: RUN, interview_usage }
+        return { ...data().overview, id: RUN, interview_usage, text_only: state.textOnly }
       },
       personas: async () => data().personas,
       community: async () => data().community,
@@ -100,6 +100,7 @@ beforeEach(() => {
   state.overviewError = null
   state.interviewError = null
   state.days = 1
+  state.textOnly = false
   state.recording = { playlist_url: `/api/runs/${RUN}/personas/p03/recording.m3u8`, seek: { s005_before: 70, s005_after: 84 } }
   calls.recording.length = calls.interview.length = calls.hls.length = 0
   store.closeAllDrawers()
@@ -118,6 +119,17 @@ describe('每个带 runId 的页面都能用真实样本渲染', () => {
       expect(errors).toEqual([])
     })
   }
+})
+
+test('报告：用不支持识图的模型跑的运行，页头标注参考性有限并说明原因', async () => {
+  let w = await open(`/runs/${RUN}/report`)
+  expect(w.text()).not.toContain('纯文本模型')
+  w.unmount(); mounted.pop()
+  data.live.id = null
+  state.textOnly = true
+  w = await open(`/runs/${RUN}/report`)
+  expect(w.find('.page-head').text()).toContain('参考性有限 · 纯文本模型')
+  expect(w.find('.warn').text()).toContain('模型不支持图像识别')
 })
 
 test.each([['D1-09:00', 1, 540], ['D40-09:00', 50, 39 * 1440 + 540]])(

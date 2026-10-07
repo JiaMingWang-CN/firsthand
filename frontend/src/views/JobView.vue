@@ -3,6 +3,7 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { api } from '../api/client.js'
+import FlowSteps from '../components/FlowSteps.vue'
 import { AlertTriangle, Check, Loader, X, Circle, ExternalLink, Eye } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -53,6 +54,28 @@ const STATE = { running: ['confused', '进行中'], succeeded: ['pos', '已完�
 const stepIcon = { pending: Circle, running: Loader, succeeded: Check, failed: X }
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0)
 const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—')
+
+// 流程条：这个任务在整个运行流程里是哪一步，结束后下一步去哪里（next 决定右侧按钮）
+const flow = computed(() => {
+  const j = job.value
+  if (!j) return null
+  const ended = { running: false, detached: false }[j.state] ?? true
+  const ok = j.state === 'succeeded'
+  if (j.kind === 'prepare') {
+    if (!ended) return { at: 1, state: 'running', say: '正在探测模型能力、读取首页、生成产品模型并推荐人数与天数。完成后到审核页确认人数与天数。' }
+    return ok ? { at: 2, state: 'active', next: 'review', label: '去确认人数与天数', say: '资料已分析完。下一步：确认或修改主 Agent 推荐的人数与天数，然后生成人物。' }
+      : { at: 1, state: 'failed', next: 'new', say: '资料分析没有完成，原因见下方日志。修正后需要新建一次运行。' }
+  }
+  if (j.kind === 'generate') {
+    if (!ended) return { at: 3, state: 'running', say: '正在规划人群分布并逐个补全人物，人多时需要较长时间。完成后到审核页核对并批准。' }
+    return ok ? { at: 4, state: 'active', next: 'review', label: '去审核', say: '人物已生成。下一步：核对人物与运行配置，没问题就批准。' }
+      : { at: 3, state: 'failed', next: 'review', label: '回到草稿重试', say: '生成人物没有完成，原因见下方日志。可以回到草稿直接重试，或换个人数。' }
+  }
+  const at = p.value.phase4_passed != null ? 6 : 5
+  if (!ended) return { at, state: 'running', say: at === 6 ? '体验与讨论已结束，正在生成报告。' : '人物正在按作息体验产品、在社区讨论。完成后自动生成报告。' }
+  return ok ? { at: 6, state: 'done', next: 'report', say: '体验、讨论与报告都已完成，可以查看报告、回放和采访人物。' }
+    : { at, state: 'failed', next: 'review', label: '回到草稿重新模拟', say: `${at === 6 ? '生成报告' : '模拟'}没有完成，原因见下方日志。修正后可以回到草稿重新开始模拟。` }
+})
 </script>
 
 <template>
@@ -69,6 +92,15 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
     <div v-if="state.status === 'loading'" class="panel"><p class="faint">正在读取任务…</p></div>
     <div v-else-if="state.status === 'error'" class="panel" role="alert"><p>{{ state.error }}</p></div>
     <template v-else>
+      <FlowSteps :at="flow.at" :state="flow.state">
+        {{ flow.say }}<template v-if="job.state === 'detached'">（协调进程已失联，见下方说明）</template>
+        <template #action>
+          <RouterLink v-if="flow.next === 'review'" class="btn btn-primary sm" :to="{ name: 'review', params: { draftId: job.draft } }">{{ flow.label }}</RouterLink>
+          <RouterLink v-else-if="flow.next === 'new'" class="btn btn-secondary sm" to="/new">新建运行</RouterLink>
+          <RouterLink v-else-if="flow.next === 'report'" class="btn btn-primary sm" :to="{ name: 'report', params: { runId: job.simulation } }">查看报告</RouterLink>
+        </template>
+      </FlowSteps>
+
       <div v-if="job.state === 'detached'" class="warn block"><AlertTriangle /><div>这个任务的协调进程已经失联，它的阶段进程可能仍在后台运行，所以它继续占用模拟或草稿的预留。下面的进度仍按运行目录里的文件显示。确认没有阶段进程在运行后，在 backend 目录执行 <code>python -m api.abandon_job {{ job.id }}</code> 释放占用（旧版本任务需加 <code>--force</code>）；不会自动重跑付费步骤。</div></div>
 
       <section class="panel">

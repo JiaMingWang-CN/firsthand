@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from api.media import RecordingUnavailable, by_step, media_position, segments, summarize
-from api.runs import NotFound, RunInvalid, SERVED_FILE, interview_dir, job_span, read_json, report_index, run_path, source_path
+from api.runs import NotFound, RunInvalid, SERVED_FILE, interview_dir, job_span, read_json, report_index, run_path, source_path, text_only
 from report.evidence import EvidenceStore
 
 
@@ -100,7 +100,7 @@ class Reader:
             "run_config": (read_json(phase1 / "draft.json", {}) or {}).get("run_config") if phase1 else None,
             "configuration": {key: configuration.get(key) for key in (
                 "provider", "model", "api", "thinking_type", "max_model_concurrency", "max_browser_concurrency")},
-            "personas": len(store.people),
+            "personas": len(store.people), "text_only": text_only(phase1),
             "timeline": {"slices": len(timeline.get("slices", [])), "peak_workers": timeline.get("peak_workers")},
             "usage": model_usage(path), "interview_usage": model_usage(path, [interview_dir(path) / "model_usage.jsonl"], "运行结束后的采访"),
             "audit": store.audit, "coverage": store.inventory(),

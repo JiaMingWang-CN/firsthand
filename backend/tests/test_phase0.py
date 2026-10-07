@@ -54,12 +54,14 @@ def test_model_probe_gate_and_json_fallback(tmp_path, monkeypatch, unsupported, 
         assert profile["stated_context_window"]["minimum_tokens"] == 256_000
     else:
         assert "enforced" not in profile["checks"]["forced_tool"] and profile["stated_context_window"] is None
-    assert profile["ready"] is (unsupported is None)
+    # A model that cannot read images still runs, as text-only; one without tool calls cannot.
+    assert profile["ready"] is (unsupported != "tools")
+    assert profile["vision"] is (unsupported != "vision")
     assert profile["structured_output"] == "json_object_with_validation"
     assert profile["checks"]["json_schema"]["status"] == "unsupported"
     assert profile["thinking_type"] == "disabled"
     assert "test-secret" not in (tmp_path / "capability_profile.json").read_text(encoding="utf-8")
-    if unsupported:
+    if unsupported == "tools":
         with pytest.raises(ValueError):
             require_capabilities(tmp_path, config)
     else:

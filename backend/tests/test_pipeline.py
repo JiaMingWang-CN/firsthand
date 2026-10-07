@@ -169,6 +169,7 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
     approved = client.post(f"/api/drafts/{draft_id}/decision", json={"decision": "approve", "draft_sha256": review["draft_sha256"]})
     assert approved.json()["status"] == "approved"
     assert phase1.require_approved(root / draft_id)  # the CLI accepts the UI's approval as its own
+    assert client.get("/api/drafts").json()[0]["simulated"] is False  # approved, waiting for "开始模拟"
 
     job = client.post(f"/api/drafts/{draft_id}/simulations", json={"confirm": True}).json()
     done = wait_for(client, job["id"])
@@ -178,6 +179,7 @@ def test_from_manual_to_approved_draft_to_report(tmp_path, configured, draft):
     assert done["progress"] == {"slices_done": 3, "slices": 24, "personas": 10, "personas_done": 1, "personas_failed": 1,
                                 "phase4_passed": True, "report_passed": True}
     assert [step["state"] for step in done["steps"]] == ["succeeded", "succeeded"]
+    assert client.get("/api/drafts").json()[0]["simulated"] is True
     log = client.get(f"/api/jobs/{job['id']}").json()["log"]
     assert log and not any("SECRET" in line for line in log)
 

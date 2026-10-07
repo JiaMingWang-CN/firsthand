@@ -5,8 +5,9 @@
 import { ref, computed, watch, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api/client.js'
-import { label } from '../lib/sim.js'
+import { label, TEXT_ONLY_NOTE } from '../lib/sim.js'
 import { askConfirm, toast } from '../lib/store.js'
+import FlowSteps from '../components/FlowSteps.vue'
 import { AlertTriangle, Check, RefreshCw, Play, Info, Loader, Users } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -14,6 +15,8 @@ const router = useRouter()
 const draftId = computed(() => String(route.params.draftId))
 const state = ref({ status: 'loading', data: null, error: '' })
 const job = ref(null) // 生成这份草稿的任务（生成中或失败时显示日志）
+const simJob = ref(null) // 批准后由这份草稿发起的最近一次模拟任务（流程条据此显示模拟与报告进度）
+const actionsEl = ref(null)
 const overrides = ref(false)
 const busy = ref(false)
 const actionError = ref('')
@@ -36,7 +39,10 @@ async function load() {
       size.value = { count: data.recommendation.persona_count, days: data.recommendation.duration_days, touched: false }
     }
     if (data.run_config) days.value = data.run_config.duration_days
-    if (BUSY.includes(data.status)) timer = setTimeout(load, 3000)
+    simJob.value = data.status === 'approved'
+      ? ((await api.jobs().catch(() => [])) ?? []).find((j) => j.kind === 'simulate' && j.draft === draftId.value) ?? null
+      : null
+    if (BUSY.includes(data.status) || simJob.value?.state === 'running') timer = setTimeout(load, 3000)
   } catch (e) {
     state.value = { status: 'error', data: null, error: e.message }
   }
@@ -48,7 +54,7 @@ const people = computed(() => {
   return (d.value?.personas ?? []).map((p) => ({ ...p, row: rows[p.persona_id] ?? {} }))
 })
 const STATUS = {
-  analyzing: ['confused', '分析中'], configuring: ['confused', '待确认人数与天数'],
+  analyzing: ['confused', '分析中'], text_only: ['neg', '待确认：模型不支持识图'], configuring: ['confused', '待确认人数与天数'],
   generating: ['confused', '生成中'], failed: ['neg', '生成失败'], incomplete: ['neg', '生成未完成'],
   pending: ['', '待审核'], approved: ['pos', '已批准'], rejected: ['neg', '已拒绝'], stale: ['confused', '审批已失效'],
 }
@@ -56,6 +62,37 @@ const status = computed(() => STATUS[d.value?.status] ?? ['', d.value?.status])
 const BUSY = ['analyzing', 'generating']
 const canDecide = computed(() => d.value?.valid && ['pending', 'stale', 'rejected'].includes(d.value.status))
 const LEVEL = { complete: ['pos', '资料完整'], partial: ['confused', '资料不全'], limited: ['neg', '参考性有限'] }
+
+// 流程条：这份草稿走到了哪一步、已完成什么、接下来做什么（next 决定流程条右侧的按钮）
+const flow = computed(() => {
+  const v = d.value
+  if (!v) return null
+  switch (v.status) {
+    case 'analyzing': return { at: 1, state: 'running', say: '正在探测模型能力、读取首页、生成产品模型并推荐人数与天数。完成后本页自动进入下一步。' }
+    case 'text_only': return { at: 1, state: 'active', next: 'text_only', say: '探测发现当前模型不支持图像识别。确认接受“参考性有限”后才会继续分析；不接受可以换一个识图模型，新建运行。' }
+    case 'failed': case 'incomplete': return { at: 1, state: 'failed', next: 'new', say: '资料分析没有完成，原因与日志见下方。修正后需要新建一次运行。' }
+    case 'configuring': return { at: 2, state: 'active', say: v.generation_error ? '上次生成人物没有成功，可以在下方直接重试，或换个人数。' : '资料已分析完。下一步：在下方确认或修改人数与天数，然后点“生成人物”。' }
+    case 'generating': return { at: 3, state: 'running', say: '正在规划人群分布并逐个补全人物，人多时需要较长时间。完成后本页自动进入审核。' }
+  }
+  if (!v.valid) return { at: 4, state: 'failed', say: '草稿未通过校验，不能批准。修改运行目录里的 draft.json 后点“重新加载”。' }
+  if (v.status !== 'approved') {
+    return { at: 4, state: 'active', next: 'approve', say: v.blocked ? '这份草稿现在不能批准，原因见下方。' : {
+      pending: '人物已生成。下一步：核对下方的人物与运行配置，没问题就在页面底部点“批准”。',
+      stale: '批准后草稿被修改过，审批已失效。下一步：重新核对，再次批准。',
+      rejected: '这份草稿已被拒绝。可以重新核对后批准，或新建一次运行。' }[v.status] }
+  }
+  const s = simJob.value
+  const reporting = s?.progress?.phase4_passed != null
+  if (s && ['running', 'detached'].includes(s.state)) {
+    return { at: reporting ? 6 : 5, state: 'running', next: 'job', say: reporting ? '体验与讨论已结束，正在生成报告。'
+      : `人物正在按作息体验产品、在社区讨论（完成体验 ${s.progress?.personas_done ?? 0}/${s.progress?.personas ?? '—'} 人）。完成后自动生成报告。` }
+  }
+  if (s?.state === 'failed') return { at: reporting ? 6 : 5, state: 'failed', next: 'job', say: '上次模拟没有完成。查看任务日志找原因，可以在页面底部点“开始模拟”重试。' }
+  const run = s?.simulation ?? v.simulations[0]
+  if (run) return { at: 6, state: 'done', next: 'report', run, say: '体验、讨论与报告都已完成，可以查看报告、回放和采访人物。' }
+  return { at: 5, state: 'active', next: 'simulate', say: '已批准。下一步：开始模拟——人物按作息用真实浏览器体验产品、在社区讨论，最后生成报告。' }
+})
+const toActions = () => actionsEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
 
 // —— 人数与天数：主 Agent 推荐，用户可改；人物生成后人数固定（换人数需新建运行），天数仍可改 ——
 const size = ref({ count: null, days: null, touched: false })
@@ -80,6 +117,26 @@ async function generate() {
   actionError.value = ''
   try {
     await api.generatePersonas(draftId.value, count, n)
+    await load()
+  } catch (e) {
+    actionError.value = e.message
+  } finally {
+    busy.value = false
+  }
+}
+
+// —— 模型不支持识图：用户接受参考性有限后，才继续分析（不再重新探测）——
+async function acceptTextOnly() {
+  const ok = await askConfirm({
+    title: '使用纯文本模型继续',
+    body: `${TEXT_ONLY_NOTE}。确认后继续读取首页、生成产品模型和人数、天数推荐，会产生模型用量。`,
+    confirmText: '接受并继续',
+  })
+  if (!ok) return
+  busy.value = true
+  actionError.value = ''
+  try {
+    await api.resumeAnalysis(draftId.value)
     await load()
   } catch (e) {
     actionError.value = e.message
@@ -174,15 +231,31 @@ onBeforeUnmount(() => clearTimeout(timer))
         <p class="page-sub">人物与运行配置在执行前需要人工确认。规则与命令行审核相同：批准的是页面展示的这一版；人群分布与规划不一致时，需要明确确认这些变更。</p>
       </div>
       <div class="row">
+        <span v-if="d?.text_only" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>
         <span v-if="d" class="tag" :class="status[0]"><span class="dot"></span>{{ status[1] }}</span>
         <button class="btn btn-secondary" type="button" :disabled="busy" @click="load"><RefreshCw />重新加载</button>
       </div>
     </header>
 
+    <FlowSteps v-if="flow" :at="flow.at" :state="flow.state">
+      {{ flow.say }}
+      <template #action>
+        <RouterLink v-if="flow.next === 'new'" class="btn btn-secondary sm" to="/new">新建运行</RouterLink>
+        <button v-else-if="flow.next === 'text_only'" class="btn btn-primary sm" type="button" :disabled="busy" @click="acceptTextOnly">接受并继续分析</button>
+        <button v-else-if="flow.next === 'approve' && canDecide" class="btn btn-secondary sm" type="button" @click="toActions">前往审核区</button>
+        <button v-else-if="flow.next === 'simulate'" class="btn btn-primary sm" type="button" :disabled="busy" @click="simulate"><Play />开始模拟</button>
+        <RouterLink v-else-if="flow.next === 'job'" class="btn btn-secondary sm" :to="{ name: 'job', params: { jobId: simJob.id } }">{{ flow.state === 'failed' ? '查看任务日志' : '查看模拟进度' }}</RouterLink>
+        <RouterLink v-else-if="flow.next === 'report'" class="btn btn-primary sm" :to="{ name: 'report', params: { runId: flow.run } }">查看报告</RouterLink>
+      </template>
+    </FlowSteps>
+
     <div v-if="state.status === 'loading'" class="panel"><p class="faint">正在读取草稿…</p></div>
     <div v-else-if="state.status === 'error'" class="panel" role="alert"><p>{{ state.error }}</p></div>
 
     <template v-else>
+      <!-- 纯文本模型：确认后一直显示 -->
+      <div v-if="d.text_only && d.status !== 'text_only'" class="warn block" role="status"><AlertTriangle /><div><b>{{ TEXT_ONLY_NOTE }}。</b></div></div>
+
       <!-- 资料充分程度：分析后一直显示 -->
       <div v-if="d.material && d.material.level !== 'complete'" class="warn block material" role="status">
         <AlertTriangle /><div><b>{{ d.material.summary }}</b>
@@ -216,6 +289,20 @@ onBeforeUnmount(() => clearTimeout(timer))
           <div v-if="actionError" class="warn" role="alert"><AlertTriangle /><div>{{ actionError }}</div></div>
           <div class="row end"><button class="btn btn-primary" type="button" :disabled="busy || !!sizeError" @click="generate"><Users />生成人物</button></div>
         </section>
+      </section>
+
+      <!-- 模型不支持识图：确认后才继续分析 -->
+      <section v-else-if="d.status === 'text_only'" class="panel" role="alert">
+        <div class="panel-head"><h3>模型不支持图像识别</h3></div>
+        <div class="warn listed"><AlertTriangle /><div><b>{{ TEXT_ONLY_NOTE }}。</b>
+          <ul><li>人物浏览时只读取页面的文字和结构，不发送截图；排版错乱、图片缺失、颜色对比不足这类视觉问题发现不了。</li>
+            <li>录像和截图照常保存，供你回放核对。</li>
+            <li>这次运行的列表、审核页和报告都会标注“参考性有限”。</li></ul></div></div>
+        <div v-if="actionError" class="warn" role="alert"><AlertTriangle /><div>{{ actionError }}</div></div>
+        <div class="row end">
+          <RouterLink class="btn btn-ghost" to="/new">换模型，新建运行</RouterLink>
+          <button class="btn btn-primary" type="button" :disabled="busy" @click="acceptTextOnly">接受并继续分析</button>
+        </div>
       </section>
 
       <!-- 分析中 / 生成中 / 失败 -->
@@ -308,7 +395,7 @@ onBeforeUnmount(() => clearTimeout(timer))
           </div>
         </section>
 
-        <section class="panel actions">
+        <section ref="actionsEl" class="panel actions">
           <p v-if="d.status === 'approved'" class="row"><Check class="ok" />已于 {{ new Date(d.approval.approved_at).toLocaleString('zh-CN', { hour12: false }) }} 批准<template v-if="d.approval.overrides.length">（含已确认的分布变更）</template>。</p>
           <p v-else class="faint row"><Info />手工修改运行目录里的 draft.json 后，点“重新加载”再审核；批准针对的是当前展示的版本。</p>
           <label v-if="canDecide && d.issues.length" class="row ov"><input v-model="overrides" type="checkbox" />我已核对，确认以上分布变更</label>
@@ -345,7 +432,7 @@ tr.detail p { margin: 0 0 var(--sp-1); }
 .actions { margin-top: var(--sp-4); }
 .end { justify-content: flex-end; margin-top: var(--sp-3); }
 .ov { font-size: var(--fs-sm); gap: var(--sp-2); }
-.material ul { margin: var(--sp-1) 0; padding-left: var(--sp-5); }
+.material ul, .listed ul { margin: var(--sp-1) 0; padding-left: var(--sp-5); }
 .size { display: grid; gap: var(--sp-3); align-content: start; }
 .size .panel-head { margin-bottom: 0; }
 .size-row { display: flex; gap: var(--sp-4); flex-wrap: wrap; }

@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import { runList, loadRunList } from '../lib/live.js'
+import { TEXT_ONLY_NOTE } from '../lib/sim.js'
 import { Plus, ArrowUpDown } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -35,11 +36,13 @@ async function loadPipeline() {
 onMounted(loadPipeline)
 onBeforeUnmount(() => clearTimeout(timer))
 const activeJobs = computed(() => jobs.value.filter((j) => j.state === 'running' || j.state === 'detached'))
-const DRAFT = { analyzing: '分析中', configuring: '待确认人数', generating: '生成中', pending: '待审核', stale: '审批已失效' }
-const waiting = computed(() => drafts.value.filter((d) => d.status in DRAFT))
+// 每份草稿在流程里的位置与下一步（与流程条的 7 步编号一致）
+const DRAFT = { analyzing: ['第 2/7 步', '分析中'], text_only: ['第 2/7 步', '模型不支持识图，待你确认是否继续'], configuring: ['第 3/7 步', '待你确认人数与天数'], generating: ['第 4/7 步', '生成人物中'],
+  pending: ['第 5/7 步', '待你审核批准'], stale: ['第 5/7 步', '审批已失效，待重新批准'], approved: ['第 6/7 步', '已批准，待开始模拟'] }
+const waiting = computed(() => drafts.value.filter((d) => d.status in DRAFT && !(d.status === 'approved' && d.simulated)))
 const jobText = (j) => (j.kind === 'simulate'
   ? `模拟 · 时间片 ${j.progress.slices_done}/${j.progress.slices} · 完成体验 ${j.progress.personas_done}/${j.progress.personas}`
-  : '生成人物草稿') + (j.state === 'detached' ? ' · 协调进程失联，需确认后释放' : '')
+  : j.kind === 'prepare' ? '分析资料' : '生成人物') + (j.state === 'detached' ? ' · 协调进程失联，需确认后释放' : '')
 </script>
 
 <template>
@@ -58,8 +61,9 @@ const jobText = (j) => (j.kind === 'simulate'
       <ul>
         <li v-for="j in activeJobs" :key="j.id"><span class="status st-browse"><i></i>任务</span>
           <RouterLink :to="{ name: 'job', params: { jobId: j.id } }">{{ jobText(j) }}</RouterLink><span class="faint num">{{ j.id }}</span></li>
-        <li v-for="d in waiting" :key="d.id"><span class="status st-wait"><i></i>{{ DRAFT[d.status] }}</span>
-          <RouterLink :to="{ name: 'review', params: { draftId: d.id } }">{{ d.product ?? '人物草稿' }}</RouterLink><span class="faint num">{{ d.id }}</span></li>
+        <li v-for="d in waiting" :key="d.id"><span class="status st-wait"><i></i>{{ DRAFT[d.status][1] }}</span><span class="faint num">{{ DRAFT[d.status][0] }}</span>
+          <RouterLink :to="{ name: 'review', params: { draftId: d.id } }">{{ d.product ?? '人物草稿' }}</RouterLink>
+          <span v-if="d.text_only" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span><span class="faint num">{{ d.id }}</span></li>
       </ul>
     </section>
 
@@ -81,7 +85,9 @@ const jobText = (j) => (j.kind === 'simulate'
           <tbody>
             <tr v-for="r in sorted" :key="r.id" @click="open(r)" tabindex="0" @keydown.enter="open(r)">
               <td><span class="status" :class="status(r)[0]"><i></i>{{ status(r)[1] }}</span></td>
-              <td><b>{{ r.product ?? '（未知产品）' }}</b><div class="faint num rid">{{ r.id }}</div></td>
+              <td><b>{{ r.product ?? '（未知产品）' }}</b>
+                <span v-if="r.text_only" class="tag neg tx" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>
+                <div class="faint num rid">{{ r.id }}</div></td>
               <td class="realtime">{{ when(r.started_at) }}</td>
               <td class="r num">{{ minutes(r) == null ? '—' : minutes(r) + ' 分钟' }}</td>
               <td class="r num">{{ r.personas }}</td>
@@ -101,6 +107,7 @@ const jobText = (j) => (j.kind === 'simulate'
 <style scoped>
 .si { width: 12px; height: 12px; vertical-align: -2px; stroke-width: 1.5; }
 .rid { font-size: var(--fs-xs); }
+.tx { margin-left: var(--sp-2); }
 .pipe { margin-bottom: var(--sp-4); }
 .pipe ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
 .pipe li { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); flex-wrap: wrap; }

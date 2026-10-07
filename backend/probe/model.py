@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw, ImageFont
 from core.llm import create
 from core.limits import concurrency_limits
 from core.providers import get_adapter
-from core.runtime import CHAT_RUNTIME_CHECKS, error_summary, llm_api, require, settings, write_json
+from core.runtime import CHAT_RUNTIME_CHECKS, CHAT_VISION_CHECKS, TEXT_ONLY_NOTE, error_summary, llm_api, require, settings, write_json
 
 # Whole-request limit per probe; a normal vision check takes up to about 50s.
 PROBE_DEADLINE = 90
@@ -159,10 +159,15 @@ async def probe_model(config, run_dir):
                         lambda message: (message.content or "").strip() == token)
         await asyncio.gather(*(check(f"concurrent_{index}", [{"role": "user", "content": f"Reply with exactly {token}"}],
                               lambda message: (message.content or "").strip() == token) for index in range(10)))
-    required = ["conversation", "tool_call", "vision_0", "vision_1"]
+    required, vision = ["conversation", "tool_call"], ["vision_0", "vision_1"]
     if llm_api(config) == "responses":
         required.extend(CHAT_RUNTIME_CHECKS)
+        vision.extend(CHAT_VISION_CHECKS)
     profile["ready"] = all(profile["checks"][name]["supported"] for name in required)
+    # A text-only model still runs: browsing reads the page structure only, and every result says so.
+    profile["vision"] = all(profile["checks"][name]["supported"] for name in vision)
+    if profile["ready"] and not profile["vision"]:
+        print(TEXT_ONLY_NOTE, flush=True)
     profile["structured_output"] = ("json_schema" if profile["checks"]["json_schema"]["supported"] else
                                     "json_object_with_validation" if profile["checks"]["json_object"]["supported"] else "prompt_with_validation")
     # Ten queued requests do not prove ten simultaneous requests when the configured limit is lower.

@@ -12,7 +12,7 @@ from browser_use import Agent, BrowserSession
 from steel import AsyncSteel
 
 from core.limits import async_slot
-from core.runtime import chat_completions_fallback, chat_json_schema_supported, error_summary, require, require_capabilities, settings, write_json
+from core.runtime import chat_completions_fallback, chat_json_schema_supported, error_summary, require, require_capabilities, sees_images, settings, write_json
 from browsing.model import ProviderChatOpenAI
 from browsing.navigation import NavigationGuard
 
@@ -167,13 +167,13 @@ async def probe_browser(config, run_dir, profile):
                          f"{host}, then finish with done and report the new page's title and URL. Use the click action "
                          "on an element from the page; do not navigate by typing a URL, do not use evaluate. "
                          "Only browse: do not submit forms, log in or change any data.",
-                    llm=llm, browser_session=browser_session, use_vision=True,
+                    llm=llm, browser_session=browser_session, use_vision=sees_images(profile),
                     max_actions_per_step=1, use_judge=False, enable_planning=False,
                     directly_open_url=False,
                 )
                 # Browser Use turns vision off for any model named "deepseek"; capabilities come from
-                # our measured vision probes (required for a ready profile), not from model names.
-                agent.settings.use_vision = True
+                # our measured vision probes, not from model names.
+                agent.settings.use_vision = sees_images(profile)
                 result["use_vision"] = agent.settings.use_vision
                 history = await asyncio.wait_for(agent.run(max_steps=6, on_step_end=capture), timeout=360)
                 navigation.check()
@@ -217,7 +217,7 @@ async def probe_browser(config, run_dir, profile):
                 and urlsplit(result["final_url"]).hostname == host,
                 result["dom_failures"] == 0,
                 # Every agent step must have sent its screenshot to the model, not only enabled vision.
-                result.get("model_requests_with_screenshots", 0) >= result.get("steps", 0) > 0,
+                result.get("steps", 0) > 0 and (not sees_images(profile) or result.get("model_requests_with_screenshots", 0) >= result["steps"]),
                 result.get("observed_timezone") == config["timezone"],
                 result["http_status"] is not None and result["http_status"] < 400,
                 # The console count proves the capture pipeline (the collector logs one line itself),

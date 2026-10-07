@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { findings, posts, withheld, surveys, inconsistencies, scout, run, personas, steps, reads } from '../lib/data.js'
-import { P, clockOf, flowStats, npsOf, issueCount, findingById, priorityScore } from '../lib/sim.js'
+import { TEXT_ONLY_NOTE, P, clockOf, flowStats, npsOf, issueCount, findingById, priorityScore } from '../lib/sim.js'
 import { drawers, openDrawer } from '../lib/store.js'
-import { Info } from 'lucide-vue-next'
+import { Info, AlertTriangle } from 'lucide-vue-next'
 import FindingCard from '../components/FindingCard.vue'
 import DotMatrix from '../components/DotMatrix.vue'
 import PersonaChip from '../components/PersonaChip.vue'
@@ -101,11 +101,13 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
         <div class="row meta">
           <span class="realtime">{{ when(run.startedAt) }} → {{ when(run.endedAt) }}</span>
           <span class="faint">·</span><span class="faint">{{ run.model }}</span>
+          <span v-if="run.textOnly" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>
           <template v-if="report"><span class="faint">·</span><span class="faint num">报告 {{ report.id }}</span></template>
         </div>
       </div>
     </header>
 
+    <div v-if="run.textOnly" class="warn nr" role="status"><AlertTriangle /><div><b>{{ TEXT_ONLY_NOTE }}。</b>排版、图片、颜色这类视觉问题不在下面的结论里；录像和截图照常保存，可回放核对。</div></div>
     <div v-if="!report" class="note nr"><Info /><div><b>这次运行还没有阶段 5 报告</b>：下面的问题清单与亮点为空；人物、社区和体验记录可以在左侧其他页面查看。</div></div>
     <div v-else-if="!report.result?.passed" class="note nr"><Info /><div><b>这份报告没有通过验收</b>：{{ (report.result?.errors ?? []).join('；') || '请查看阶段 5 的结果文件。' }}</div></div>
 

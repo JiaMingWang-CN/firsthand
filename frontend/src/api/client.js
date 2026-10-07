@@ -48,6 +48,7 @@ export const api = {
   drafts: () => request('/api/drafts'),
   newDraft: (manual, capabilityRun) => post('/api/drafts', { manual, capability_run: capabilityRun || null }),
   draft: (id) => request(`/api/drafts/${enc(id)}`),
+  resumeAnalysis: (id) => post(`/api/drafts/${enc(id)}/analysis`, { confirm: true }),
   generatePersonas: (id, personaCount, durationDays) => post(`/api/drafts/${enc(id)}/personas`, { persona_count: personaCount, duration_days: durationDays }),
   editDraft: (id, body) => post(`/api/drafts/${enc(id)}/edits`, body),
   decide: (id, body) => post(`/api/drafts/${enc(id)}/decision`, body),

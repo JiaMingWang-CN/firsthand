@@ -16,12 +16,13 @@ vi.mock('../src/api/client.js', async (importOriginal) => {
   return {
     ApiError,
     api: {
-      runs: call('runs', () => []),
+      runs: call('runs', () => state.runs ?? []),
       checkManual: call('checkManual', (text) => (state.checkError ? new ApiError(422, state.checkError) : text.includes('---') ? state.checked : new ApiError(422, '说明书缺少 YAML front matter（开头和结尾的 ---）'))),
       capabilities: call('capabilities', () => state.capabilities),
       newDraft: call('newDraft', () => ({ id: 'prepare-1', draft: 'phase1-new' })),
       drafts: call('drafts', () => state.drafts),
       draft: call('draft', () => state.draft),
+      resumeAnalysis: call('resumeAnalysis', () => ({ id: 'prepare-2', draft: 'phase1-new' })),
       generatePersonas: call('generatePersonas', () => ({ id: 'generate-1', draft: 'phase1-new' })),
       editDraft: call('editDraft', () => (state.editError ? state.editError : { draft_sha256: 'b'.repeat(64) })),
       decide: call('decide', (id, body) => { if (state.decideError) return state.decideError; state.draft = { ...state.draft, status: body.decision === 'approve' ? 'approved' : 'rejected', approval: { status: 'approved', approved_at: '2026-10-04T08:00:00Z', overrides: [] } }; return state.draft.approval }),
@@ -83,7 +84,7 @@ beforeEach(() => {
   Object.assign(state, {
     checked: structuredClone(CHECKED), editError: null,
     capabilities: [{ id: 'phase0-mimo', created_at: '2026-10-04T00:00:00Z' }],
-    draft: structuredClone(DRAFT), drafts: [], jobs: [], job: null, decideError: null, checkError: null, live: { personas: [], selected: null },
+    draft: structuredClone(DRAFT), drafts: [], runs: [], jobs: [], job: null, decideError: null, checkError: null, live: { personas: [], selected: null },
   })
 })
 afterEach(() => { while (mounted.length) mounted.pop().unmount() })
@@ -109,6 +110,55 @@ test('新建运行：默认只填网址，域名随网址自动填好，检查�
   await confirm(w)
   expect(calls.find(([name]) => name === 'newDraft')).toEqual(['newDraft', sent, 'phase0-mimo'])
   await vi.waitFor(() => expect(router.currentRoute.value.fullPath).toBe('/drafts/phase1-new'))  // 页面组件按需加载
+})
+
+test('新建运行：复用不支持识图的能力文件时，标出参考性有限，确认弹窗写明后才开始分析', async () => {
+  state.capabilities = [{ id: 'phase0-text', created_at: '2026-10-04T00:00:00Z', sampling: true, vision: false }]
+  const w = await open('/new')
+  await w.find('input[aria-label="产品网址"]').setValue('https://example.com')
+  await button(w, '检查').trigger('click')
+  await settle()
+  await button(w, '下一步：模型能力').trigger('click')
+  await settle()
+  expect(w.find('.cap').text()).toContain('不支持图像识别')
+  await button(w, '下一步：分析资料').trigger('click')
+  expect(w.find('.gen').text()).toContain('参考性有限')
+  await button(w, '分析资料').trigger('click')
+  await settle()
+  expect(document.querySelector('.dlg').textContent).toContain('模型不支持图像识别')
+  expect(calls.some(([name]) => name === 'newDraft')).toBe(false)
+  await confirm(w)
+  expect(calls.find(([name]) => name === 'newDraft')[2]).toBe('phase0-text')
+})
+
+test('探测发现模型不支持识图：分析暂停，提示参考性有限，点确认后才继续', async () => {
+  state.draft = { id: 'phase1-new', status: 'text_only', text_only: true, valid: false, product: null, limits: { personas: [2, 99], days: [1, 365] } }
+  const w = await open('/drafts/phase1-new')
+  expect(w.find('.page-head').text()).toContain('参考性有限 · 纯文本模型')
+  expect(w.text()).toContain('模型不支持图像识别')
+  expect(w.text()).not.toContain('草稿未通过校验')
+  await button(w, '接受并继续分析').trigger('click')
+  await settle()
+  expect(calls.some(([name]) => name === 'resumeAnalysis')).toBe(false)  // 先确认
+  expect(document.querySelector('.dlg').textContent).toContain('参考性有限')
+  state.draft = { ...structuredClone(CONFIGURING), text_only: true }
+  await confirm(w)
+  expect(calls.find(([name]) => name === 'resumeAnalysis')).toEqual(['resumeAnalysis', 'phase1-new'])
+  expect(w.find('input[aria-label="人数"]').exists()).toBe(true)
+  expect(w.text()).toContain('模型不支持图像识别')  // 继续后一直提示
+})
+
+test('运行列表：纯文本模型的草稿与运行都标注参考性有限', async () => {
+  state.drafts = [{ id: 'phase1-text', status: 'text_only', product: '示例产品', text_only: true, created_at: '2026-10-04T00:00:00Z' }]
+  state.runs = [{ id: 'phase4-text', passed: true, product: '示例产品', personas: 2, text_only: true, reports: [], started_at: null, finished_at: null },
+    { id: 'phase4-vision', passed: true, product: '另一产品', personas: 2, text_only: false, reports: [], started_at: null, finished_at: null }]
+  const w = await open('/')
+  await settle()
+  expect(w.find('.pipe').text()).toContain('模型不支持识图，待你确认是否继续')
+  expect(w.find('.pipe').text()).toContain('参考性有限 · 纯文本模型')
+  const rows = w.findAll('tbody tr')
+  expect(rows.find((r) => r.text().includes('phase4-text')).text()).toContain('纯文本模型')
+  expect(rows.find((r) => r.text().includes('phase4-vision')).text()).not.toContain('纯文本模型')
 })
 
 test('新建运行：选填的名称、定位、目标用户写进说明书；改过的域名不再跟着网址变', async () => {
@@ -294,10 +344,67 @@ test('任务页：现场显示正在浏览的人物、步骤与最新截图，�
 
 test('运行列表：显示进行中的任务和待审核的草稿', async () => {
   state.jobs = [{ id: 'simulate-1', kind: 'simulate', state: 'running', progress: { slices_done: 2, slices: 24, personas_done: 1, personas: 10 } }]
-  state.drafts = [{ id: 'phase1-new', status: 'pending', product: '示例产品' }, { id: 'phase1-old', status: 'approved', product: '旧产品' }]
+  state.drafts = [{ id: 'phase1-new', status: 'pending', product: '示例产品' }, { id: 'phase1-old', status: 'approved', product: '旧产品', simulated: true },
+    { id: 'phase1-ready', status: 'approved', product: '待模拟产品', simulated: false }]
   const w = await open('/runs')
   const text = w.find('.pipe').text()
   expect(text).toContain('时间片 2/24')
   expect(text).toContain('示例产品')
-  expect(text).not.toContain('旧产品')
+  expect(text).toContain('待你审核批准')
+  expect(text).not.toContain('旧产品')  // 已经模拟过的草稿不再算“进行中”
+  expect(text).toContain('待模拟产品')  // 批准了还没开始模拟：下一步是开始模拟
+  expect(text).toContain('已批准，待开始模拟')
+})
+
+test('流程条：每一页都说明做到第几步、已完成什么、下一步做什么，并给出下一步的按钮', async () => {
+  const flow = (w) => w.find('.flow')
+  const current = (w) => flow(w).find('[aria-current="step"]').text()
+  let w = await open('/new')
+  expect(current(w)).toContain('填写资料')
+  expect(flow(w).text()).toContain('第 1/7 步')
+
+  state.draft = { ...structuredClone(CONFIGURING), status: 'analyzing' }
+  w = await open('/drafts/phase1-new')
+  expect(current(w)).toContain('分析资料')
+  expect(flow(w).text()).toContain('不需要操作')
+
+  state.draft = structuredClone(CONFIGURING)
+  w = await open('/drafts/phase1-new')
+  expect(current(w)).toContain('确认人数与天数')
+  expect(flow(w).text()).toContain('生成人物')
+  expect(flow(w).findAll('li.done').length).toBe(2)
+
+  state.draft = structuredClone(DRAFT)
+  w = await open('/drafts/phase1-new')
+  expect(current(w)).toContain('审核批准')
+  expect(flow(w).find('button').text()).toBe('前往审核区')
+
+  state.draft = { ...structuredClone(DRAFT), status: 'approved', approval: { status: 'approved', approved_at: '2026-10-04T08:00:00Z', overrides: [] } }
+  w = await open('/drafts/phase1-new')
+  expect(current(w)).toContain('模拟体验与讨论')
+  await flow(w).find('button').trigger('click')
+  await confirm(w)
+  expect(calls.some(([name]) => name === 'simulate')).toBe(true)
+
+  state.jobs = [{ id: 'simulate-1', kind: 'simulate', state: 'running', draft: 'phase1-new', simulation: 'phase4-x', progress: { personas_done: 3, personas: 10, phase4_passed: null } }]
+  w = await open('/drafts/phase1-new')
+  expect(flow(w).text()).toContain('3/10')
+  expect(flow(w).find('a').attributes('href')).toBe('#/jobs/simulate-1')
+
+  state.jobs = [{ ...state.jobs[0], state: 'succeeded', progress: { phase4_passed: true } }]
+  w = await open('/drafts/phase1-new')
+  expect(flow(w).text()).toContain('全部完成')
+  expect(flow(w).find('a').attributes('href')).toBe('#/runs/phase4-x/report')
+})
+
+test('流程条：任务页结束后指向下一步——分析完去确认人数，生成失败回草稿重试', async () => {
+  const base = { draft: 'phase1-new', created_at: '2026-10-04T08:00:00Z', steps: [], log: [] }
+  state.job = { ...base, id: 'prepare-1', kind: 'prepare', state: 'succeeded', progress: { capability: true, site: true, product: true } }
+  let w = await open('/jobs/prepare-1')
+  expect(w.find('.flow [aria-current="step"]').text()).toContain('确认人数与天数')
+  expect(w.find('.flow a').text()).toBe('去确认人数与天数')
+  state.job = { ...base, id: 'generate-1', kind: 'generate', state: 'failed', progress: { draft: false } }
+  w = await open('/jobs/generate-1')
+  expect(w.find('.flow li.failed').text()).toContain('生成人物')
+  expect(w.find('.flow a').attributes('href')).toBe('#/drafts/phase1-new')
 })

@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from pydantic import ValidationError
 
-from core.persona import (PLAN_BATCH, CohortBatch, CohortPlan, CohortSlot, Draft, Identity, LIMITS, Persona, PersonaDetails,
+from core.persona import (PLAN_BATCH, CohortBatch, CohortPlan, CohortSlot, Draft, GENERATED_STEPS, Identity, LIMITS, Persona, PersonaDetails,
                           ProductSummary, Recommendation, RunConfig, Sampling, asleep_hours, minutes)
 from core.llm import create
 from core.limits import concurrency_limits
@@ -76,7 +76,7 @@ def build_persona(details, seed):
     # wake/sleep is the authoritative schedule: nobody joins the community while fully asleep.
     for hour in asleep_hours(details.wake, details.sleep):
         activity.pop(hour, None)
-    max_steps, stall_limit = LIMITS[seed["patience"]]
+    max_steps, stall_limit = GENERATED_STEPS[seed["patience"]], LIMITS[seed["patience"]][1]
     identity = details.model_dump(include=set(Identity.model_fields))
     return Persona.model_validate({
         **identity, "persona_id": seed["persona_id"], "participation": seed["participation"],

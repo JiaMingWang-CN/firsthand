@@ -2,7 +2,7 @@
 
 ## 2026-10-03 审查修复：运行协议能力门禁
 
-首选 Responses 时，能力探测另测 Chat Completions 的基础对话、单工具调用和两次随机识图，保存为 `chat_completions_conversation`、`chat_completions_tool_call`、`chat_completions_vision_0/1`；四项均通过才允许 `ready=true`。框架降级后的能力不能由 Responses 样本代替。
+首选 Responses 时，能力探测另测 Chat Completions 的基础对话、单工具调用和两次随机识图，保存为 `chat_completions_conversation`、`chat_completions_tool_call`、`chat_completions_vision_0/1`；对话与工具调用两项通过才允许 `ready=true`；识图两项另记入 `vision`（见 `phase8.md`）。框架降级后的能力不能由 Responses 样本代替。
 
 加载能力文件时也核对这四项。旧 Responses 能力文件缺少它们时必须重新探测，不修改历史能力文件或审批记录；若替换已审批目录的能力文件，需要重新审核，因为审批哈希绑定了该文件。回归通过本地协议夹具验证，不调用远程模型。
 
@@ -63,7 +63,7 @@ Responses 下的思考开关不发送 `thinking.type`。`LLM_THINKING_TYPE=disab
 .venv-browsing/Scripts/python.exe -m orchestrator.phase0
 ```
 
-每次创建新的 `runs/phase0-<UTC时间>/` 目录。先探测模型，再通过两个独立子进程运行浏览和讨论验证。模型基础对话、单工具调用或任意识图样本失败，会中止后续执行。完整验证通过返回退出码 0，否则返回非零退出码。
+每次创建新的 `runs/phase0-<UTC时间>/` 目录。先探测模型，再通过两个独立子进程运行浏览和讨论验证。模型基础对话或单工具调用失败，会中止后续执行；识图样本失败时能力文件标为纯文本模型（`vision: false`），浏览验证不发截图（见 `phase8.md`）。完整验证通过返回退出码 0，否则返回非零退出码。
 
 需要诊断单项时，可使用同一运行目录的能力文件：
 

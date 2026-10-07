@@ -12,7 +12,10 @@ Text = Annotated[str, Field(min_length=1)]
 Clock = Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 Level = Literal["低", "中", "高"]
 Motivation = Literal["随便看看", "有明确任务", "对比竞品", "付费决策"]
+# Upper bounds a draft may use. Drafts made before GENERATED_STEPS gave normal patience 40 steps and stay valid.
 LIMITS = {"low": (15, 4), "normal": (40, 8), "high": (80, 12)}
+# Steps a new persona gets: 40 steps of a slow model (about 20 s each) outran the browsing time budget.
+GENERATED_STEPS = {"low": 15, "normal": 25, "high": 80}
 # Persona IDs are p01..p99; the timeline length is the user's choice within a year.
 MIN_PERSONAS, MAX_PERSONAS, MAX_DAYS = 2, 99, 365
 

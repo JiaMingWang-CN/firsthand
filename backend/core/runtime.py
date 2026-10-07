@@ -14,8 +14,9 @@ from core.limits import concurrency_limits
 from core.providers import get_adapter, llm_api, module_route
 
 ROOT = Path(__file__).resolve().parents[1]
-CHAT_RUNTIME_CHECKS = ("chat_completions_conversation", "chat_completions_tool_call",
-                       "chat_completions_vision_0", "chat_completions_vision_1")
+CHAT_RUNTIME_CHECKS = ("chat_completions_conversation", "chat_completions_tool_call")
+CHAT_VISION_CHECKS = ("chat_completions_vision_0", "chat_completions_vision_1")
+TEXT_ONLY_NOTE = "模型不支持图像识别：人物只能读取页面的文字和结构，看不到布局、图片和样式，本次结果参考性有限"
 
 
 def settings():
@@ -97,10 +98,15 @@ def error_summary(error, run_dir):
     return {"type": type(error).__name__, "status_code": getattr(error, "status_code", None)}
 
 
+def sees_images(profile):
+    """Whether screenshots go to the model. Profiles from before text-only models were ready only with vision."""
+    return profile.get("vision", True)
+
+
 def require_capabilities(run_dir, config):
     profile = json.loads((Path(run_dir) / "capability_profile.json").read_text(encoding="utf-8"))
     if not profile["ready"]:
-        raise ValueError("Model must pass conversation, tool calling and vision probes first")
+        raise ValueError("Model must pass conversation and tool calling probes first")
     if profile.get("provider", "openai_compatible") != get_adapter(config).name:
         raise ValueError("LLM_PROVIDER changed; rerun the model capability probe")
     if profile["model"] != config["model"] or profile["base_url"] != config["base_url"]:
@@ -111,5 +117,5 @@ def require_capabilities(run_dir, config):
         raise ValueError("LLM_API changed; rerun the model capability probe")
     if llm_api(config) == "responses" and not all(
             profile.get("checks", {}).get(name, {}).get("supported") is True for name in CHAT_RUNTIME_CHECKS):
-        raise ValueError("Chat Completions runtime conversation, tool calling and vision probes must pass; rerun the model capability probe")
+        raise ValueError("Chat Completions runtime conversation and tool calling probes must pass; rerun the model capability probe")
     return profile

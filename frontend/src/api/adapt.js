@@ -265,7 +265,7 @@ export function adapt({ overview, personas: rows, experiences, community, report
       id: overview.id, title: `${meta.name ?? '产品'} · 模拟体验`, passed: overview.passed, status: overview.status,
       startedAt: overview.started_at, endedAt: overview.finished_at, simDays: config.duration_days ?? 1, sliceMinutes,
       concurrency: configuration.max_browser_concurrency, model: [configuration.provider, configuration.model].filter(Boolean).join(' / '),
-      limitations: overview.limitations ?? [], usage: overview.usage, interviewUsage: overview.interview_usage ?? null, audit: overview.audit, coverage: overview.coverage,
+      limitations: overview.limitations ?? [], textOnly: overview.text_only ?? false, usage: overview.usage, interviewUsage: overview.interview_usage ?? null, audit: overview.audit, coverage: overview.coverage,
       report: report ? { id: report.id, result: report.result, overview: report.report.overview, silence: report.report.silence_signals,
         dynamics: report.report.opinion_dynamics, timeSlots: report.report.time_slots, scout: report.report.scout,
         rejected: report.report.rejected_claims } : null,

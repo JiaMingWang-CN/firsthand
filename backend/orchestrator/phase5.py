@@ -9,7 +9,7 @@ from pathlib import Path
 
 from openai import AsyncOpenAI
 
-from core.runtime import ROOT, error_summary, require_capabilities, settings, write_json
+from core.runtime import ROOT, TEXT_ONLY_NOTE, error_summary, require_capabilities, sees_images, settings, write_json
 from core.usage import UsageRecorder
 from orchestrator.manual import material, read_manual
 from report.agent import build_report, investigate, verify_report
@@ -41,6 +41,14 @@ async def execute(source, root, capability_dir, use_model):
         notes.append(f"阶段 4 验收未通过（{phase4.get('status', 'passed=false')}）：模拟本身不完整或不合格，以下所有数字和结论只能作为排查参考。")
     context = json.loads((source / "run_context.json").read_text(encoding="utf-8"))
     inputs = source / "approved_source" if context.get("source_snapshot") or (source / "approved_source").is_dir() else Path(context["source_run"])
+    limited = sorted(path.parent.name for path in source.glob("p*/result.json")
+                     if json.loads(path.read_text(encoding="utf-8")).get("time_limited"))
+    if limited:
+        notes.append(f"{len(limited)} 人（{'、'.join(limited)}）浏览时间达到上限后停止：模型或浏览器较慢，实际步数少于步数上限，"
+                     "体验比计划的短；他们的“未完成”不代表产品问题。")
+    capability_path = inputs / "capability_profile.json"
+    if capability_path.is_file() and not sees_images(json.loads(capability_path.read_text(encoding="utf-8"))):
+        notes.append(TEXT_ONLY_NOTE + "。")
     manual_path = inputs / "manual.md"
     if manual_path.is_file():
         about = material(read_manual(manual_path))

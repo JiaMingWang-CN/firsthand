@@ -20,7 +20,7 @@ from browsing.probe import LogCounter
 from core.experience import Assessment, Completion, ExperienceMemory, ExperienceStep, finding_citation_error, load_experience
 from core.limits import async_slot
 from core.providers import module_route
-from core.runtime import chat_json_schema_supported, error_summary, require, write_json
+from core.runtime import chat_json_schema_supported, error_summary, require, sees_images, write_json
 from core.usage import UsageRecorder
 from orchestrator.personas import request_json, sampling_options
 
@@ -43,6 +43,18 @@ def task_prompt(persona, manual, expectations):
                           "expected_from_posts": expectations, "forbidden_actions": manual["metadata"].forbidden_actions}, ensure_ascii=False))
 
 
+# Time per persona follows its step limit, within the longest Steel session the plan allows (15 min: a longer
+# request is refused). Setup and release share the margin; a persona whose time runs out stops like one at its
+# step limit, between steps, instead of being cut off mid-step.
+STEP_SECONDS = 25
+SESSION_MARGIN = 90
+STEEL_SESSION_MAX = 900
+
+
+def session_seconds(persona):
+    return min(persona.browsing_profile.max_steps * STEP_SECONDS + SESSION_MARGIN, STEEL_SESSION_MAX)
+
+
 class StepRecorder:
     READ_ACTIONS = {"read_console", "list_failed_requests", "extract", "find_elements", "find_text", "search_page"}
     CAPTCHA = ("请输入验证码", "人机验证", "verify you are human", "checking your browser", "确认您是真人")
@@ -54,6 +66,12 @@ class StepRecorder:
         self.stalls = 0
         self.stop_reason = None
         self.last_after = None
+        self.deadline = None  # monotonic time by which the last step must have ended
+        self.time_limited = False
+
+    def out_of_time(self):
+        self.time_limited = True
+        self.stop_reason = f"浏览时间达到上限，走了 {len(self.steps)} 步后停止，任务未完成（时间不够，不是用户主动放弃）"
 
     @staticmethod
     def fingerprint(snapshot):
@@ -101,6 +119,8 @@ class StepRecorder:
         self.collector.record("experience_step", self.steps[-1].model_dump())
         if not agent.history.is_done() and self.stalls >= self.persona.browsing_profile.stall_limit:
             self.stop_reason = f"连续 {self.stalls} 步没有新的页面状态或读取操作，达到 stall_limit"
+        elif not agent.history.is_done() and self.deadline and time.monotonic() + 2 * STEP_SECONDS > self.deadline:
+            self.out_of_time()
         if self.stop_reason:
             agent.state.stopped = True
 
@@ -186,7 +206,9 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                     from datetime import datetime, timezone
                     result["browser_slot_acquired_at"] = datetime.now(timezone.utc).isoformat()
                     width, height = (390, 844) if persona.browsing_profile.device == "mobile" else (1440, 900)
-                    session = await steel.sessions.create(dimensions={"width": width, "height": height}, solve_captcha=False, api_timeout=600000)
+                    lifetime = session_seconds(persona)
+                    session = await steel.sessions.create(dimensions={"width": width, "height": height}, solve_captcha=False,
+                                                          api_timeout=lifetime * 1000)
                     memory.session = {"id": session.id, "viewer_url": session.session_viewer_url,
                         "created_at": session.created_at.isoformat(), "recording_offset_basis": "estimated from Steel created_at and local clock"}
                     write_json(run_dir / "session.json", memory.session)
@@ -204,6 +226,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                     await collector.prepare(persona)
                     await browser.navigate_to(manual["metadata"].url)
                     recorder = StepRecorder(collector, persona, log_counter, navigation)
+                    recorder.deadline = started + lifetime - 20  # leaves time to release the session before Steel ends it
                     tools = GuardedTools(persona, manual, collector, client, config, capability, Completion)
                     llm = ProviderChatOpenAI(model=config["model"], base_url=config["base_url"], api_key=config["api_key"],
                         provider=route.config["provider"], thinking_type=config.get("thinking_type"),
@@ -215,13 +238,16 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                         dont_force_structured_output=not chat_json_schema_supported(capability),
                         add_schema_to_system_prompt=not chat_json_schema_supported(capability))
                     agent = Agent(task=prompt, llm=llm, browser_session=browser, tools=tools, sensitive_data=sensitive_data,
-                        use_vision=True, use_judge=False, enable_planning=False, max_actions_per_step=1,
+                        use_vision=sees_images(capability), use_judge=False, enable_planning=False, max_actions_per_step=1,
                         directly_open_url=False, register_should_stop_callback=recorder.should_stop,
                         final_response_after_failure=False, max_failures=3, enable_signal_handler=False,
                         file_system_path=str(run_dir / "agent_files"))
-                    agent.settings.use_vision = True
-                    history = await asyncio.wait_for(agent.run(max_steps=persona.browsing_profile.max_steps,
-                        on_step_start=recorder.before, on_step_end=recorder.after), timeout=max(1, 580 - (time.monotonic() - started)))
+                    agent.settings.use_vision = sees_images(capability)
+                    try:
+                        history = await asyncio.wait_for(agent.run(max_steps=persona.browsing_profile.max_steps,
+                            on_step_start=recorder.before, on_step_end=recorder.after), timeout=max(1, recorder.deadline - time.monotonic()))
+                    except TimeoutError:
+                        recorder.out_of_time()  # one slow step overran the time left: the step in progress is not recorded
                     navigation.check()
                     if recorder.stop_reason:
                         memory.outcome, memory.reason, memory.outcome_source = "abandoned", recorder.stop_reason, "runtime_limit"
@@ -230,7 +256,8 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                         memory.outcome, memory.reason, memory.outcome_source = completion.outcome, completion.reason, "agent_self_report"
                     else:
                         memory.outcome, memory.reason, memory.outcome_source = "abandoned", "达到步骤上限或连续执行失败，任务未完成", "runtime_limit"
-                    result.update(model_requests=llm.requests_sent, model_requests_with_screenshots=llm.requests_with_images)
+                    result.update(model_requests=llm.requests_sent, model_requests_with_screenshots=llm.requests_with_images,
+                                  session_seconds=lifetime, time_limited=recorder.time_limited)
                 finally:
                     if browser:
                         try:
@@ -265,7 +292,8 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
             try:
                 memory.assessment = await assess_memory(client, config, capability, persona, memory, run_dir)
                 memory = ExperienceMemory.model_validate(memory.model_dump())
-                result["passed"] = result.get("released", False) and result.get("model_requests_with_screenshots", 0) >= sum(bool(step.actions) for step in memory.steps)
+                result["passed"] = result.get("released", False) and (not sees_images(capability) or result.get(
+                    "model_requests_with_screenshots", 0) >= sum(bool(step.actions) for step in memory.steps))
             except asyncio.CancelledError:
                 cancelled = True
                 result["cancelled_during_assessment"] = True

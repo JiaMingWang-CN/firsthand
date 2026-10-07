@@ -11,7 +11,7 @@ from pathlib import Path
 from api.jobs import Jobs, read_json, stamp
 from api.runs import NotFound, RUN_ID, matching_capabilities, sibling
 from core.persona import MAX_DAYS, MAX_PERSONAS, MIN_PERSONAS, Draft
-from core.runtime import require, require_capabilities, settings, write_json
+from core.runtime import require, require_capabilities, sees_images, settings, write_json
 from orchestrator.manual import material, read_manual
 from orchestrator.personas import distribution_issues, minimum_count, schedule_rows, validate_draft, validation_message
 from orchestrator.phase1 import (OverrideRequired, approve, distribution_summary, draft_hash, load_draft, reject, require_approved,
@@ -90,6 +90,8 @@ def summary(root, path, jobs):
         status = "analyzing" if running[0] == "prepare" else "generating"
     elif result is None or not result.get("passed"):
         status = "failed" if result else "incomplete"
+    elif result.get("stage") == "text_only":
+        status = "text_only"  # the user accepts the limited reference value of a model that cannot read images, or stops here
     elif result.get("stage") == "analyzed":
         status = "configuring"  # the user confirms the recommended cohort size and timeline length
     else:
@@ -102,12 +104,21 @@ def summary(root, path, jobs):
             name = None
     return {"id": path.name, "status": status, "product": name,
             "created_at": datetime.fromtimestamp((path / "manual.md").stat().st_mtime, timezone.utc).isoformat(),
-            "error": (result or {}).get("error")}
+            "error": (result or {}).get("error"), "text_only": text_only(path)}
+
+
+def text_only(path):
+    capability = read_json(path / "capability_profile.json")
+    return capability is not None and not sees_images(capability)
 
 
 def list_drafts(root, jobs):
     paths = [path for path in Path(root).glob("phase1-*") if RUN_ID.fullmatch(path.name) and (path / "manual.md").is_file()]
-    return sorted((summary(root, path, jobs) for path in paths), key=lambda item: item["created_at"], reverse=True)
+    # "simulated": the runs list shows approved drafts that still wait for "开始模拟" as a next step. A starting
+    # simulation names its draft before phase 4 writes run_context.json; a failed one leaves the draft waiting again.
+    started = {job["draft"] for job in jobs if job["kind"] == "simulate" and job["state"] != "failed"}
+    return sorted(({**summary(root, path, jobs), "simulated": path.name in started or bool(simulations_of(root, path.name))} for path in paths),
+                  key=lambda item: item["created_at"], reverse=True)
 
 
 def review(root, draft_id, jobs):
@@ -128,7 +139,7 @@ def review(root, draft_id, jobs):
     if head["status"] in {"analyzing", "generating", "configuring"} and (path / "product.json").is_file():
         # As on a drafted review, "product" is the product model; the product's name is under "manual".
         analysis.update(product=read_json(path / "product.json"), manual={"name": head["product"]})
-    if head["status"] in {"analyzing", "generating", "configuring", "failed", "incomplete"}:
+    if head["status"] in {"analyzing", "text_only", "generating", "configuring", "failed", "incomplete"}:
         return {**head, **analysis, "valid": False}
     displayed = draft_hash(path)
     try:
@@ -200,6 +211,19 @@ def start_prepare(root, jobs, text, capability_run=None):
     manual.write_text(text, encoding="utf-8")
     return jobs.start("prepare", [{"name": "分析资料并推荐人数与天数", "module": "orchestrator.phase1",
                                    "args": ["analyze", manual, "--run-dir", Path(root) / draft_id, *args]}], draft=draft_id)
+
+
+def start_resume(root, jobs, draft_id):
+    """Continue an analysis that waits for the user to accept a model that cannot read images."""
+    path = draft_path(root, draft_id)
+    if summary(root, path, jobs.all())["status"] != "text_only":
+        raise Invalid("只有等待确认纯文本模型的运行可以继续分析")
+    try:
+        require(settings(), "base_url", "api_key", "model")
+    except ValueError as error:
+        raise Unconfigured(str(error)) from error
+    return jobs.start("prepare", [{"name": "分析资料并推荐人数与天数（纯文本模型）", "module": "orchestrator.phase1",
+                                   "args": ["resume", path]}], draft=draft_id)
 
 
 def check_size(persona_count, duration_days, minimum):

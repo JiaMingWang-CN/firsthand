@@ -2,6 +2,8 @@ import { reactive } from 'vue'
 import { personas, steps, findings, posts, reads, withheld, flows, timeline, replaceAll } from './data.js'
 
 export const DAY = 1440
+// 与后端 core/runtime.py 的 TEXT_ONLY_NOTE 一致：模型不支持图像识别时，人物浏览只读页面的文字和结构
+export const TEXT_ONLY_NOTE = '模型不支持图像识别：人物只能读取页面的文字和结构，看不到布局、图片和样式，本次结果参考性有限'
 export const pad = (n) => String(n).padStart(2, '0')
 
 /** 模拟分钟（距运行起点）→ "D1 21:10" */
