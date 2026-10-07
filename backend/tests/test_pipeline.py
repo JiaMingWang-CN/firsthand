@@ -104,7 +104,7 @@ def make_draft(client, **body):
 def app(tmp_path, pipeline):
     root = tmp_path / "runs"
     root.mkdir(exist_ok=True)
-    return root, TestClient(create_app(root, jobs=Jobs(root, python="python", popen=pipeline)))
+    return root, TestClient(create_app(root, jobs=Jobs(root, python="python", popen=pipeline)), base_url="http://localhost")
 
 
 def test_manual_check_matches_phase1_parsing(tmp_path):
@@ -125,6 +125,14 @@ def test_writes_only_from_this_machine_and_only_json(tmp_path, headers, status):
     body = json.dumps({"text": SAMPLE.read_text(encoding="utf-8")})
     response = client.post("/api/manuals/check", content=body, headers={"content-type": "application/json", **headers})
     assert response.status_code == status
+
+
+@pytest.mark.parametrize("host, status", [("attacker.example", 400), ("attacker.example:8000", 400),
+                                          ("localhost:5180", 200), ("127.0.0.1:8000", 200), ("[::1]:8000", 200)])
+def test_reads_only_under_a_local_host_name(tmp_path, host, status):
+    """DNS rebinding: a page on another site that resolves its own name to 127.0.0.1 must not read run data."""
+    _, client = app(tmp_path, None)
+    assert client.get("/api/runs", headers={"host": host}).status_code == status
 
 
 def test_capabilities_only_lists_profiles_for_the_current_model(tmp_path, configured):
@@ -203,7 +211,7 @@ def test_only_one_simulation_at_a_time(tmp_path, configured, draft):
     review = client.get(f"/api/drafts/{started['draft']}").json()
     client.post(f"/api/drafts/{started['draft']}/decision", json={"decision": "approve", "draft_sha256": review["draft_sha256"]})
     jobs = Jobs(root, python="python", popen=FakePipeline(draft, gate=gate))
-    client = TestClient(create_app(root, jobs=jobs))
+    client = TestClient(create_app(root, jobs=jobs), base_url="http://localhost")
     first = client.post(f"/api/drafts/{started['draft']}/simulations", json={"confirm": True})
     second = client.post(f"/api/drafts/{started['draft']}/simulations", json={"confirm": True})
     assert first.status_code == 200 and second.status_code == 409
@@ -265,5 +273,5 @@ def test_a_job_from_an_earlier_api_process_is_reported_as_detached(tmp_path):
     root = tmp_path / "runs"
     write_json(root / "_jobs" / "prepare-x.json", {"id": "prepare-x", "kind": "prepare", "state": "running", "draft": "phase1-x",
                                                    "created_at": "2026-10-04T00:00:00+00:00", "steps": []})
-    client = TestClient(create_app(root))
+    client = TestClient(create_app(root), base_url="http://localhost")
     assert client.get("/api/jobs/prepare-x").json()["state"] == "detached"

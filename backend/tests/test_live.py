@@ -53,7 +53,7 @@ def client(tmp_path):
     build(root)
     app = create_app(root, jobs=Jobs(root))
     app.state.root = root
-    return TestClient(app)
+    return TestClient(app, base_url="http://localhost")
 
 
 def test_the_running_persona_is_selected_with_its_steps_and_live_link(client):

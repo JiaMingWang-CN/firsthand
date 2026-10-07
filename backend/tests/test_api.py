@@ -11,7 +11,7 @@ from api.app import create_app
 
 @pytest.fixture
 def client(runs_root):
-    return TestClient(create_app(runs_root))
+    return TestClient(create_app(runs_root), base_url="http://localhost")
 
 
 def test_runs_list_resolves_product_despite_stale_absolute_path(client):
@@ -99,7 +99,7 @@ def test_default_report_prefers_a_passed_model_report_over_a_newer_check_run(run
     shutil.copytree(runs_root / "phase5-x", newer)  # model_used is false here and it is the newest report
     later = time.time_ns() + 10**10
     os.utime(newer / "report.json", ns=(later, later))
-    client = TestClient(create_app(runs_root))
+    client = TestClient(create_app(runs_root), base_url="http://localhost")
     assert [item["id"] for item in client.get("/api/runs/phase4-x").json()["reports"]][0] == "phase5-newer-check"
     assert client.get("/api/runs/phase4-x/report").json()["id"] == "phase5-model"
     assert client.get("/api/runs/phase4-x/report?report_id=phase5-newer-check").json()["id"] == "phase5-newer-check"
@@ -204,11 +204,11 @@ def test_unknown_or_non_simulation_runs_are_not_found(client):
 
 def test_run_without_report_is_not_found(runs_root):
     shutil.rmtree(runs_root / "phase5-x")
-    assert TestClient(create_app(runs_root)).get("/api/runs/phase4-x/report").status_code == 404
+    assert TestClient(create_app(runs_root), base_url="http://localhost").get("/api/runs/phase4-x/report").status_code == 404
 
 
 def test_corrupt_evidence_is_reported_as_unprocessable(runs_root):
     (runs_root / "phase4-x" / "p01" / "experience.json").write_text("{}", encoding="utf-8")
-    client = TestClient(create_app(runs_root))
+    client = TestClient(create_app(runs_root), base_url="http://localhost")
     assert client.get("/api/runs/phase4-x/personas").status_code == 422
     assert client.get("/api/runs").status_code == 200

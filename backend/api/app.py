@@ -5,6 +5,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
@@ -74,6 +75,10 @@ def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
             if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
                 return JSONResponse({"detail": "请求体必须是 JSON"}, 415)
         return await call_next(request)
+
+    # DNS rebinding: another site can point its own name at 127.0.0.1 and then read run data same-origin.
+    # Only local host names reach the API (the Vite proxy keeps the browser's localhost Host).
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=[*LOCAL_HOSTS, "[::1]"])
 
     for error_type, status in STATUS.items():
         app.add_exception_handler(error_type, lambda request, error, status=status: JSONResponse(

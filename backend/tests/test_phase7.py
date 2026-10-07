@@ -313,7 +313,7 @@ def test_the_reviewer_edits_days_and_sampling_and_must_approve_again(tmp_path, c
     root = tmp_path / "runs"
     root.mkdir()
     assign_sampling(draft.personas)
-    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft))))
+    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft))), base_url="http://localhost")
     draft_id = make_draft(client)["draft"]
     review = client.get(f"/api/drafts/{draft_id}").json()
     assert review["personas"][0]["sampling"]["temperature"] > 0 and review["sampling"]["probed"] is False
@@ -338,7 +338,7 @@ def test_shortening_the_timeline_below_a_browse_day_is_refused(tmp_path, configu
     data = draft.model_dump(mode="json")
     data["run_config"]["duration_days"] = 30
     data["personas"][4]["schedule"]["browse_day"] = 20
-    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(Draft.model_validate(data)))))
+    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(Draft.model_validate(data)))), base_url="http://localhost")
     draft_id = make_draft(client)["draft"]
     review = client.get(f"/api/drafts/{draft_id}").json()
     refused = client.post(f"/api/drafts/{draft_id}/edits", json={"draft_sha256": review["draft_sha256"], "duration_days": 10})
@@ -348,7 +348,7 @@ def test_shortening_the_timeline_below_a_browse_day_is_refused(tmp_path, configu
 def test_manual_check_reports_material_and_defaults(tmp_path):
     root = tmp_path / "runs"
     root.mkdir()
-    client = TestClient(create_app(root))
+    client = TestClient(create_app(root), base_url="http://localhost")
     body = client.post("/api/manuals/check", json={"text": URL_ONLY}).json()
     assert body["name"] == "wjm.dpdns.org" and body["material"]["level"] == "limited" and body["minimum_personas"] == 2
     assert "forbidden_actions" in body["defaults"] and body["forbidden_actions"][0] == "真实支付或下单"
@@ -376,14 +376,14 @@ def test_the_review_page_opened_before_the_analysis_writes_anything_shows_it_is_
     root = tmp_path / "runs"
     root.mkdir()
     gate = threading.Event()
-    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, gate=gate))))
+    client = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, gate=gate))), base_url="http://localhost")
     started = client.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
     early = client.get(f"/api/drafts/{started['draft']}")
     assert early.status_code == 200 and early.json()["status"] == "analyzing" and early.json()["valid"] is False
     gate.set()
     wait_for(client, started["id"])
     assert client.get(f"/api/drafts/{started['draft']}").json()["status"] == "configuring"
-    failing = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, codes={"orchestrator.phase1": 1}))))
+    failing = TestClient(create_app(root, jobs=Jobs(root, python="python", popen=FakePipeline(draft, codes={"orchestrator.phase1": 1}))), base_url="http://localhost")
     broken = failing.post("/api/drafts", json={"manual": SAMPLE.read_text(encoding="utf-8")}).json()
     wait_for(failing, broken["id"], "failed")
     assert failing.get(f"/api/drafts/{broken['draft']}").json()["status"] == "failed"

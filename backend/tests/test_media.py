@@ -99,13 +99,13 @@ def traced(runs_root):
 
 
 def test_experience_steps_carry_trace_summaries(traced):
-    body = TestClient(create_app(traced)).get("/api/runs/phase4-x/personas/p01/experience").json()
+    body = TestClient(create_app(traced), base_url="http://localhost").get("/api/runs/phase4-x/personas/p01/experience").json()
     assert [line["event_id"] for line in body["steps"][0]["trace"]] == ["t2", "t4", "t5", "t8"]
     assert "SECRET" not in json.dumps(body)
 
 
 def test_trace_evidence_is_served_as_a_summary_only(traced):
-    client = TestClient(create_app(traced))
+    client = TestClient(create_app(traced), base_url="http://localhost")
     response = client.get("/api/runs/phase4-x/evidence/p01:trace:t2")
     assert response.status_code == 200 and response.json()["data"]["text"].endswith("503")
     for ref in ["p01:trace:t1", "p01:trace:t2"]:
@@ -115,7 +115,7 @@ def test_trace_evidence_is_served_as_a_summary_only(traced):
 def test_recording_maps_every_snapshot_into_the_played_video(runs_root):
     with_session(runs_root / "phase4-x")
     recordings = FakeRecordings()
-    client = TestClient(create_app(runs_root, recordings=recordings))
+    client = TestClient(create_app(runs_root, recordings=recordings), base_url="http://localhost")
     body = client.get("/api/runs/phase4-x/personas/p01/recording").json()
     assert body["seek"] == {"before": 1, "after": 2}
     assert body["playlist_url"] == "/api/runs/phase4-x/personas/p01/recording.m3u8"
@@ -126,6 +126,6 @@ def test_recording_maps_every_snapshot_into_the_played_video(runs_root):
 
 
 def test_recording_errors(runs_root):
-    assert TestClient(create_app(runs_root, recordings=FakeRecordings())).get("/api/runs/phase4-x/personas/p01/recording").status_code == 404
+    assert TestClient(create_app(runs_root, recordings=FakeRecordings()), base_url="http://localhost").get("/api/runs/phase4-x/personas/p01/recording").status_code == 404
     with_session(runs_root / "phase4-x")
-    assert TestClient(create_app(runs_root)).get("/api/runs/phase4-x/personas/p01/recording").status_code == 503
+    assert TestClient(create_app(runs_root), base_url="http://localhost").get("/api/runs/phase4-x/personas/p01/recording").status_code == 503
