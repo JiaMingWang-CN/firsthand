@@ -1,5 +1,5 @@
 {
-  "name": "muchhuman",
+  "name": "firsthand",
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs"

@@ -28,7 +28,10 @@ const meta = computed(() => [
 <template>
   <aside class="rail" aria-label="主导航">
     <div>
-      <RouterLink to="/runs" class="mark" aria-label="muchhuman 首页">muchhuman</RouterLink>
+      <RouterLink to="/runs" class="mark" aria-label="亲历 首页">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" fill="var(--ink)"/><path d="M9 6.5V23l4.2-3.8 3 6.4 2.8-1.3-3-6.3 5.6-.4z" fill="var(--bg)"/><rect x="21" y="21" width="5" height="5" fill="var(--signal)"/></svg>
+        <span>亲历</span><small>firsthand</small>
+      </RouterLink>
       <div class="motto">让模拟的人先替你用一遍</div>
     </div>
 
@@ -72,7 +75,9 @@ const meta = computed(() => [
 .rail::after { content: ""; position: absolute; top: 0; right: 0; width: 7px; height: 100%; pointer-events: none;
   background: repeating-linear-gradient(to bottom, var(--text-3) 0 1px, transparent 1px 12px), repeating-linear-gradient(to bottom, var(--ink) 0 1px, transparent 1px 60px);
   background-size: 4px 100%, 7px 100%; background-repeat: repeat-y; background-position: right top, right top; opacity: .45; }
-.mark { font: 700 22px/1 var(--font-serif); text-decoration: none; letter-spacing: .01em; }
+.mark { display: inline-flex; align-items: center; gap: 10px; font: 700 22px/1 var(--font-serif); text-decoration: none; letter-spacing: .04em; }
+.mark svg { width: 26px; height: 26px; flex: none; }
+.mark small { font: 500 11px var(--font-mono); letter-spacing: .08em; color: var(--text-3); align-self: flex-end; margin-bottom: 1px; }
 .motto { font: 12px var(--font-mono); color: var(--text-3); margin-top: 6px; }
 nav { display: grid; gap: 2px; font-size: 14px; }
 nav a { text-decoration: none; color: var(--text-2); padding: 3px 0; }

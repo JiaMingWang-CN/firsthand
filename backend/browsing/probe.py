@@ -43,9 +43,9 @@ class LogCounter(logging.Handler):
             logging.getLogger(name).removeHandler(self)
 
     def emit(self, record):
-        if getattr(record, "muchhuman_counted", False):
+        if getattr(record, "firsthand_counted", False):
             return  # Reached through a second attached logger if propagation is ever re-enabled.
-        record.muchhuman_counted = True
+        record.firsthand_counted = True
         message = record.getMessage()
         self.dom_failures += (any(marker in message for marker in DOM_FAILURE_MARKERS)
                               or ("DOMWatchdog" in message and "timed out" in message))
@@ -145,7 +145,7 @@ async def probe_browser(config, run_dir, profile):
                 await prepare(cdp_session)
                 await browser_session.navigate_to(config["url"])
                 observed = await cdp.send.Runtime.evaluate(
-                    params={"expression": "console.info('muchhuman phase0 collector attached');"
+                    params={"expression": "console.info('firsthand phase0 collector attached');"
                                           "Intl.DateTimeFormat().resolvedOptions().timeZone", "returnByValue": True},
                     session_id=cdp_session.session_id)
                 result["observed_timezone"] = observed["result"].get("value")

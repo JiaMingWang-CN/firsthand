@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>muchhuman 流程原型</title>
+<title>亲历 流程原型</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
@@ -218,7 +218,7 @@ body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-i
 <body>
 <div class="frame">
   <aside class="rail">
-    <div><a class="mark" href="#/">muchhuman</a><div class="motto">让模拟的人先替你用一遍</div></div>
+    <div><a class="mark" href="#/">亲历</a><div class="motto">让模拟的人先替你用一遍</div></div>
     <nav><a href="#/" data-nav="runs">运行</a><a href="#/new" data-nav="new">新建运行</a></nav>
     <div><h4>流程</h4><ol class="rsteps" id="rsteps"></ol></div>
     <div class="rmeta" id="rmeta"></div>
@@ -594,7 +594,7 @@ function route() {
   const today = new Date('2026-10-07T12:00:00+08:00');
   $('dateline').textContent = `${today.toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })} · 观察记录`;
   $('folio').textContent = stepAt == null ? (name === 'person' ? '人物档案' : '工作台') : `第 ${stepAt + 1} 步，共 ${STEPS.length} 步 · ${STEPS[stepAt]}`;
-  $('margin').innerHTML = `<h4>边注</h4>${(NOTES[name] ?? []).map((n) => `<p>${n}</p>`).join('')}<p class="sig">muchhuman · 模拟数据，不代表真实用户</p>`;
+  $('margin').innerHTML = `<h4>边注</h4>${(NOTES[name] ?? []).map((n) => `<p>${n}</p>`).join('')}<p class="sig">亲历 · 模拟数据，不代表真实用户</p>`;
   scrollTo(0, 0);
 }
 document.addEventListener('click', (e) => {

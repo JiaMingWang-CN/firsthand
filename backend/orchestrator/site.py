@@ -30,7 +30,7 @@ async def read_site(url, allowed_domains, transport=None):
     """{"status": "ok"|"failed", "url", "title", "description", "text", "truncated"} or {"status": "failed", "reason"}."""
     try:
         async with httpx.AsyncClient(timeout=15, follow_redirects=False, transport=transport,
-                                     headers={"User-Agent": "muchhuman-phase1/1.0"}) as client:
+                                     headers={"User-Agent": "firsthand-phase1/1.0"}) as client:
             for _ in range(REDIRECTS + 1):
                 if urlsplit(url).hostname not in allowed_domains:
                     return {"status": "failed", "url": url, "reason": "跳转到了 allowed_domains 之外，未读取"}

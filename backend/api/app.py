@@ -59,7 +59,7 @@ class DraftEdit(BaseModel):
 
 
 def create_app(runs_root, interviewer=None, recordings=None, jobs=None):
-    app = FastAPI(title="muchhuman", docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title="亲历 firsthand", docs_url="/api/docs", openapi_url="/api/openapi.json")
     reader = Reader(runs_root, recordings)
     interviewer = interviewer or Interviewer(llm_generate(None, runs_root))
     jobs = jobs or Jobs(reader.root)

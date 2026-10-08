@@ -93,7 +93,7 @@ onBeforeUnmount(() => { clearTimeout(urlTimer); window.removeEventListener('keyd
         <aside v-if="notes.length" class="margin" aria-label="边注">
           <h4>边注</h4>
           <p v-for="n in notes" :key="n">{{ n }}</p>
-          <p class="sig">muchhuman · 模拟数据，不代表真实用户</p>
+          <p class="sig">亲历 · 模拟数据，不代表真实用户</p>
         </aside>
       </div>
     </div>

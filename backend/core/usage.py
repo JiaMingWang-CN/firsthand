@@ -9,7 +9,7 @@ import time
 from core.providers import get_adapter
 from core.runtime import write_json
 
-CURRENT_USAGE = ContextVar("muchhuman_usage", default=None)
+CURRENT_USAGE = ContextVar("firsthand_usage", default=None)
 
 
 class UsageRecorder:
