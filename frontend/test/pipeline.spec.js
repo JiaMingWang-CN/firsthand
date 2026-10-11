@@ -68,6 +68,7 @@ const CHECKED = {
 
 const mounted = []
 async function open(path) {
+  while (mounted.length) mounted.pop().unmount()
   await router.push(path)
   const w = mount(App, { global: { plugins: [router] }, attachTo: document.body })
   mounted.push(w)
