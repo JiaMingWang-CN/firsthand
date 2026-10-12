@@ -18,6 +18,10 @@
   <img alt="Vue 3" src="https://img.shields.io/badge/vue-3-42b883">
 </p>
 
+<p align="center">
+  <img src="docs/images/report.png" alt="报告总览">
+</p>
+
 ---
 
 ## 这是什么
@@ -46,6 +50,23 @@
 - **Web UI**：新建运行 → 审核 → 实时进度 → 报告；在报告里点问题即可跳到对应的录像片段与截图，并查看 Console / Network 摘要。
 - **采访**：可以对任意 Persona 单独追问，回答引用其体验证据。
 - **多模型提供商**：通用 OpenAI 兼容、DeepSeek、小米 MiMo 适配器；支持 Chat Completions 与 Responses 接口；不支持识图的纯文本模型也能跑完全程（结果标注参考性有限）。
+
+## 截图
+
+> 来自一次真实运行：对作者个人网站模拟 15 名人物、5 天。
+
+**证据下钻**。点开一条问题，再点开一条证据：可以看到该人物操作前后的截图、当时的想法，以及对准这一刻的录像片段。
+
+![证据下钻](docs/images/evidence.png)
+
+| 运行现场 | 社区 |
+|---|---|
+| ![运行现场：每个人物 5 天内的体验时段、发帖与评论](docs/images/live.png) | ![Reddit 式社区与每个人物的发言权限](docs/images/community.png) |
+| **所有人物的体验时段、发帖和评论在同一条时间线上，拖动播放头可回放任意时刻。** | **公开说出的内容，以及谁只能看帖或点赞。** |
+
+**人物**。维度矩阵的覆盖情况，以及每个人物的结果、情绪曲线、NPS 和没说出口的内容。
+
+![人物](docs/images/personas.png)
 
 ## 工作流程
 

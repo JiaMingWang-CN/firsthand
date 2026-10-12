@@ -18,6 +18,10 @@
   <img alt="Vue 3" src="https://img.shields.io/badge/vue-3-42b883">
 </p>
 
+<p align="center">
+  <img src="docs/images/report.png" alt="Report overview">
+</p>
+
 ---
 
 ## What is it
@@ -46,6 +50,23 @@ The overall pipeline is inspired by [MiroFish](https://github.com/666ghj/MiroFis
 - **Web UI.** New run → review → live progress → report. Click an issue to jump to the matching moment in the session recording and screenshot, with console / network summaries.
 - **Interviews.** Ask any persona follow-up questions; answers cite their own experience.
 - **Multiple providers.** Generic OpenAI-compatible, DeepSeek and Xiaomi MiMo adapters; Chat Completions and Responses APIs. Text-only (non-vision) models can complete the whole pipeline, with results marked as limited reliability.
+
+## Screenshots
+
+> From a real run against the author's personal website: 15 personas, 5 simulated days. The UI is in Chinese.
+
+**Evidence drill-down.** Click an issue, then a piece of evidence: the persona's before/after screenshots, what they were thinking, and the recording clip at that exact moment.
+
+![Evidence drill-down](docs/images/evidence.png)
+
+| Live timeline | Community |
+|---|---|
+| ![Live timeline: each persona's browsing slots, posts and comments over 5 days](docs/images/live.png) | ![Reddit-style community with per-persona speaking rights](docs/images/community.png) |
+| **Every persona's browsing slots, posts and comments on one timeline. Drag the playhead to replay any moment.** | **What was said publicly, and who was only allowed to read or upvote.** |
+
+**Personas.** Coverage of the dimension matrix, each persona's outcome, emotion curve, NPS and withheld content.
+
+![Personas](docs/images/personas.png)
 
 ## How it works
 
