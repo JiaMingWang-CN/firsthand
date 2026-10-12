@@ -5,6 +5,7 @@ __pycache__/
 backend/.runtime/concurrency/
 backend/config/.env
 .env
+.env.bak
 runs/
 node_modules/
 frontend/dist/
