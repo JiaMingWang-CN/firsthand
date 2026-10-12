@@ -210,6 +210,7 @@ The body may optionally describe positioning, target users, core features, key f
 firsthand/
 ├── package.json           # npm run dev: starts API and UI together
 ├── scripts/dev.mjs
+├── CHANGELOG.md           # Change log (in Chinese)
 ├── frontend/              # Web UI: Vue 3 + Vite
 ├── docs/                  # Design plan, per-phase design & acceptance notes, manual template
 └── backend/               # Python project root; run all commands here

@@ -206,6 +206,7 @@ allowed_domains:
 firsthand/
 ├── package.json           # npm run dev：同时启动接口和前端
 ├── scripts/dev.mjs
+├── CHANGELOG.md           # 更新记录
 ├── frontend/              # Web UI：Vue 3 + Vite
 ├── docs/                  # 开发方案、各阶段设计与验收记录、说明书模板
 └── backend/               # Python 项目根，所有命令在此执行
