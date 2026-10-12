@@ -13,6 +13,11 @@
 </p>
 
 <p align="center">
+  <a href="https://firsthand-demo-3wj.pages.dev"><b>▶ 在线演示</b></a><br>
+  <sub>可以完整走一遍流程：新建运行、审核、模拟、报告、采访。不管填什么，回放的都是一次真实运行（15 名人物、5 天）的数据，不调用模型和浏览器。</sub>
+</p>
+
+<p align="center">
   <img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="Python 3.12 / 3.11" src="https://img.shields.io/badge/python-3.12%20%7C%203.11-3776AB">
   <img alt="Vue 3" src="https://img.shields.io/badge/vue-3-42b883">

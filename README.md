@@ -13,6 +13,11 @@
 </p>
 
 <p align="center">
+  <a href="https://firsthand-demo-3wj.pages.dev"><b>▶ Live demo</b></a><br>
+  <sub>Click through the whole flow — new run, review, simulation, report, interviews. Whatever you enter, it replays the data of one real run (15 personas, 5 days); no model or browser is called.</sub>
+</p>
+
+<p align="center">
   <img alt="License: AGPL-3.0" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="Python 3.12 / 3.11" src="https://img.shields.io/badge/python-3.12%20%7C%203.11-3776AB">
   <img alt="Vue 3" src="https://img.shields.io/badge/vue-3-42b883">
