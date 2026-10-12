@@ -229,7 +229,8 @@ with limits.sync_slot({'max_model_concurrency': 1}):
         child.communicate(timeout=5)
 
 
-def test_browser_requests_to_bailian_carry_enable_thinking_and_the_schema():
+def test_browser_requests_to_bailian_use_json_object_with_the_schema_in_the_prompt():
+    """Bailian drops json_schema for image input, so screenshot requests get the schema in the prompt and local repair."""
     from browser_use.llm.messages import UserMessage
     from browsing.model import ProviderChatOpenAI
     from pydantic import BaseModel
@@ -240,12 +241,15 @@ def test_browser_requests_to_bailian_carry_enable_thinking_and_the_schema():
     bodies = []
     def respond(request):
         bodies.append(json.loads(request.content))
+        content = '{"answer":"ok"}' if len(bodies) == 2 else '[]'  # the first reply has the wrong shape
         return httpx.Response(200, json={"id": "c", "object": "chat.completion", "created": 0, "model": "custom",
-            "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"answer":"ok"}'}}]})
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": content}}]})
     async def run():
         async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
             browser = ProviderChatOpenAI(model="custom", api_key="test", base_url=CONFIG["base_url"], provider="bailian",
-                                        thinking_type="disabled", http_client=transport)
+                                        thinking_type="disabled", http_client=transport,
+                                        dont_force_structured_output=True, add_schema_to_system_prompt=False)
             return await browser.ainvoke([UserMessage(content="Answer")], Answer)
-    assert asyncio.run(run()).completion.answer == "ok"
-    assert bodies[0]["enable_thinking"] is False and bodies[0]["response_format"]["type"] == "json_schema"
+    assert asyncio.run(run()).completion.answer == "ok" and len(bodies) == 2
+    assert all(body["enable_thinking"] is False and body["response_format"] == {"type": "json_object"} for body in bodies)
+    assert "schema" in bodies[0]["messages"][-1]["content"] and "校验错误" in bodies[1]["messages"][-1]["content"]

@@ -12,6 +12,8 @@ class OpenAICompatibleAdapter:
     honors_forced_tool_choice = True
     # tool_choice="required" (OASIS planner); a provider may enforce a named function yet not "required".
     supports_required_tool_choice = True
+    # The provider silently downgrades json_schema to json_object when a request carries images (browsing screenshots).
+    images_downgrade_json_schema = False
     context_window = None
     warned = False
 
@@ -102,6 +104,7 @@ class BailianAdapter(OpenAICompatibleAdapter):
     name = "bailian"
     json_schema_limitation = "百炼 Responses 接口未写明结构化输出；使用 JSON Object 或提示词 JSON，需本地校验和修正重试"
     supports_required_tool_choice = False
+    images_downgrade_json_schema = True
 
     def supports_json_schema(self, api):
         return api == "chat_completions"

@@ -22,7 +22,7 @@ MiMo 通过 OpenAI SDK 的 Bearer 认证接入，支持 Chat Completions 和 Res
 阿里云百炼（`LLM_PROVIDER=bailian`）走 OpenAI 兼容模式，Bearer 认证。北京地域 `https://dashscope.aliyuncs.com/compatible-mode/v1`，新加坡 `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`；控制台也提供业务空间专属域名 `https://{WorkspaceId}.<地域>.maas.aliyuncs.com/compatible-mode/v1`，旧域名仍可用。API Key 按地域签发，不能跨地域使用。推荐 `qwen3.7-plus`（支持图片输入、工具调用和 JSON Schema），`LLM_API=chat_completions`，`LLM_THINKING_TYPE=disabled`：
 
 - 思考开关在两种接口上都以 `enable_thinking` 发送（Responses 中 `reasoning.effort` 优先级更高，本项目不发送它）。qwen3.7-plus 默认开启思考，而思考模式下结构化输出“可能失效”，所以应显式关闭；留空则不发送，采用模型默认。
-- Chat 的 `json_schema` 只对文档列出的模型生效（Qwen3.7-Plus/Flash/Max、Qwen3.8-Flash/Max 系列），其他模型、以及含图片输入的请求会被服务端静默降级为 `json_object`，不报错。因此能力探测通过不代表浏览请求得到了严格结构保证，所有结果仍经本地校验与最多 3 次修正。严格模式不支持的关键字（如 `multipleOf`、`uniqueItems`、`patternProperties`）会返回 400。
+- Chat 的 `json_schema` 只对文档列出的模型生效（Qwen3.7-Plus/Flash/Max、Qwen3.8-Flash/Max 系列），其他模型、以及含图片输入的请求会被服务端静默降级为 `json_object`，不报错。能力探测的 JSON Schema 样本是纯文本，通过不代表带截图的浏览请求受约束：Browser Use 对百炼改用 JSON Object，把 schema 写进系统提示词，并经本地校验与最多 3 次修正（适配器属性 `images_downgrade_json_schema`）。首次真实运行时浏览请求按 JSON Schema 发送、提示词里没有 schema，模型连续 3 次输出错误结构而中止，由此修正。纯文本的结构化请求（人物生成、报告等）仍用 JSON Schema。严格模式不支持的关键字（如 `multipleOf`、`uniqueItems`、`patternProperties`）会返回 400。
 - Responses 接口的文档未写明结构化输出，适配器在 Responses 上改用 JSON Object（是否可用由探测决定，不可用时退回提示词 JSON）。
 - Qwen 能强制调用指定函数，但不支持 `tool_choice="required"`；OASIS 规划器因此不发送 `required`，无效回复走修正重试，与 MiMo 相同。能力探测中的“指定工具”仍视为可强制。
 - 用量沿用 OpenAI 字段，缓存命中读取 `prompt_tokens_details.cached_tokens` / `input_tokens_details.cached_tokens`。

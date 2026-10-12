@@ -13,6 +13,11 @@ from core.providers import get_adapter
 from core.usage import measured_request
 
 
+def browser_schema_enforced(adapter):
+    """Browser Use requests carry screenshots: a schema the provider drops for image input is not enforced."""
+    return adapter.supports_json_schema("chat_completions") and not adapter.images_downgrade_json_schema
+
+
 def has_image(messages):
     return any(isinstance(message.get("content"), list) and any(part.get("type") == "image_url" for part in message["content"])
                for message in messages)
@@ -34,7 +39,7 @@ class ProviderChatOpenAI(ChatOpenAI):
         adapter = get_adapter(self.provider_config())
         # The adapter owns thinking, including the empty setting (provider default).
         self.reasoning_models = []
-        if not adapter.supports_json_schema("chat_completions"):
+        if not browser_schema_enforced(adapter):
             self.dont_force_structured_output = False
             self.add_schema_to_system_prompt = True
 
@@ -43,7 +48,7 @@ class ProviderChatOpenAI(ChatOpenAI):
                 "max_model_concurrency": self.max_model_concurrency, "max_browser_concurrency": self.max_browser_concurrency}
 
     async def ainvoke(self, messages, output_format=None, **kwargs):
-        if output_format is None or get_adapter(self.provider_config()).supports_json_schema("chat_completions"):
+        if output_format is None or browser_schema_enforced(get_adapter(self.provider_config())):
             return await super().ainvoke(messages, output_format, **kwargs)
         # Upstream validates with Pydantic; invalid JSON Object output gets explicit repair feedback.
         messages = list(messages) + [UserMessage(content="只返回满足 schema 的完整 JSON，不要 Markdown。schema："
@@ -68,7 +73,8 @@ class ProviderChatOpenAI(ChatOpenAI):
             kwargs.update(self.sampling)
             schema = kwargs.get("response_format", {}).get("json_schema")
             if schema:
-                kwargs.update(adapter.output_options("chat_completions", schema))
+                downgraded = adapter.images_downgrade_json_schema
+                kwargs.update(adapter.output_options("chat_completions", None if downgraded else schema, json_object=downgraded))
             async with async_slot(config):
                 self.requests_sent += 1
                 self.requests_with_images += has_image(kwargs.get("messages", []))
