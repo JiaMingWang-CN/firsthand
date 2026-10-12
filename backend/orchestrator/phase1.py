@@ -16,6 +16,7 @@ from orchestrator.manual import material, read_manual
 from orchestrator.personas import (distribution_issues, generate_draft, minimum_count, period, recommend, schedule_rows,
                                    summarize_product, validate_draft, validation_message, with_site)
 from orchestrator.site import read_site
+from browsing.scout import run_scout, scout_rows, scout_status, skip as skip_scout
 from probe.model import probe_model
 
 
@@ -47,7 +48,7 @@ def save_review(run_dir, draft, manual):
                "sections": manual["sections"]})
     lines = [f"# {manual['metadata'].name}：阶段 1 人工审核", "",
              "此文件是展示副本；修改 draft.json 后，在 CLI 中 reload。审批状态以与当前草稿匹配的 approval.json 为准。",
-             "Scout 尚未执行；本文件不包含真实产品体验结论。", "",
+             *scout_rows(run_dir), "",
              f"资料充分程度：{about['summary']}", *[f"- 缺少 {gap['item']}：{gap['effect']}" for gap in about["gaps"]], "",
              *([TEXT_ONLY_NOTE, ""] if not sees_images(json.loads((run_dir / "capability_profile.json").read_text(encoding="utf-8"))) else []),
              "## 产品模型", "", json.dumps(draft.product.model_dump(), ensure_ascii=False, indent=2), "",
@@ -181,7 +182,7 @@ def review(run_dir, input_fn=input):
             print("未知命令。")
 
 
-async def analyze(manual_path, run_dir, capability_run=None):
+async def analyze(manual_path, run_dir, capability_run=None, scout=True):
     """Manual → capability profile, start-page excerpt, product model and the main agent's cohort recommendation.
 
     Nothing about people is generated yet: the user confirms or changes the recommended size and length first."""
@@ -207,10 +208,10 @@ async def analyze(manual_path, run_dir, capability_run=None):
                 raise ValueError("模型能力未通过；中止生成人设")
             if not sees_images(capability):
                 # Nothing more is paid for until the user accepts the limited reference value (resume).
-                result = {"stage": "text_only", "passed": True, "review_status": "pending"}
+                result = {"stage": "text_only", "passed": True, "review_status": "pending", "scout": scout}
                 write_json(run_dir / "phase1_result.json", result)
                 return result
-        return await analyze_product(run_dir, manual, config, capability)
+        return await analyze_product(run_dir, manual, config, capability, scout)
     except Exception as error:
         write_json(run_dir / "phase1_result.json", {"passed": False, "review_status": "pending", "error": error_summary(error, run_dir)})
         raise
@@ -219,20 +220,21 @@ async def analyze(manual_path, run_dir, capability_run=None):
 async def resume(run_dir):
     """Continue an analysis paused because the model cannot read images, once the user has accepted that."""
     run_dir = Path(run_dir)
-    if json.loads((run_dir / "phase1_result.json").read_text(encoding="utf-8")).get("stage") != "text_only":
+    paused = json.loads((run_dir / "phase1_result.json").read_text(encoding="utf-8"))
+    if paused.get("stage") != "text_only":
         raise ValueError("只有等待确认纯文本模型的运行可以继续分析")
     manual = read_manual(run_dir / "manual.md")
     config = settings()
     require(config, "base_url", "api_key", "model")
     try:
-        return await analyze_product(run_dir, manual, config, require_capabilities(run_dir, config))
+        return await analyze_product(run_dir, manual, config, require_capabilities(run_dir, config), paused.get("scout", True))
     except Exception as error:
         write_json(run_dir / "phase1_result.json", {"passed": False, "review_status": "pending", "error": error_summary(error, run_dir)})
         raise
 
 
-async def analyze_product(run_dir, manual, config, capability):
-    """Start-page excerpt, product model and the main agent's cohort recommendation."""
+async def analyze_product(run_dir, manual, config, capability, scout=True):
+    """Start-page excerpt, product model, then Scout alongside the main agent's cohort recommendation."""
     if not sees_images(capability):
         print(TEXT_ONLY_NOTE, flush=True)
     site = await read_site(manual["metadata"].url, manual["metadata"].allowed_domains)
@@ -243,7 +245,17 @@ async def analyze_product(run_dir, manual, config, capability):
     async with AsyncOpenAI(base_url=config["base_url"], api_key=config["api_key"], timeout=120, max_retries=0) as client:
         product = await summarize_product(client, config, capability, source)
         write_json(run_dir / "product.json", product.model_dump(mode="json"))
-        suggestion = await recommend(client, config, capability, source, product, about)
+        # Scout records its own failures; a failed recommendation cancels Scout and releases its browser.
+        try:
+            async with asyncio.TaskGroup() as group:
+                recommendation = group.create_task(recommend(client, config, capability, source, product, about))
+                if scout:
+                    group.create_task(run_scout(config, capability, manual, product, run_dir))
+        except ExceptionGroup as failure:
+            raise failure.exceptions[0]
+        suggestion = recommendation.result()
+    if not scout:
+        skip_scout(run_dir, manual, product, "按要求跳过侦察")
     result = {"stage": "analyzed", "passed": True, "review_status": "pending", "material": about,
               "recommendation": suggestion.model_dump(), "minimum_personas": minimum_count(len(manual["flows"]))}
     write_json(run_dir / "recommendation.json", result["recommendation"])
@@ -274,7 +286,7 @@ async def generate(run_dir, persona_count=None, duration_days=None):
         write_json(run_dir / "draft.json", draft.model_dump(mode="json"))
         save_review(run_dir, draft, manual)
         write_json(run_dir / "phase1_result.json", {**analyzed, "stage": "drafted", "persona_count": count, "duration_days": days,
-                   "distribution_issues": [], "scout_status": "pending"})
+                   "distribution_issues": [], "scout_status": scout_status(run_dir)})
         return draft
     except Exception as error:
         # The analysis stays usable: the user may retry, with the same or other numbers.
@@ -282,9 +294,9 @@ async def generate(run_dir, persona_count=None, duration_days=None):
         raise
 
 
-async def prepare(manual_path, run_dir, capability_run=None, persona_count=None, duration_days=None):
+async def prepare(manual_path, run_dir, capability_run=None, persona_count=None, duration_days=None, scout=True):
     """analyze + generate in one go, for the command line; stops where analyze waits for a text-only confirmation."""
-    if (await analyze(manual_path, run_dir, capability_run))["stage"] == "text_only":
+    if (await analyze(manual_path, run_dir, capability_run, scout))["stage"] == "text_only":
         return None
     return await generate(run_dir, persona_count, duration_days)
 
@@ -299,6 +311,7 @@ def main():
         command.add_argument("manual", type=Path)
         command.add_argument("--run-dir", type=Path)
         command.add_argument("--capability-run", type=Path, help="显式复用同模型、同思考模式的能力探测结果")
+        command.add_argument("--no-scout", action="store_true", help="跳过 Scout 侦察（不核对说明书与实际网站）")
     commands.add_parser("resume", help="接受纯文本模型参考性有限后继续分析").add_argument("run_dir", type=Path)
     build = commands.add_parser("generate")
     build.add_argument("run_dir", type=Path)
@@ -324,9 +337,9 @@ def main():
         else:
             run_dir = (args.run_dir or ROOT / "runs" / datetime.now(timezone.utc).strftime("phase1-%Y%m%dT%H%M%S%fZ")).resolve()
             if args.command == "analyze":
-                done = asyncio.run(analyze(args.manual, run_dir, args.capability_run))["stage"] == "analyzed"
+                done = asyncio.run(analyze(args.manual, run_dir, args.capability_run, not args.no_scout))["stage"] == "analyzed"
             else:
-                done = asyncio.run(prepare(args.manual, run_dir, args.capability_run, args.personas, args.days)) is not None
+                done = asyncio.run(prepare(args.manual, run_dir, args.capability_run, args.personas, args.days, not args.no_scout)) is not None
             if not done:
                 print(f"{TEXT_ONLY_NOTE}。接受后继续分析：python -m orchestrator.phase1 resume {run_dir}")
             elif args.command == "analyze":

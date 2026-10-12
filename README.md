@@ -245,7 +245,7 @@ Tests never call a real model or browser; no keys are needed.
 
 - v1 uses a single model; mixing models and accessibility personas (e.g. screen-reader users) are out of scope for now.
 - Only the browser-side time zone is simulated; the site's server clock is not changed.
-- The Scout pass (one browsing session that checks the manual against the real site) is not implemented yet.
+- Scout (one browsing session that checks the manual against the real site before personas are generated) checks as a visitor only; parts that need a login are marked unverified.
 - The UI and docs are currently in Chinese.
 
 See the risks section of [`docs/plan.md`](docs/plan.md) and the "known limitations" in each phase document for more.

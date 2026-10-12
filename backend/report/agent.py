@@ -116,7 +116,7 @@ def overview(store, notes):
     sources = Counter(memory.outcome_source for memory in store.memories.values())
     degraded = sum(step.page_structure_degraded for memory in store.memories.values() for step in memory.steps)
     coverage = ["服务端时间无法模拟：只设置了浏览器端的时区和语言区域，与时间相关的服务端内容以真实时间为准。",
-                "Scout 侦察未执行：说明书与实际产品的不一致之处没有被系统核对。",
+                scout_section(store)["note"],
                 f"样本为 {len(store.people)} 个合成 Persona 在一次运行中的行为，不是真实用户统计。",
                 "任务成功/失败主要来自 Agent 自述（" + "、".join(f"{key} {count}" for key, count in sorted(sources.items()))
                 + "），不是独立判定。",
@@ -245,6 +245,29 @@ def time_slots(store):
     return rows
 
 
+def scout_section(store):
+    scout = store.scout
+    if scout is None:
+        return {"executed": False, "status": "pending", "discrepancies": [], "unverified": [],
+                "note": "Scout 未执行，无法列出说明书与实际产品的不一致。"}
+    if scout["status"] == "skipped":
+        return {"executed": False, "status": "skipped", "discrepancies": [], "unverified": [],
+                "note": f"Scout 未执行（{scout['reason']}），无法列出说明书与实际产品的不一致。"}
+    counts = Counter(row["verdict"] for row in scout["checks"])
+    note = (f"Scout 核对了 {len(scout['checks'])} 条说法：一致 {counts['consistent']}，不一致 {counts['inconsistent']}，"
+            f"未核对 {counts['unverified']}。只以访客身份核对，需要登录的部分未核对；“主 Agent 归纳”的说法不是说明书原文。")
+    if scout["status"] != "completed":
+        note = f"Scout 侦察失败（{scout['reason']}），所有说法均未核对。"
+    rows = [{"id": row["claim_id"], "area": row["area"], "source": row["source"], "manual": row["says"], "actual": row["observed"],
+             "quote": row["observed_quote"], "refs": [f"scout:{row['claim_id']}", *(f"scout:snapshot:{eid}" for eid in row["evidence_ids"])],
+             "screenshots": [store.records[f"scout:snapshot:{eid}"]["screenshot"] for eid in row["evidence_ids"]]}
+            for row in scout["checks"] if row["verdict"] == "inconsistent"]
+    unverified = [{"id": row["claim_id"], "area": row["area"], "reason": row["observed"], "refs": [f"scout:{row['claim_id']}"]}
+                  for row in scout["checks"] if row["verdict"] == "unverified"]
+    return {"executed": scout["status"] == "completed", "status": scout["status"], "discrepancies": rows, "unverified": unverified,
+            "note": note}
+
+
 def build_report(store, claims, notes=()):
     sections, rejected = {}, []
     for section in SECTION_KIND:
@@ -255,7 +278,7 @@ def build_report(store, claims, notes=()):
     return {"overview": overview(store, list(notes)), "sections": sections, "silence_signals": silence_signals(store),
             "public_voice": public_voice(store), "consistency": consistency(store), "survey_flags": store.survey_flags,
             "opinion_dynamics": opinion_dynamics(store), "time_slots": time_slots(store),
-            "scout": {"executed": False, "discrepancies": [], "note": "Scout 未执行，无法列出说明书与实际产品的不一致。"},
+            "scout": scout_section(store),
             "rejected_claims": rejected, "evidence_inventory": store.inventory()}
 
 
@@ -269,7 +292,8 @@ def verify_report(report, store):
     for name, rows in [("silence_signals", report["silence_signals"]), ("consistency", report["consistency"]),
                        ("time_slots", report["time_slots"]), ("opinion_changes", report["opinion_dynamics"]["opinion_changes"]),
                        ("read_counts", report["opinion_dynamics"]["by_persona"].values()),
-                       ("post_reach", report["opinion_dynamics"]["post_reach"])]:
+                       ("post_reach", report["opinion_dynamics"]["post_reach"]),
+                       ("scout", report["scout"]["discrepancies"] + report["scout"]["unverified"])]:
         for item in rows:
             if not item["refs"] and (name != "time_slots" or item["personas"]):
                 errors.append(f"{name}: 条目缺少证据引用")

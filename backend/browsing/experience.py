@@ -172,18 +172,20 @@ async def assess_memory(client, config, capability, persona, memory, run_dir):
         return assessment
 
 
-async def run_experience(config, capability, manual, persona, run_dir, expectations=None):
+async def run_experience(config, capability, manual, persona, run_dir, expectations=None, prompt=None, conclude=None):
+    """prompt and conclude replace the persona's task and private assessment (Scout uses both); conclude's return
+    value becomes memory.assessment."""
     if Path(run_dir).exists():
         raise ValueError("Use a fresh experience directory to preserve evidence")
     with UsageRecorder(config, run_dir):
-        return await _run_experience(config, capability, manual, persona, run_dir, expectations)
+        return await _run_experience(config, capability, manual, persona, run_dir, expectations, prompt, conclude)
 
 
-async def _run_experience(config, capability, manual, persona, run_dir, expectations=None):
+async def _run_experience(config, capability, manual, persona, run_dir, expectations=None, prompt=None, conclude=None):
     """Caller handles approval; this executor also serves the explicit development fixture."""
     require(config, "steel_api_key", "base_url", "api_key", "model")
     expectations = expectations or []
-    prompt = task_prompt(persona, manual, expectations)
+    prompt = prompt or task_prompt(persona, manual, expectations)
     sensitive_data, credentials = account_secrets(persona, manual)
     run_dir = Path(run_dir)
     run_dir.mkdir(parents=True)
@@ -290,7 +292,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
             log_counter.detach()
         if not cancelled and memory.steps and not memory.infrastructure_errors and not log_counter.dom_failures:
             try:
-                memory.assessment = await assess_memory(client, config, capability, persona, memory, run_dir)
+                memory.assessment = await (conclude or assess_memory)(client, config, capability, persona, memory, run_dir)
                 memory = ExperienceMemory.model_validate(memory.model_dump())
                 result["passed"] = result.get("released", False) and (not sees_images(capability) or result.get(
                     "model_requests_with_screenshots", 0) >= sum(bool(step.actions) for step in memory.steps))

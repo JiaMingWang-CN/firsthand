@@ -8,6 +8,7 @@ import { api } from '../api/client.js'
 import { label, TEXT_ONLY_NOTE } from '../lib/sim.js'
 import { askConfirm, toast } from '../lib/store.js'
 import FlowSteps from '../components/FlowSteps.vue'
+import ScoutPanel from '../components/ScoutPanel.vue'
 import { AlertTriangle, Check, RefreshCw, Play, Info, Loader, Users } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -265,6 +266,8 @@ onBeforeUnmount(() => clearTimeout(timer))
         </div>
       </div>
 
+      <ScoutPanel v-if="d.status === 'configuring' || d.valid" :scout="d.scout" />
+
       <!-- 确认人数与天数 -->
       <section v-if="d.status === 'configuring'" class="grid g2 top">
         <section class="panel">
@@ -310,7 +313,7 @@ onBeforeUnmount(() => clearTimeout(timer))
         <div class="panel-head"><h3>{{ { analyzing: '正在分析资料', generating: '正在生成人物草稿' }[d.status] ?? '没有完成' }}</h3>
           <RouterLink v-if="job" class="aside btn btn-ghost sm" :to="{ name: 'job', params: { jobId: job.id } }">任务详情</RouterLink>
         </div>
-        <p v-if="d.status === 'analyzing'" class="row faint"><Loader class="spin" />{{ !job?.progress?.capability ? '正在准备能力文件' : !job?.progress?.site ? '正在读取首页' : !job?.progress?.product ? '正在生成产品模型' : '正在推荐人数与天数' }}（每 3 秒刷新）</p>
+        <p v-if="d.status === 'analyzing'" class="row faint"><Loader class="spin" />{{ !job?.progress?.capability ? '正在准备能力文件' : !job?.progress?.site ? '正在读取首页' : !job?.progress?.product ? '正在生成产品模型' : !job?.progress?.scout ? '正在推荐人数与天数，并侦察网站（核对说明书，最长约 15 分钟）' : '正在推荐人数与天数' }}（每 3 秒刷新）</p>
         <p v-else-if="d.status === 'generating'" class="row faint"><Loader class="spin" />{{ job?.progress?.draft ? '草稿已写出，正在整理审核清单' : '正在规划人群分布并逐个补全人物（人多时需要较长时间）' }}（每 3 秒刷新）</p>
         <div v-else class="warn"><AlertTriangle /><div>{{ d.error ? `错误类型：${d.error.type}${d.error.status_code ? `（HTTP ${d.error.status_code}）` : ''}。` : '' }}运行目录里有 errors.log 记录详细原因；可以修正后新建一次运行。</div></div>
         <pre v-if="job?.log?.length" class="log">{{ job.log.join('\n') }}</pre>

@@ -4,9 +4,11 @@ The review rules are the CLI's (orchestrator.phase1.approve / reject / require_a
 the draft version it displayed, and a changed cohort distribution needs an explicit override.
 """
 
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 from api.jobs import Jobs, read_json, stamp
 from api.runs import NotFound, RUN_ID, matching_capabilities, sibling
@@ -135,7 +137,7 @@ def review(root, draft_id, jobs):
     analysis = {"material": result.get("material"), "recommendation": result.get("recommendation"),
                 "minimum_personas": result.get("minimum_personas"), "generation_error": result.get("generation_error"),
                 "site": None if site is None else {key: site.get(key) for key in ("status", "url", "title", "reason", "note")},
-                "limits": {"personas": [MIN_PERSONAS, MAX_PERSONAS], "days": [1, MAX_DAYS]}}
+                "limits": {"personas": [MIN_PERSONAS, MAX_PERSONAS], "days": [1, MAX_DAYS]}, "scout": scout_view(path)}
     if head["status"] in {"analyzing", "generating", "configuring"} and (path / "product.json").is_file():
         # As on a drafted review, "product" is the product model; the product's name is under "manual".
         analysis.update(product=read_json(path / "product.json"), manual={"name": head["product"]})
@@ -165,6 +167,28 @@ def review(root, draft_id, jobs):
                          else "sampling", {}).get("supported")), "configured_api": bool(checks.get("sampling", {}).get("supported")),
                          "thinking": capability.get("thinking_type")},
             "simulations": simulations_of(root, draft_id)}
+
+
+def scout_view(path):
+    """Scout's verdicts for the reviewer, each cited page as a screenshot URL; None before analysis writes it."""
+    scout = read_json(path / "scout.json")
+    if scout is None:
+        return None
+    url = f"/api/drafts/{quote(path.name)}/scout/"
+    return {"status": scout["status"], "reason": scout.get("reason"), "counts": scout.get("counts"),
+            "checks": [{**{key: row[key] for key in ("claim_id", "source", "area", "says", "verdict", "observed", "observed_quote")},
+                        "screenshots": [url + f"{eid}.png" for eid in row["evidence_ids"]]} for row in scout.get("checks", [])]}
+
+
+SCOUT_SHOT = re.compile(r"^[A-Za-z0-9._-]+\.png$")
+
+
+def scout_screenshot(root, draft_id, name):
+    path = draft_path(root, draft_id) / "scout" / "screenshots"
+    target = (path / name).resolve()
+    if not SCOUT_SHOT.fullmatch(name) or not target.is_relative_to(path.resolve()) or not target.is_file():
+        raise NotFound("No such file")
+    return target
 
 
 def decide(root, draft_id, decision, draft_sha256, accept_overrides=False):

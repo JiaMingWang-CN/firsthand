@@ -41,6 +41,12 @@ def snapshot_source(source, root):
     snapshot.mkdir()
     for name in ("manual.md", "draft.json", "capability_profile.json", "approval.json"):
         shutil.copyfile(Path(source) / name, snapshot / name)
+    # Scout is not part of the approval hash; the report reads the version the reviewer saw.
+    for name in ("scout.json", "scout_plan.json", "scout_rejections.json"):
+        if (Path(source) / name).is_file():
+            shutil.copyfile(Path(source) / name, snapshot / name)
+    if (Path(source) / "scout").is_dir():
+        shutil.copytree(Path(source) / "scout", snapshot / "scout")
     draft, manual = require_approved(snapshot)
     save_review(snapshot, draft, manual)
     return snapshot, draft

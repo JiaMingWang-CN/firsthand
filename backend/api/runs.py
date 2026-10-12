@@ -9,7 +9,7 @@ from core.runtime import require_capabilities, sees_images
 
 RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 # Only screenshots leave the server as files; traces, sessions and databases hold private connection data.
-SERVED_FILE = re.compile(r"^p\d{2}/screenshots/[A-Za-z0-9._-]+\.png$")
+SERVED_FILE = re.compile(r"^(?:p\d{2}|approved_source/scout)/screenshots/[A-Za-z0-9._-]+\.png$")
 
 
 class NotFound(LookupError):

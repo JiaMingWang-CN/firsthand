@@ -36,6 +36,10 @@ def claim_block(index, item, source, out):
     return lines + [evidence_line(e, source, out) for e in item["evidence"]]
 
 
+def cell(text):
+    return str(text).replace("|", "\\|").replace("\n", " ")
+
+
 def render(report, source, out, product="产品", *, evidence_index):
     def refs(identifiers):
         # Unknown refs are already errors in verify_report; show them plainly instead of crashing.
@@ -79,6 +83,12 @@ def render(report, source, out, product="产品", *, evidence_index):
               "| 时段 | Persona | 结果 | 平均满意 | 平均困惑 | 证据 |", "|---|---|---|---|---|---|"]
     lines += [f"| {t['period']} | {'、'.join(t['personas']) or '—'} | {t['outcomes']} | {t['mean_satisfaction']} | {t['mean_confusion']} | {refs(t['refs'])} |" for t in report["time_slots"]]
     lines += ["", "## 7. 说明书与实际产品的不一致（Scout）", "", report["scout"]["note"]]
+    if report["scout"]["discrepancies"]:
+        lines += ["", "| 位置 | 来源 | 使用说明写的 | 侦察看到的 | 页面原文 | 证据 |", "|---|---|---|---|---|---|"]
+        lines += [f"| {cell(s['area'])} | {s['source']} | {cell(s['manual'])} | {cell(s['actual'])} | {cell(s['quote'])} | {' · '.join([refs(s['refs']), *(link(source, out, shot, '截图') for shot in s['screenshots'])])} |"
+                  for s in report["scout"]["discrepancies"]]
+    if report["scout"]["unverified"]:
+        lines += ["", "**未核对**", ""] + [f"- {cell(s['area'])}：{cell(s['reason'])}" for s in report["scout"]["unverified"]]
     if report["rejected_claims"]:
         lines += ["", "## 附：被证据门禁退回的结论", ""]
         lines += [f"- [{r['section']}] {r['title']}：{r['reason']}" for r in report["rejected_claims"]]

@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { findings, posts, withheld, surveys, inconsistencies, scout, run, personas, steps, reads } from '../lib/data.js'
-import { TEXT_ONLY_NOTE, P, clockOf, flowStats, npsOf, issueCount, findingById, priorityScore } from '../lib/sim.js'
+import { TEXT_ONLY_NOTE, P, clockOf, flowStats, npsOf, issueCount, priorityScore } from '../lib/sim.js'
 import { drawers, openDrawer } from '../lib/store.js'
 import { Info, AlertTriangle } from 'lucide-vue-next'
 import FindingCard from '../components/FindingCard.vue'
@@ -15,6 +15,7 @@ import EmotionCurve from '../components/EmotionCurve.vue'
 import StatusDot from '../components/StatusDot.vue'
 
 const report = computed(() => run.report)
+const fileUrl = (path) => `/api/runs/${encodeURIComponent(run.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`
 const issues = computed(() => findings.filter((f) => f.kind === 'issue').sort((a, b) => priorityScore(b) - priorityScore(a)))
 const highlights = computed(() => findings.filter((f) => f.kind === 'highlight'))
 const sevFilter = ref('all')
@@ -312,17 +313,19 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
           <div class="panel flush" v-if="scout.length">
             <div class="table-wrap">
               <table class="data">
-                <thead><tr><th>位置</th><th>使用说明写的</th><th>侦察看到的</th><th>关联发现</th></tr></thead>
+                <thead><tr><th>位置</th><th>来源</th><th>使用说明写的</th><th>侦察看到的</th><th>截图</th></tr></thead>
                 <tbody>
-                  <tr v-for="(s, i) in scout" :key="s.id ?? i" @click="s.linked && findingById[s.linked] && openDrawer({ type: 'finding', id: s.linked })">
-                    <td><b>{{ s.area ?? s.id }}</b></td><td class="wrap muted">{{ s.manual }}</td><td class="wrap">{{ s.actual }}</td>
-                    <td><span v-if="s.linked && findingById[s.linked]" class="row"><SevTag :sev="findingById[s.linked].sev" /><span class="num faint">{{ s.linked }}</span></span><span v-else class="faint">—</span></td>
+                  <tr v-for="(s, i) in scout" :key="s.id ?? i">
+                    <td><b>{{ s.area ?? s.id }}</b></td><td class="faint">{{ s.source ?? '说明书' }}</td><td class="wrap muted">{{ s.manual }}</td>
+                    <td class="wrap">{{ s.actual }}<span v-if="s.quote" class="faint">（页面原文：“{{ s.quote }}”）</span></td>
+                    <td><a v-for="(path, j) in s.screenshots ?? []" :key="path" :href="fileUrl(path)" target="_blank" rel="noopener">截图 {{ j + 1 }} </a><span v-if="!s.screenshots?.length" class="faint">—</span></td>
                   </tr>
                 </tbody>
               </table>
             </div>
           </div>
-          <div v-else class="note"><Info /><div>{{ report?.scout?.note ?? 'Scout 未执行，没有说明书与实际产品不一致的记录。' }}</div></div>
+          <div class="note"><Info /><div>{{ report?.scout?.note ?? 'Scout 未执行，没有说明书与实际产品不一致的记录。' }}
+            <template v-if="report?.scout?.unverified?.length"> 未核对：{{ report.scout.unverified.map((u) => `${u.area}（${u.reason}）`).join('；') }}。</template></div></div>
         </section>
       </div>
 

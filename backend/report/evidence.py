@@ -7,6 +7,7 @@ from contextlib import closing
 
 from core.community import Disclosure, ExitAnswer, public_projection, validate_disclosure, validate_exit
 from core.experience import ExperienceMemory, load_experience
+from browsing.scout import Check, gate
 
 
 CATEGORIES = ("experience", "withheld", "discussion", "reads", "surveys", "media", "coverage")
@@ -140,6 +141,30 @@ class EvidenceStore:
         self.recoveries = [path.name for path in self.root.glob("*_survey_recovery") if path.is_dir()]
         self.missing_experiences = sorted(set(self.people) - set(self.memories))
         self.missing_surveys = sorted(set(self.people) - set(self.surveys))
+        self.scout = self.load_scout()
+
+    def load_scout(self):
+        """Scout verdicts from the approved snapshot, re-checked against their pages; category "scout" is outside the
+        Report Agent's tools, so the inspector can never become an affected persona."""
+        scout = read_json(self.root / "approved_source" / "scout.json")
+        if not scout or scout.get("status") in {None, "pending"}:
+            return None
+        snapshots = {}
+        if scout.get("evidence_dir"):
+            memory = load_experience(self.root / "approved_source" / scout["evidence_dir"])
+            snapshots = {snapshot.evidence_id: snapshot for snapshot in memory.snapshots}
+        checks = [Check.model_validate({key: row[key] for key in Check.model_fields}) for row in scout["checks"]]
+        _, rejected = gate(checks, scout["checks"], snapshots)
+        if rejected:
+            raise ValueError("Scout verdict does not match its evidence: " + rejected[0]["reason"])
+        for row in scout["checks"]:
+            self.add(f"scout:{row['claim_id']}", "scout", "approved_source/scout.json", row)
+            for eid in row["evidence_ids"]:
+                screenshot = f"approved_source/{scout['evidence_dir']}/{snapshots[eid].screenshot}"
+                self.local_file(screenshot)
+                self.add(f"scout:snapshot:{eid}", "scout", f"approved_source/{scout['evidence_dir']}/experience.json",
+                         snapshots[eid].model_dump(), evidence_id=eid, screenshot=screenshot)
+        return scout
 
     def local_file(self, relative):
         path = (self.root / relative).resolve()

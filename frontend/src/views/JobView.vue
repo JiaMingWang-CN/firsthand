@@ -131,6 +131,7 @@ const flow = computed(() => {
               <li :class="{ ok: p.capability }"><Check v-if="p.capability" /><Circle v-else />能力文件</li>
               <li :class="{ ok: p.site }"><Check v-if="p.site" /><Circle v-else />首页摘录</li>
               <li :class="{ ok: p.product }"><Check v-if="p.product" /><Circle v-else />产品模型与人数、天数推荐</li>
+              <li :class="{ ok: p.scout }"><Check v-if="p.scout" /><Circle v-else />侦察（核对说明书与网站）</li>
             </template>
             <li v-else :class="{ ok: p.draft }"><Check v-if="p.draft" /><Circle v-else />人物草稿</li>
           </ul>

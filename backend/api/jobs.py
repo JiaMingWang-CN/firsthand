@@ -249,6 +249,7 @@ class Jobs:
             result = read_json(run / "phase1_result.json")
             return {"capability": (run / "capability_profile.json").is_file(), "site": (run / "site.json").is_file(),
                     "product": (run / "product.json").is_file(), "draft": (run / "draft.json").is_file(),
+                    "scout": (read_json(run / "scout.json") or {}).get("status", "pending") != "pending",
                     "passed": None if result is None else result.get("passed")}
         run = self.root / job["simulation"]
         timeline = read_json(run / "timeline.json", {}) or {}
