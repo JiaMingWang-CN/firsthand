@@ -134,7 +134,7 @@ def test_invalid_planner_calls_never_execute_and_fall_back_to_no_action(tmp_path
     assert [item.get("attempt") for item in entries[:3]] == [1, 2, 3] and entries[3]["fallback"] == "do_nothing"
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "mimo"])
+@pytest.mark.parametrize("provider", ["deepseek", "mimo", "bailian"])
 def test_forced_tool_choice_is_sent_only_to_providers_that_enforce_it(tmp_path, monkeypatch, provider):
     monkeypatch.chdir(tmp_path)
     from datetime import datetime, timezone
@@ -158,6 +158,8 @@ def test_forced_tool_choice_is_sent_only_to_providers_that_enforce_it(tmp_path, 
     options = asyncio.run(run())
     assert options.get("tool_choice") == ("required" if provider == "deepseek" else None)
     assert options["parallel_tool_calls"] is False
+    if provider == "bailian":  # thinking reaches CAMEL's requests as the vendor's own switch
+        assert options["extra_body"] == {"enable_thinking": False}
 
 
 def test_one_failed_questionnaire_does_not_cancel_the_others(tmp_path, monkeypatch):

@@ -10,6 +10,8 @@ class OpenAICompatibleAdapter:
     name = "openai_compatible"
     json_schema_limitation = None
     honors_forced_tool_choice = True
+    # tool_choice="required" (OASIS planner); a provider may enforce a named function yet not "required".
+    supports_required_tool_choice = True
     context_window = None
     warned = False
 
@@ -78,6 +80,7 @@ class MiMoAdapter(ThinkingTypeChatAdapter):
     json_schema_limitation = "MiMo 未提供严格 JSON Schema 输出保证；使用 JSON Object，需提示词约束、本地校验和修正重试"
     # MiMo documents that non-auto tool_choice values are ignored.
     honors_forced_tool_choice = False
+    supports_required_tool_choice = False
     context_window = {"minimum_tokens": 256_000, "maximum_tokens": 1_000_000, "source": "用户确认的 MiMo 模型上下文范围（2026-10-03）"}
 
     def supports_json_schema(self, api):
@@ -89,7 +92,31 @@ class MiMoAdapter(ThinkingTypeChatAdapter):
         return super().output_options(api, json_object=bool(json_schema or json_object))
 
 
-ADAPTERS = {adapter.name: adapter() for adapter in (OpenAICompatibleAdapter, DeepSeekAdapter, MiMoAdapter)}
+class BailianAdapter(OpenAICompatibleAdapter):
+    """Alibaba Cloud Model Studio (百炼), OpenAI-compatible mode.
+
+    Thinking is the vendor's enable_thinking on both APIs. Chat json_schema holds only on the models the vendor lists
+    and is silently downgraded to json_object elsewhere (and with image input), so local validation still applies.
+    Qwen enforces a named tool_choice but not "required".
+    """
+    name = "bailian"
+    json_schema_limitation = "百炼 Responses 接口未写明结构化输出；使用 JSON Object 或提示词 JSON，需本地校验和修正重试"
+    supports_required_tool_choice = False
+
+    def supports_json_schema(self, api):
+        return api == "chat_completions"
+
+    def thinking_options(self, api, mode):
+        return {"extra_body": {"enable_thinking": mode == "enabled"}} if mode else {}
+
+    def output_options(self, api, json_schema=None, json_object=False):
+        if api == "responses" and json_schema:
+            self.warn_json_object()
+            return super().output_options(api, json_object=True)
+        return super().output_options(api, json_schema, json_object)
+
+
+ADAPTERS = {adapter.name: adapter() for adapter in (OpenAICompatibleAdapter, DeepSeekAdapter, MiMoAdapter, BailianAdapter)}
 
 
 def get_adapter(config):

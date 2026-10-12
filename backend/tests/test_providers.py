@@ -31,7 +31,7 @@ def test_json_object_limitation_is_printed_once_per_process(capsys):
     assert capsys.readouterr().out.count("MiMo") == 1
 
 
-@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo"])
+@pytest.mark.parametrize("provider", ["deepseek", "openai_compatible", "mimo", "bailian"])
 @pytest.mark.parametrize("api", ["responses", "chat_completions"])
 @pytest.mark.parametrize("mode", ["enabled", "disabled", None])
 def test_provider_parameters_on_wire(provider, api, mode, capsys):
@@ -58,7 +58,9 @@ def test_provider_parameters_on_wire(provider, api, mode, capsys):
     assert body["model"] == CONFIG["model"]
     effort = "none" if mode == "disabled" else "high"
     if mode is None:
-        assert not {"thinking", "reasoning", "reasoning_effort"} & body.keys()
+        assert not {"thinking", "reasoning", "reasoning_effort", "enable_thinking"} & body.keys()
+    elif provider == "bailian":
+        assert body["enable_thinking"] is (mode == "enabled") and not {"thinking", "reasoning", "reasoning_effort"} & body.keys()
     elif api == "responses":
         assert body["reasoning"] == {"effort": effort} and "thinking" not in body
     elif provider in {"deepseek", "mimo"}:
@@ -70,6 +72,9 @@ def test_provider_parameters_on_wire(provider, api, mode, capsys):
         assert output == {"type": "json_object"}
         assert "schema" in body["input" if api == "responses" else "messages"][0]["content"]
         assert "MiMo" in capsys.readouterr().out
+    elif provider == "bailian" and api == "responses":
+        assert body["text"]["format"] == {"type": "json_object"} and "schema" in body["input"][0]["content"]
+        assert "百炼" in capsys.readouterr().out
     elif api == "responses":
         assert body["text"]["format"]["type"] == "json_schema"
     elif provider == "deepseek":
@@ -129,7 +134,7 @@ def test_browser_json_object_is_locally_validated_and_repaired(provider, repaira
     assert "校验错误" in bodies[1]["messages"][-1]["content"]
 
 
-@pytest.mark.parametrize("provider", ["DeepSeek", "MiMo"])
+@pytest.mark.parametrize("provider", ["DeepSeek", "MiMo", "Bailian"])
 def test_settings_validate_all_configuration(monkeypatch, provider):
     monkeypatch.setattr(runtime, "load_dotenv", lambda *args, **kwargs: None)
     monkeypatch.setenv("LLM_PROVIDER", f" {provider} ")
@@ -222,3 +227,25 @@ with limits.sync_slot({'max_model_concurrency': 1}):
         if child.poll() is None:
             child.kill()
         child.communicate(timeout=5)
+
+
+def test_browser_requests_to_bailian_carry_enable_thinking_and_the_schema():
+    from browser_use.llm.messages import UserMessage
+    from browsing.model import ProviderChatOpenAI
+    from pydantic import BaseModel
+
+    class Answer(BaseModel):
+        answer: str
+
+    bodies = []
+    def respond(request):
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"id": "c", "object": "chat.completion", "created": 0, "model": "custom",
+            "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": '{"answer":"ok"}'}}]})
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as transport:
+            browser = ProviderChatOpenAI(model="custom", api_key="test", base_url=CONFIG["base_url"], provider="bailian",
+                                        thinking_type="disabled", http_client=transport)
+            return await browser.ainvoke([UserMessage(content="Answer")], Answer)
+    assert asyncio.run(run()).completion.answer == "ok"
+    assert bodies[0]["enable_thinking"] is False and bodies[0]["response_format"]["type"] == "json_schema"

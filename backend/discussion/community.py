@@ -142,7 +142,7 @@ class Community:
             backend = ProviderModel(route.config, sampling_options(capability, persona.sampling, "chat_completions"))
             backend.model_config_dict.update(parallel_tool_calls=False)
             # A provider that ignores forced tool_choice gets "auto"; invalid replies go through the repair loop instead.
-            if get_adapter(config).honors_forced_tool_choice:
+            if get_adapter(config).supports_required_tool_choice:
                 backend.model_config_dict["tool_choice"] = "required"
             self.backends[persona.persona_id] = backend
         self.graph = AgentGraph()
