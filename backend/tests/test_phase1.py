@@ -259,7 +259,7 @@ def test_ages_follow_target_range_and_spread(draft):
     assert "年龄超出目标用户范围 20–55" in distribution_issues(draft, manual)
     for persona in draft.personas:
         persona.age = 30 + persona.age % 2 * 10
-    assert "年龄至少覆盖 3 个年代" in distribution_issues(draft, manual)
+    assert "年龄至少覆盖 3 个年代（当前 2 个）" in distribution_issues(draft, manual)
 
 
 def test_schedule_across_timezones_and_dst(draft):
@@ -281,7 +281,22 @@ def test_cohort_plan_hard_errors_and_distribution(draft):
     slots[0].account_role = "paid_user"
     slots[1].tech_level = "normal"
     assert assignment_errors(slots, manual) == ["p01 使用了未知账号角色"]
-    assert cohort_issues(slots, draft.product, manual) == ["至少 2 名开发者"]
+    assert cohort_issues(slots, draft.product, manual) == ["至少 2 名开发者（当前 1 名）"]
+
+
+def test_cohort_issues_name_each_quota_and_the_current_count(draft):
+    """The model can only correct what it is told: each failed quota names its keys and what the plan actually has."""
+    manual = read_manual(SAMPLE)
+    slots = plan_slots(manual)
+    lurker = next(slot for slot in slots if slot.participation == "lurker")
+    lurker.participation = "poster"
+    flow = manual["flows"][0].name
+    for slot in slots:
+        if slot.assignment.flow == flow:
+            slot.assignment.type, slot.assignment.flow = "explore", None
+    issues = cohort_issues(slots, draft.product, manual)
+    assert "参与方式须为 poster 3、commenter 3、reactor 2、lurker 2（当前 poster 4、commenter 3、reactor 2、lurker 1）" in issues
+    assert any(issue.startswith(f"流程「{flow}」至少分给") and issue.endswith("（当前 0 人）") for issue in issues)
 
 
 def test_reviewer_cannot_override_assignment_errors(draft):

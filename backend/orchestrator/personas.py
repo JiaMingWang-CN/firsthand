@@ -64,8 +64,8 @@ def constraints_text(count, flow_count, days):
     days_rule = (f"browse_day 是该人在第几天首次体验（1–{days}），至少分布在 {goal['browse_days']} 个不同的日子，"
                  "按目标用户的到访节奏安排，并给后到的人留出体验后讨论的时间；" if days > 1 else "browse_day 全部为 1；")
     return (f"至少 {goal['developer']} 名开发者（developer）；至少 {goal['mobile']} 名手机用户；至少 {goal['low_patience']} 名低耐心用户；"
-            f"至少 {goal['withhold_high']} 人隐瞒倾向为高；{tasks}参与方式为发帖 {part['poster']}、评论 {part['commenter']}、"
-            f"点赞 {part['reactor']}、潜水 {part['lurker']}{tolerance}；性别至少两种；年龄在目标用户范围内并分散到多个年代；"
+            f"至少 {goal['withhold_high']} 人隐瞒倾向为高；{tasks}参与方式（participation）为发帖 poster {part['poster']}、评论 commenter {part['commenter']}、"
+            f"点赞 reactor {part['reactor']}、潜水 lurker {part['lurker']}{tolerance}；性别至少两种；年龄在目标用户范围内并分散到多个年代；"
             f"体验时段（本地时间）覆盖早 6–12、午 12–18、晚 18–24、深夜 0–6 中的至少 {goal['periods']} 个；{days_rule}")
 
 
@@ -161,19 +161,30 @@ def cohort_issues(slots, product, manual, days=1):
     around = f"（±{tolerance}）" if tolerance else ""
     part = Counter(s.participation for s in slots)
     decades = min(required_decades(product), len(slots))
+    developers = sum(s.tech_level == "developer" for s in slots)
+    mobile = sum(s.device == "mobile" for s in slots)
+    low_patience = sum(s.patience == "low" for s in slots)
+    withhold = sum(s.withhold_tendency == "高" for s in slots)
+    explore = sum(s.assignment.type == "explore" for s in slots)
+    ages = len({s.age // 10 for s in slots})
+    periods = sorted({period(s.browse_slot) for s in slots}, key=PERIODS.index)
+    days_used = len({s.browse_day for s in slots})
+    # Each message says what the plan has now, so the model knows which way to correct it.
     constraints = [
-        (sum(s.tech_level == "developer" for s in slots) >= goal["developer"], f"至少 {goal['developer']} 名开发者"),
-        (sum(s.device == "mobile" for s in slots) >= goal["mobile"], f"至少 {goal['mobile']} 名手机用户"),
-        (sum(s.patience == "low" for s in slots) >= goal["low_patience"], f"至少 {goal['low_patience']} 名低耐心用户"),
-        (sum(s.withhold_tendency == "高" for s in slots) >= goal["withhold_high"], f"至少 {goal['withhold_high']} 人有明显隐瞒倾向"),
-        (abs(sum(s.assignment.type == "explore" for s in slots) - goal["explore"]) <= tolerance, f"{goal['explore']} 人自由探索{around}"),
+        (developers >= goal["developer"], f"至少 {goal['developer']} 名开发者（当前 {developers} 名）"),
+        (mobile >= goal["mobile"], f"至少 {goal['mobile']} 名手机用户（当前 {mobile} 名）"),
+        (low_patience >= goal["low_patience"], f"至少 {goal['low_patience']} 名低耐心用户（当前 {low_patience} 名）"),
+        (withhold >= goal["withhold_high"], f"至少 {goal['withhold_high']} 人有明显隐瞒倾向（当前 {withhold} 人）"),
+        (abs(explore - goal["explore"]) <= tolerance, f"{goal['explore']} 人自由探索{around}（当前 {explore} 人）"),
         (all(abs(part[key] - value) <= tolerance for key, value in goal["participation"].items()),
-         "参与方式分布为 " + "/".join(str(value) for value in goal["participation"].values()) + around),
+         "参与方式须为 " + "、".join(f"{key} {value}" for key, value in goal["participation"].items()) + around
+         + "（当前 " + "、".join(f"{key} {part[key]}" for key in goal["participation"]) + "）"),
         (len({s.gender for s in slots}) >= 2, "性别分散"),
-        (len({s.age // 10 for s in slots}) >= decades, f"年龄至少覆盖 {decades} 个年代"),
-        (len({period(s.browse_slot) for s in slots}) >= goal["periods"],
-         "体验时段覆盖早、午、晚、深夜" if goal["periods"] == len(PERIODS) else f"体验时段至少覆盖 {goal['periods']} 个"),
-        (len({s.browse_day for s in slots}) >= goal["browse_days"], f"体验日至少分布在 {goal['browse_days']} 个不同的日子"),
+        (ages >= decades, f"年龄至少覆盖 {decades} 个年代（当前 {ages} 个）"),
+        (len(periods) >= goal["periods"],
+         ("体验时段覆盖早、午、晚、深夜" if goal["periods"] == len(PERIODS) else f"体验时段至少覆盖 {goal['periods']} 个")
+         + "（当前只有" + "、".join(periods) + "）"),
+        (days_used >= goal["browse_days"], f"体验日至少分布在 {goal['browse_days']} 个不同的日子（当前 {days_used} 个）"),
     ]
     for valid, message in constraints:
         if not valid:
@@ -183,8 +194,9 @@ def cohort_issues(slots, product, manual, days=1):
         issues.append(f"年龄超出目标用户范围 {low}–{high}")
     needed = max(1, goal["per_flow"])
     for flow in manual["flows"]:
-        if sum(s.assignment.flow == flow.name for s in slots) < needed:
-            issues.append(f"流程「{flow.name}」至少分给 {needed} 人")
+        assigned = sum(s.assignment.flow == flow.name for s in slots)
+        if assigned < needed:
+            issues.append(f"流程「{flow.name}」至少分给 {needed} 人（当前 {assigned} 人）")
     return issues
 
 

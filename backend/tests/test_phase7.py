@@ -100,7 +100,7 @@ def test_later_browse_days_land_on_later_slices(draft):
 def test_browse_days_must_spread_on_a_multi_day_timeline(draft):
     manual = read_manual(SAMPLE)
     slots = [personas.slot_of(persona) for persona in draft.personas]
-    assert "体验日至少分布在 3 个不同的日子" in cohort_issues(slots, draft.product, manual, days=50)
+    assert "体验日至少分布在 3 个不同的日子（当前 1 个）" in cohort_issues(slots, draft.product, manual, days=50)
     for index, slot in enumerate(slots):
         slot.browse_day = 1 + (index % 3) * 20
     assert cohort_issues(slots, draft.product, manual, days=50) == []
