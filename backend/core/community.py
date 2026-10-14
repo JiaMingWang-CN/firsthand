@@ -79,11 +79,17 @@ def validate_exit(answer, memory, read_post_ids):
     if answer.has_experience != experienced or ((answer.nps is not None) != experienced):
         raise ValueError("Survey must match actual experience availability; no fabricated NPS without experience")
     facts = finding_map(memory)
-    referenced = [key for key in (answer.biggest_issue, answer.favorite) if key] + [item.finding_id for item in answer.unsaid]
-    if any(key not in facts for key in referenced):
-        raise ValueError("Survey references a finding this persona did not experience")
-    if any(pid not in read_post_ids for pid in answer.influencing_post_ids):
-        raise ValueError("Opinion change must cite posts actually read by this persona")
+    referenced = [(field, key) for field, key in (("biggest_issue", answer.biggest_issue), ("favorite", answer.favorite)) if key]
+    referenced += [(f"unsaid[{index}].finding_id", item.finding_id) for index, item in enumerate(answer.unsaid)]
+    # Name the wrong values and the valid ids, so a retry can correct them instead of guessing again.
+    unknown = [f"{field}={key!r}" for field, key in referenced if key not in facts]
+    if unknown:
+        raise ValueError("Survey references a finding this persona did not experience: " + ", ".join(unknown)
+                         + f"; use only these finding_id values: {sorted(facts)}, or null/empty list")
+    unread = [pid for pid in answer.influencing_post_ids if pid not in read_post_ids]
+    if unread:
+        raise ValueError(f"Opinion change must cite posts actually read by this persona: {unread} were not read; "
+                         f"read post ids are {sorted(read_post_ids)}")
     if answer.opinion_changed != bool(answer.influencing_post_ids):
         raise ValueError("Opinion change flag must agree with cited influencing posts")
 

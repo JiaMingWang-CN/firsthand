@@ -91,6 +91,16 @@ def test_questionnaire_references_actual_experience_and_actual_reads():
         validate_exit(survey(opinion_changed=True, influencing_post_ids=[99]), memory, {7})
     with pytest.raises(ValueError, match="did not experience"):
         validate_exit(survey(biggest_issue="other:f001"), memory, {7})
+    # The retry prompt must name the wrong field and value and list the valid ids, or the model keeps guessing.
+    with pytest.raises(ValueError) as error:
+        validate_exit(survey(favorite="核心身份信息前置且清晰"), memory, {7})
+    assert "favorite" in str(error.value) and "核心身份信息前置且清晰" in str(error.value) and "p01:f001" in str(error.value)
+    with pytest.raises(ValueError) as error:
+        validate_exit(survey(unsaid=[Withheld(finding_id="f001", reason="没说")]), memory, {7})
+    assert "unsaid" in str(error.value) and "f001" in str(error.value)
+    with pytest.raises(ValueError) as error:
+        validate_exit(survey(opinion_changed=True, influencing_post_ids=[99]), memory, {7})
+    assert "99" in str(error.value) and "[7]" in str(error.value)
     with pytest.raises(ValueError, match="no fabricated NPS"):
         validate_exit(survey(), None, {7})
     assert "high_nps_after_unsuccessful_task_requires_review" in consistency_flags(survey(), memory)
