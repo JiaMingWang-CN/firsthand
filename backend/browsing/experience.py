@@ -66,6 +66,7 @@ class StepRecorder:
         self.stalls = 0
         self.stop_reason = None
         self.last_after = None
+        self.dom_failures_seen = 0  # DOM failures already attributed to an earlier step
         self.deadline = None  # monotonic time by which the last step must have ended
         self.time_limited = False
 
@@ -106,6 +107,11 @@ class StepRecorder:
                 progress = True
                 self.reads.add(key)
         self.stalls = 0 if progress else self.stalls + 1
+        # A DOM failure since the previous step ended hit the page state this step acted on, even if it was
+        # logged between steps; the step is degraded like a dropped accessibility tree, not discarded.
+        dom_failures = self.log_counter.dom_failures if self.log_counter else 0
+        dom_failed = dom_failures > self.dom_failures_seen
+        self.dom_failures_seen = dom_failures
         # Browser Use counted this rule denial as a failure (on_step_end runs after its count); repeated
         # blocked attempts are bounded by stall_limit instead of ending the experience as a failed run.
         if len(results) == 1 and results[0].get("error", "").startswith(DENIED_PREFIX):
@@ -115,7 +121,7 @@ class StepRecorder:
             actions=redact(actions, self.collector.secrets), results=redact(results, self.collector.secrets),
             agent_observation=redact(output.evaluation_previous_goal or "", self.collector.secrets) if output else "",
             stalled=not progress,
-            page_structure_degraded=bool(self.log_counter and self.log_counter.ax_tree_dropped > self.ax_dropped_before)))
+            page_structure_degraded=dom_failed or bool(self.log_counter and self.log_counter.ax_tree_dropped > self.ax_dropped_before)))
         self.collector.record("experience_step", self.steps[-1].model_dump())
         if not agent.history.is_done() and self.stalls >= self.persona.browsing_profile.stall_limit:
             self.stop_reason = f"连续 {self.stalls} 步没有新的页面状态或读取操作，达到 stall_limit"
@@ -136,7 +142,7 @@ async def assess_memory(client, config, capability, persona, memory, run_dir):
               "findings 只写观察到的痛点/亮点；不能把 CDP、模型或云浏览连接错误当作产品缺陷。"
               "由测试系统的禁止规则拒绝的操作属于覆盖限制，不列为产品缺陷。"
               "每条必须引 snapshot evidence_ids，并从引用的页面 text 或已实际查询的技术事件 data 原样摘录 observed_quote。"
-              "page_structure_degraded=true 的步骤里 Agent 缺少元素名称和角色，只能依赖截图与页面结构；涉及这些步骤的痛点要考虑这一限制，不把它当作产品缺陷。"
+              "page_structure_degraded=true 的步骤里 Agent 缺少元素名称和角色，或页面 DOM 构建失败，只能依赖截图与页面结构；页面看似空白或元素缺失可能是采集问题；涉及这些步骤的痛点要考虑这一限制，不把它当作产品缺陷。"
               "technical_event_ids 只引用 observed_technical_events；没查过技术工具就必须为空。"
               "引文选择短且连续的原文，不拼接技术标签列表；引用 JSON 中的换行时不要写成字面的反斜杠 n。"
               "无证据就删除该结论。未知的信息保持未知，不根据已知问题清单补写发现。\n"
@@ -290,7 +296,9 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
             if tools:
                 memory.observed_technical_events = list(tools.observed_technical_events.values())
             log_counter.detach()
-        if not cancelled and memory.steps and not memory.infrastructure_errors and not log_counter.dom_failures:
+        # DOM failures degrade their steps (page_structure_degraded) instead of discarding the whole experience;
+        # every acting step still needs a screenshot reaching the model to pass.
+        if not cancelled and memory.steps and not memory.infrastructure_errors:
             try:
                 memory.assessment = await (conclude or assess_memory)(client, config, capability, persona, memory, run_dir)
                 memory = ExperienceMemory.model_validate(memory.model_dump())
@@ -307,7 +315,7 @@ async def _run_experience(config, capability, manual, persona, run_dir, expectat
                       cancelled_cdp_requests=dict(Counter(item["data"]["method"] for item in (collector.events if collector else [])
                                                           if item["event"] == "cdp_request_cancelled")),
                       evidence_file="experience.json", raw_trace_file="raw_trace.jsonl")
-        # Late CDP replies are recorded, not failed on: their impact is gated by DOM failures,
+        # Late CDP replies are recorded, not failed on: their impact is covered by degraded-step flags,
         # per-step screenshots reaching the model and evidence capture errors.
         result["passed"] = bool(result["passed"] and not memory.infrastructure_errors)
         write_json(run_dir / "experience.json", memory.model_dump())

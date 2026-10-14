@@ -494,3 +494,25 @@ def test_dropped_accessibility_tree_marks_only_the_affected_step():
     assert [step.page_structure_degraded for step in recorder.steps] == [False, True, False]
     assert counter.dom_failures == 0 and counter.ax_tree_dropped == 1
 
+
+def test_dom_failure_marks_the_step_whose_page_state_it_hit():
+    import logging
+    from browsing.probe import LogCounter
+    counter = LogCounter()
+    collector = FakeCollector()
+    recorder = experience.StepRecorder(collector, fixture_persona(True), counter)
+    agent = SimpleNamespace(history=FakeHistory(), state=SimpleNamespace(stopped=False, last_result=[]))
+    async def run():
+        for index in range(3):
+            await recorder.before(agent)
+            if index == 0:
+                counter.emit(logging.LogRecord("browser_use", logging.WARNING, "", 0, "DOM build failed", (), None))
+            collector.text = f"页面 {index}"
+            record_action(agent, {"click": {"index": index}})
+            await recorder.after(agent)
+            if index == 1:  # Between steps: the next step's page state is the one that was built without the DOM.
+                counter.emit(logging.LogRecord("bubus", logging.WARNING, "", 0, "DOMWatchdog handler timed out", (), None))
+    asyncio.run(run())
+    assert [step.page_structure_degraded for step in recorder.steps] == [True, False, True]
+    assert counter.dom_failures == 2
+

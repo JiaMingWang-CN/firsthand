@@ -133,7 +133,7 @@ def overview(store, notes):
     if store.assessment_rejections:
         coverage.append("体验评估曾被退回的 Persona：" + "、".join(store.assessment_rejections))
     if degraded:
-        coverage.append(f"{degraded} 个步骤的页面无障碍结构被 Browser Use 丢弃，相关结论带“需复核”标记。")
+        coverage.append(f"{degraded} 个步骤的页面无障碍结构被 Browser Use 丢弃或 DOM 构建失败，相关结论带“需复核”标记。")
     if store.audit.get("passed") is False:
         coverage.append("社交审计未通过，公开声音部分只能作为参考。")
     if store.planner["fallbacks_to_do_nothing"]:
