@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 import { api } from '../api/client.js'
 import FlowSteps from '../components/FlowSteps.vue'
 import { AlertTriangle, Check, Loader, X, Circle, ExternalLink, Eye } from 'lucide-vue-next'
+import PageIntro from '../components/PageIntro.vue'
 
 const route = useRoute()
 const jobId = computed(() => String(route.params.jobId))
@@ -82,9 +83,9 @@ const flow = computed(() => {
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">任务 · <span class="num">{{ jobId }}</span></div>
+        <div class="eyebrow">任务</div>
         <h1 class="page-title">{{ { simulate: '模拟与报告', prepare: '分析资料' }[job?.kind] ?? '生成人物草稿' }}</h1>
-        <p class="page-sub">任务在后端以子进程执行与命令行相同的步骤；页面每 2 秒读取一次运行目录里的进度。关闭页面不会中断任务。</p>
+        <PageIntro>任务在后端以子进程执行与命令行相同的步骤；页面每 2 秒读取一次运行目录里的进度。关闭页面不会中断任务。</PageIntro>
       </div>
       <span v-if="job" class="tag" :class="STATE[job.state]?.[0]"><span class="dot"></span>{{ STATE[job.state]?.[1] ?? job.state }}</span>
     </header>

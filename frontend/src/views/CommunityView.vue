@@ -10,6 +10,7 @@ import SimTime from '../components/SimTime.vue'
 import EvTag from '../components/EvTag.vue'
 import PartTag from '../components/PartTag.vue'
 import Avatar from '../components/Avatar.vue'
+import PageIntro from '../components/PageIntro.vue'
 
 const t = computed({ get: () => clock.t, set: (v) => seek(v) })
 const sort = ref('new')
@@ -31,9 +32,8 @@ const permText = (p) => {
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">社区 · OASIS Reddit 模式</div>
         <h1 class="page-title">社区</h1>
-        <p class="page-sub">人物在各自活跃的时段刷社区。这里只显示说出的内容；未说出的与私下问卷只出现在报告和人物档案中。拖动时间轴查看任意时刻的社区。</p>
+        <PageIntro>人物在各自活跃的时段刷社区。这里只显示说出的内容；未说出的与私下问卷只出现在报告和人物档案中。拖动时间轴查看任意时刻的社区。</PageIntro>
       </div>
       <div class="seg" role="group" aria-label="排序">
         <button type="button" :aria-pressed="sort === 'new'" @click="sort = 'new'">最新</button>

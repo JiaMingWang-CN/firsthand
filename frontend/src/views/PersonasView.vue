@@ -8,6 +8,7 @@ import PersonaCard from '../components/PersonaCard.vue'
 import PersonaChip from '../components/PersonaChip.vue'
 import StatusDot from '../components/StatusDot.vue'
 import PartTag from '../components/PartTag.vue'
+import PageIntro from '../components/PageIntro.vue'
 
 const q = ref('')
 const view = ref('cards')
@@ -40,9 +41,8 @@ const spark = (pid) => {
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">人物 · {{ personas.length }} 名模拟人物</div>
         <h1 class="page-title">人物</h1>
-        <p class="page-sub">主 Agent 先用维度矩阵保证覆盖面，再补全身份、背景和性格。人设被换算成硬约束：设备、步数上限、停滞上限、体验时段和动作集合。</p>
+        <PageIntro>主 Agent 先用维度矩阵保证覆盖面，再补全身份、背景和性格。人设被换算成硬约束：设备、步数上限、停滞上限、体验时段和动作集合。</PageIntro>
       </div>
     </header>
 

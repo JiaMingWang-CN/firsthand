@@ -13,6 +13,7 @@ import NpsChart from '../components/NpsChart.vue'
 import InfluenceGraph from '../components/InfluenceGraph.vue'
 import EmotionCurve from '../components/EmotionCurve.vue'
 import StatusDot from '../components/StatusDot.vue'
+import PageIntro from '../components/PageIntro.vue'
 
 const report = computed(() => run.report)
 const fileUrl = (path) => `/api/runs/${encodeURIComponent(run.id)}/files/${path.split('/').map(encodeURIComponent).join('/')}`
@@ -89,22 +90,16 @@ const toc = [
 const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 const sx = (m) => 36 + (m / 1440) * 424
 const sy = (v) => 20 + ((1 - v) / 2) * 160
-const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—')
 </script>
 
 <template>
   <div class="page report">
     <header class="page-head">
       <div>
-        <div class="eyebrow">报告 · {{ run.id }}</div>
+        <div class="eyebrow">报告</div>
         <h1 class="page-title">{{ run.title }}报告</h1>
-        <p class="page-sub">{{ personas.length }} 名模拟人物按各自作息在 {{ run.simDays }} 天的模拟时间线上真实使用了产品，并在社区中讨论。每条结论都附证据，三次点击内可到达截图、步骤和回放。</p>
-        <div class="row meta">
-          <span class="realtime">{{ when(run.startedAt) }} → {{ when(run.endedAt) }}</span>
-          <span class="faint">·</span><span class="faint">{{ run.model }}</span>
-          <span v-if="run.textOnly" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>
-          <template v-if="report"><span class="faint">·</span><span class="faint num">报告 {{ report.id }}</span></template>
-        </div>
+        <PageIntro>{{ personas.length }} 名模拟人物按各自作息在 {{ run.simDays }} 天的模拟时间线上真实使用了产品，并在社区中讨论。每条结论都附证据，三次点击内可到达截图、步骤和回放。</PageIntro>
+        <span v-if="run.textOnly" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>
       </div>
     </header>
 
@@ -340,7 +335,6 @@ const when = (iso) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: fal
 </template>
 
 <style scoped>
-.meta { margin-top: var(--sp-3); font-size: var(--fs-xs); }
 .nr { margin-bottom: var(--sp-4); }
 .layout { display: grid; grid-template-columns: minmax(0, 1fr) 180px; gap: var(--sp-6); }
 .content { min-width: 0; }

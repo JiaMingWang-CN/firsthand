@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { personas, run, timeline } from '../lib/data.js'
 import { fmt, statusAt } from '../lib/sim.js'
 import { clock, SPEEDS, togglePlay } from '../lib/store.js'
+import { num, usageTip } from '../lib/usage.js'
 import { Play, Pause } from 'lucide-vue-next'
 
 const progress = computed(() => clock.t / timeline.total)
@@ -12,20 +13,12 @@ const counts = computed(() => {
   return c
 })
 const total = computed(() => run.usage?.total ?? {})
-const num = (n) => (n ?? 0).toLocaleString('zh-CN')
-const usageLine = (m) => `${m.model}：输入 ${num(m.input_tokens)}（缓存 ${num(m.cached_input_tokens)}）· 输出 ${num(m.output_tokens)}`
-const usageTip = computed(() => {
-  const lines = (run.usage?.models ?? []).map(usageLine)
-  const iv = run.interviewUsage?.total
-  if (iv?.requests) lines.push(`采访另计 ${num(iv.requests)} 次请求：输入 ${num(iv.input_tokens)}（缓存 ${num(iv.cached_input_tokens)}）· 输出 ${num(iv.output_tokens)}`)
-  return lines.join(String.fromCharCode(10))
-})
 </script>
 
 <template>
   <div class="runbar" role="region" aria-label="运行状态栏">
     <div class="clock">
-      <span class="lbl">模拟时钟（UTC，距运行起点）</span>
+      <span class="lbl" title="模拟时钟（UTC，距运行起点）">模拟时钟</span>
       <span class="simtime big">◷ {{ fmt(clock.t) }}</span>
     </div>
     <div class="prog" :aria-label="`整体进度 ${Math.round(progress * 100)}%（模拟时间 ${fmt(clock.t)} / ${fmt(timeline.total)}）`">
@@ -40,12 +33,10 @@ const usageTip = computed(() => {
       </div>
     </div>
     <div class="cost" :title="usageTip">
-      <span class="lbl">模型用量 · 全程</span>
+      <span class="lbl">用量</span>
       <span class="num cv">{{ num(total.requests) }}<small> 次请求</small></span>
-      <span class="num calls">输入 {{ num(total.input_tokens) }}（缓存 {{ num(total.cached_input_tokens) }}）· 输出 {{ num(total.output_tokens) }}</span>
     </div>
     <div class="ctl">
-      <span class="replay">回放</span>
       <div class="seg" role="group" aria-label="回放速度">
         <button v-for="s in SPEEDS" :key="s.id" type="button" :aria-pressed="clock.speed === s.id" @click="clock.speed = s.id">{{ s.label }}</button>
       </div>
@@ -73,10 +64,8 @@ const usageTip = computed(() => {
 .cost { flex: none; text-align: right; }
 .cv { font-size: var(--fs-lg); font-weight: 600; display: block; line-height: 1.3; }
 .cv small { font-size: var(--fs-xs); color: var(--text-3); font-weight: 400; }
-.calls { font-size: var(--fs-xs); color: var(--text-3); }
 .ctl { display: flex; align-items: center; gap: var(--sp-2); flex: none; }
-.replay { font-size: var(--fs-xs); color: var(--text-3); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 0 6px; }
-@media (max-width: 1279px) { .runbar { padding: var(--sp-2) 20px; gap: var(--sp-3); } .calls, .replay { display: none; } }
+@media (max-width: 1279px) { .runbar { padding: var(--sp-2) 20px; gap: var(--sp-3); } }
 @media (max-width: 959px) {
   .runbar { flex-wrap: wrap; }
   .prog { order: 3; flex-basis: 100%; }

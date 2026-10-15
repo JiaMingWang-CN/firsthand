@@ -9,6 +9,7 @@ import { askConfirm } from '../lib/store.js'
 import { TEXT_ONLY_NOTE } from '../lib/sim.js'
 import FlowSteps from '../components/FlowSteps.vue'
 import { Upload, Check, AlertTriangle, FileText, Cpu, Sparkles, Loader, Circle, X, Info, Globe } from 'lucide-vue-next'
+import PageIntro from '../components/PageIntro.vue'
 
 const router = useRouter()
 const step = ref(1)
@@ -154,9 +155,8 @@ async function analyze() {
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">新建运行</div>
         <h1 class="page-title">新建运行</h1>
-        <p class="page-sub">最少只需要产品网址和允许访问的域名。资料越完整，人物和结论越可信；资料很少时会明确提示参考性有限。人数和天数由主 Agent 推荐，生成人物前可以修改。</p>
+        <PageIntro>最少只需要产品网址和允许访问的域名。资料越完整，人物和结论越可信；资料很少时会明确提示参考性有限。人数和天数由主 Agent 推荐，生成人物前可以修改。</PageIntro>
       </div>
     </header>
 

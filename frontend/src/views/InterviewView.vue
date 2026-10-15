@@ -9,6 +9,7 @@ import { Send, Info, BookOpen } from 'lucide-vue-next'
 import PersonaCard from '../components/PersonaCard.vue'
 import Avatar from '../components/Avatar.vue'
 import InterviewEvidence from '../components/InterviewEvidence.vue'
+import PageIntro from '../components/PageIntro.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -76,9 +77,8 @@ watch(pid, scrollDown)
   <div class="page iv">
     <header class="page-head">
       <div>
-        <div class="eyebrow">采访</div>
         <h1 class="page-title">采访</h1>
-        <p class="page-sub">向任意人物追问。回答基于该人物自己的体验记录和讨论记录，并保持人设语气。报告不依赖采访内容。</p>
+        <PageIntro>向任意人物追问。回答基于该人物自己的体验记录和讨论记录，并保持人设语气。报告不依赖采访内容。</PageIntro>
       </div>
     </header>
 

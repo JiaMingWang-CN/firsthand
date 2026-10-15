@@ -10,6 +10,7 @@ import { askConfirm, toast } from '../lib/store.js'
 import FlowSteps from '../components/FlowSteps.vue'
 import ScoutPanel from '../components/ScoutPanel.vue'
 import { AlertTriangle, Check, RefreshCw, Play, Info, Loader, Users } from 'lucide-vue-next'
+import PageIntro from '../components/PageIntro.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -227,9 +228,9 @@ onBeforeUnmount(() => clearTimeout(timer))
   <div class="page">
     <header class="page-head">
       <div>
-        <div class="eyebrow">运行前审核 · <span class="num">{{ draftId }}</span></div>
+        <div class="eyebrow">运行前审核</div>
         <h1 class="page-title">{{ d?.manual?.name ?? d?.product ?? '运行前审核' }}</h1>
-        <p class="page-sub">人物与运行配置在执行前需要人工确认。规则与命令行审核相同：批准的是页面展示的这一版；人群分布与规划不一致时，需要明确确认这些变更。</p>
+        <PageIntro>人物与运行配置在执行前需要人工确认。规则与命令行审核相同：批准的是页面展示的这一版；人群分布与规划不一致时，需要明确确认这些变更。</PageIntro>
       </div>
       <div class="row">
         <span v-if="d?.text_only" class="tag neg" :title="TEXT_ONLY_NOTE"><span class="dot"></span>参考性有限 · 纯文本模型</span>

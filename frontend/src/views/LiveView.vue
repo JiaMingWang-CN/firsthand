@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { personas, steps, posts, run } from '../lib/data.js'
+import { personas, steps, posts } from '../lib/data.js'
 import { P, fmt, statusAt, stepIndexAt, browseStart, browseEnd, feedUntil, postById, label, assignmentLabel } from '../lib/sim.js'
 import { clock, seek, pause, play, openDrawer } from '../lib/store.js'
 import { Play, SkipForward, Eye, ThumbsUp, MessageSquare, FileText } from 'lucide-vue-next'
@@ -11,6 +11,7 @@ import Avatar from '../components/Avatar.vue'
 import StatusDot from '../components/StatusDot.vue'
 import SimTime from '../components/SimTime.vue'
 import EmotionCurve from '../components/EmotionCurve.vue'
+import PageIntro from '../components/PageIntro.vue'
 
 const t = computed({ get: () => clock.t, set: (v) => seek(v) })
 const browsing = computed(() => personas.filter((p) => statusAt(p.id, clock.t) === 'browse'))
@@ -26,7 +27,6 @@ const idx = computed(() => stepIndexAt(focusId.value, clock.t))
 const cur = computed(() => (idx.value >= 0 ? steps[focusId.value][idx.value] : null))
 const focusStatus = computed(() => statusAt(focusId.value, clock.t))
 const next = computed(() => personas.filter((p) => browseStart(p.id) > clock.t).sort((a, b) => a.slot - b.slot)[0])
-const slice = computed(() => Math.floor(clock.t / run.sliceMinutes))
 const history = computed(() => (idx.value >= 0 ? steps[focusId.value].slice(0, idx.value + 1).map((s, i) => ({ ...s, i })).reverse() : []))
 
 // 社区动态：新内容出现时不自动插入，只提示“有 n 条新动态”
@@ -67,13 +67,8 @@ function activityOf(pid) {
   <div class="page live">
     <header class="page-head">
       <div>
-        <div class="eyebrow">运行现场 · 回放 · {{ run.id }}</div>
         <h1 class="page-title">运行现场</h1>
-        <p class="page-sub">拖动播放头回到任意模拟时刻：人物状态、实时画面和社区动态会同步到该时刻。当前选中的时刻已同步到链接中，可直接分享。</p>
-      </div>
-      <div class="row">
-        <span class="tag">时间片 #{{ slice }} · {{ run.sliceMinutes }} 分钟</span>
-        <span class="tag num">浏览 {{ browsing.length }} / 并发上限 {{ run.concurrency }} · 排队 0</span>
+        <PageIntro>拖动播放头回到任意模拟时刻：人物状态、实时画面和社区动态会同步到该时刻。当前选中的时刻已同步到链接中，可直接分享。</PageIntro>
       </div>
     </header>
 
