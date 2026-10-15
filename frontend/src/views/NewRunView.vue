@@ -2,7 +2,7 @@
 // 新建运行：资料（只填网址，或完整说明书）→ 选择能力文件 → 分析资料。
 // 分析由后端以子进程执行 orchestrator.phase1 analyze：读首页、生成产品模型并推荐人数与天数；
 // 人数与天数在审核页确认（可改）后才生成人物。校验与命令行完全一致。
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { api } from '../api/client.js'
 import { askConfirm } from '../lib/store.js'
@@ -23,6 +23,11 @@ const dragging = ref(false)
 
 // —— 只填网址：表单拼出只有 front matter（和可选两节）的说明书，后端按同一套规则校验 ——
 const form = ref({ url: '', domains: '', name: '', positioning: '', users: '' })
+const optionalOpen = ref(false)
+// 返回表单或已有补充信息时自动展开，避免填过的内容被藏起来。
+watch(() => [form.value.name, form.value.positioning, form.value.users, mode.value, step.value], () => {
+  if ([form.value.name, form.value.positioning, form.value.users].some((v) => v.trim())) optionalOpen.value = true
+})
 const domainsTouched = ref(false)
 function hostOf(url) {
   try { return new URL(url.trim()).hostname } catch { return '' }
@@ -181,12 +186,15 @@ async function analyze() {
             <input v-model="form.url" class="input" type="url" placeholder="https://staging.example.com" aria-label="产品网址" @input="onUrl" /></label>
           <label class="field"><span>允许访问的域名 <b class="req">必填</b><em class="faint">人物只能访问这些主机；多个用逗号或空格分开</em></span>
             <input v-model="form.domains" class="input" placeholder="staging.example.com, auth.example.com" aria-label="允许访问的域名" @input="domainsTouched = true; onEdit()" /></label>
-          <label class="field"><span>产品名称 <em class="faint">可选，不填用域名</em></span>
-            <input v-model="form.name" class="input" aria-label="产品名称" @input="onEdit" /></label>
-          <label class="field"><span>一句话说明产品 <em class="faint">可选：给谁用、解决什么问题</em></span>
-            <textarea v-model="form.positioning" class="input area" rows="2" aria-label="产品定位" @input="onEdit"></textarea></label>
-          <label class="field"><span>目标用户 <em class="faint">可选：人群、设备、常用时段</em></span>
-            <textarea v-model="form.users" class="input area" rows="2" aria-label="目标用户" @input="onEdit"></textarea></label>
+          <details class="optional" :open="optionalOpen" @toggle="optionalOpen = $event.target.open">
+            <summary>补充信息（可选）</summary>
+            <label class="field"><span>产品名称 <em class="faint">可选，不填用域名</em></span>
+              <input v-model="form.name" class="input" aria-label="产品名称" @input="onEdit" /></label>
+            <label class="field"><span>一句话说明产品 <em class="faint">可选：给谁用、解决什么问题</em></span>
+              <textarea v-model="form.positioning" class="input area" rows="2" aria-label="产品定位" @input="onEdit"></textarea></label>
+            <label class="field"><span>目标用户 <em class="faint">可选：人群、设备、常用时段</em></span>
+              <textarea v-model="form.users" class="input area" rows="2" aria-label="目标用户" @input="onEdit"></textarea></label>
+          </details>
           <div class="ed-foot">
             <span class="faint"><Globe class="gl" />没写的内容由 AI 读取首页后推断；测试账号、关键流程等需要完整说明书</span>
             <button class="btn btn-primary sm" type="button" :disabled="!canCheck || checking" @click="check"><Loader v-if="checking" class="spin" />检查</button>
@@ -293,6 +301,8 @@ async function analyze() {
 .s1 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: var(--sp-4); align-items: start; }
 .left { display: grid; gap: var(--sp-3); min-width: 0; }
 .modes { justify-self: start; }
+.optional summary { cursor: pointer; font-size: var(--fs-sm); color: var(--text-2); }
+.optional[open] { display: grid; gap: var(--sp-3); }
 .urlform { display: grid; gap: var(--sp-3); }
 .field { display: grid; gap: 6px; font-size: var(--fs-sm); font-weight: 600; }
 .field em { font-style: normal; font-weight: 400; font-size: var(--fs-xs); margin-left: var(--sp-2); }

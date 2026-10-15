@@ -16,6 +16,8 @@ let timer = 0
 const live = ref({ personas: [], selected: null })
 const pick = ref('')
 const stepPick = ref(null)
+const stepsOpen = ref(false)
+const logOpen = ref(false)
 async function loadLive() {
   try {
     live.value = await api.jobLive(jobId.value, pick.value)
@@ -35,9 +37,10 @@ async function load() {
     state.value = { status: 'error', job: null, error: e.message }
   }
 }
-watch(jobId, () => { pick.value = ''; stepPick.value = null; live.value = { personas: [], selected: null }; load() }, { immediate: true })
+watch(jobId, () => { logOpen.value = false; stepsOpen.value = false; pick.value = ''; stepPick.value = null; live.value = { personas: [], selected: null }; load() }, { immediate: true })
 function choose(pid) { pick.value = pid; stepPick.value = null; loadLive() }
 const watching = computed(() => live.value.selected)
+watch(() => watching.value?.id, () => { stepsOpen.value = false })
 const steps = computed(() => (watching.value ? [...watching.value.steps].reverse() : []))
 const shownStep = computed(() => {
   const all = watching.value?.steps ?? []
@@ -49,6 +52,8 @@ const hhmm = (iso) => (iso ? iso.slice(11, 16) : '')
 onBeforeUnmount(() => clearTimeout(timer))
 
 const job = computed(() => state.value.job)
+// 失败时主动展开一次；之后仍允许用户手动收起。
+watch([() => job.value?.id, () => job.value?.state], ([, value]) => { if (value === 'failed') logOpen.value = true })
 const p = computed(() => job.value?.progress ?? {})
 const STATE = { running: ['confused', '进行中'], succeeded: ['pos', '已完成'], failed: ['neg', '失败'],
   detached: ['confused', '无法跟踪'] }
@@ -162,35 +167,44 @@ const flow = computed(() => {
               <div v-else class="faint noshot"><Loader v-if="watching.state === 'running'" class="spin" />{{ watching.state === 'running' ? '浏览器刚打开，等第一步完成后出现截图…' : '这位人物没有截图' }}</div>
               <figcaption v-if="shownStep && shotUrl" class="faint">第 {{ shownStep.n }} 步操作后的页面</figcaption>
             </figure>
-            <ol class="steplist" aria-label="步骤">
-              <li v-if="!steps.length" class="faint">还没有开始第一步。</li>
-              <li v-for="s in steps" :key="s.n" :class="{ on: shownStep?.n === s.n }">
-                <button type="button" class="stepbtn" @click="stepPick = s.n">
-                  <span class="sn num">{{ s.n }}</span>
-                  <span class="sb">
-                    <span v-if="s.eval" class="evl">{{ s.eval }}</span>
-                    <span v-if="s.goal" class="goal">▸ {{ s.goal }}</span>
-                    <code v-for="(a, i) in s.actions" :key="i" class="act">{{ a }}</code>
-                    <span v-for="(r, i) in s.results" :key="'r' + i" class="faint res">{{ r }}</span>
-                  </span>
-                </button>
-                <details v-if="s.memory" class="mem"><summary class="faint">记下的内容</summary><p>{{ s.memory }}</p></details>
-              </li>
-            </ol>
+            <div>
+              <ol class="steplist" aria-label="步骤">
+                <li v-if="!steps.length" class="faint">还没有开始第一步。</li>
+                <li v-for="s in (stepsOpen ? steps : steps.slice(0, 5))" :key="s.n" :class="{ on: shownStep?.n === s.n }">
+                  <button type="button" class="stepbtn" @click="stepPick = s.n">
+                    <span class="sn num">{{ s.n }}</span>
+                    <span class="sb">
+                      <span v-if="s.eval" class="evl">{{ s.eval }}</span>
+                      <span v-if="s.goal" class="goal">▸ {{ s.goal }}</span>
+                      <code v-for="(a, i) in s.actions" :key="i" class="act">{{ a }}</code>
+                      <span v-for="(r, i) in s.results" :key="'r' + i" class="faint res">{{ r }}</span>
+                    </span>
+                  </button>
+                  <details v-if="s.memory" class="mem"><summary class="faint">记下的内容</summary><p>{{ s.memory }}</p></details>
+                </li>
+              </ol>
+              <button v-if="steps.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="stepsOpen" @click="stepsOpen = !stepsOpen">{{ stepsOpen ? '收起' : `显示全部 ${steps.length} 步` }}</button>
+            </div>
           </div>
         </template>
       </section>
 
-      <section class="panel">
-        <div class="panel-head"><h3>日志</h3><span class="aside faint">最近 {{ job.log.length }} 行 · 已去除密钥</span></div>
-        <pre v-if="job.log.length" class="log">{{ job.log.join('\n') }}</pre>
-        <p v-else class="faint">还没有输出。</p>
+      <section class="panel job-log">
+        <button class="log-toggle" type="button" :aria-expanded="logOpen" @click="logOpen = !logOpen">日志 · 最近 {{ job.log.length }} 行 <span class="faint">{{ logOpen ? '收起 ▴' : '展开 ▾' }}</span></button>
+        <div v-if="logOpen" class="log-body">
+          <p class="faint small">已去除密钥</p>
+          <pre v-if="job.log.length" class="log">{{ job.log.join('\n') }}</pre>
+          <p v-else class="faint">还没有输出。</p>
+        </div>
       </section>
     </template>
   </div>
 </template>
 
 <style scoped>
+.log-toggle { width: 100%; display: flex; align-items: center; gap: var(--sp-3); padding: 0; border: 0; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.log-toggle span { margin-left: auto; font-size: var(--fs-xs); }
+.log-body { margin-top: var(--sp-3); }
 .block { margin-bottom: var(--sp-4); }
 .steps { list-style: none; padding: 0; margin: 0 0 var(--sp-4); display: grid; gap: var(--sp-2); }
 .steps li { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--text-3); }
@@ -219,7 +233,7 @@ const flow = computed(() => {
 .pill .dot.pos { background: var(--pos); }
 .pill .dot.neg { background: var(--neg); }
 .pill .dot.confused { background: var(--confused); }
-.who-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
+.who-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); font-size: var(--fs-sm); }
 .who-head > div { margin-right: auto; }
 .stage { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr); gap: var(--sp-4); align-items: start; }
 .shot { margin: 0; position: sticky; top: var(--sp-4); }
@@ -238,7 +252,7 @@ const flow = computed(() => {
 .res { font-size: var(--fs-xs); }
 .mem { padding: 0 var(--sp-3) var(--sp-2) calc(var(--sp-3) * 2 + 22px); font-size: var(--fs-xs); }
 .mem p { margin: 4px 0 0; color: var(--text-2); }
-@media (max-width: 959px) { .stage { grid-template-columns: 1fr; } .shot { position: static; } }
+@media (max-width: 1100px) { .stage { grid-template-columns: 1fr; } .shot { position: static; } }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 </style>

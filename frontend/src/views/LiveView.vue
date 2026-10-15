@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { personas, steps, posts } from '../lib/data.js'
-import { P, fmt, statusAt, stepIndexAt, browseStart, browseEnd, feedUntil, postById, label, assignmentLabel } from '../lib/sim.js'
+import { P, fmt, statusAt, stepIndexAt, browseStart, feedUntil, postById, label, assignmentLabel } from '../lib/sim.js'
 import { clock, seek, pause, play, openDrawer } from '../lib/store.js'
 import { Play, SkipForward, Eye, ThumbsUp, MessageSquare, FileText } from 'lucide-vue-next'
 import SimTimeline from '../components/SimTimeline.vue'
@@ -27,6 +27,15 @@ const idx = computed(() => stepIndexAt(focusId.value, clock.t))
 const cur = computed(() => (idx.value >= 0 ? steps[focusId.value][idx.value] : null))
 const focusStatus = computed(() => statusAt(focusId.value, clock.t))
 const next = computed(() => personas.filter((p) => browseStart(p.id) > clock.t).sort((a, b) => a.slot - b.slot)[0])
+const historyOpen = ref(false)
+const feedOpen = ref(false)
+const peopleOpen = ref(false)
+// 优先列出最近开始体验的人物，尚未开始的人物按体验时间补足。
+const recentPeople = computed(() => [
+  ...personas.filter((p) => p.slot <= clock.t).sort((a, b) => b.slot - a.slot),
+  ...personas.filter((p) => p.slot > clock.t).sort((a, b) => a.slot - b.slot),
+].slice(0, 5))
+watch(focusId, () => { historyOpen.value = false })
 const history = computed(() => (idx.value >= 0 ? steps[focusId.value].slice(0, idx.value + 1).map((s, i) => ({ ...s, i })).reverse() : []))
 
 // 社区动态：新内容出现时不自动插入，只提示“有 n 条新动态”
@@ -114,7 +123,7 @@ function activityOf(pid) {
       <section class="panel flush people">
         <div class="ph"><h3>人物</h3><span class="faint num">{{ browsing.length }} 人体验中</span></div>
         <ul>
-          <li v-for="p in personas" :key="p.id" :class="{ sel: focusId === p.id }">
+          <li v-for="p in (peopleOpen ? personas : recentPeople)" :key="p.id" :class="{ sel: focusId === p.id }">
             <button type="button" @click="pinned = p.id" :aria-label="`查看 ${p.realname} 的实时画面`">
               <Avatar :pid="p.id" size="sm" />
               <span class="pn">
@@ -128,6 +137,7 @@ function activityOf(pid) {
             </button>
           </li>
         </ul>
+        <button v-if="personas.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="peopleOpen" @click="peopleOpen = !peopleOpen">{{ peopleOpen ? '收起' : `显示全部 ${personas.length} 人` }}</button>
       </section>
     </div>
 
@@ -136,7 +146,7 @@ function activityOf(pid) {
         <div class="panel-head"><h3>步骤日志 · {{ fp.realname }}</h3><span class="aside faint num">{{ history.length }} 步</span></div>
         <ol v-if="history.length" class="log">
           <TransitionGroup name="rise">
-            <li v-for="s in history" :key="s.i">
+            <li v-for="s in (historyOpen ? history : history.slice(0, 5))" :key="s.i">
               <button type="button" @click="openDrawer({ type: 'evidence', ev: { pid: focusId, step: s.i + 1, kind: 'step' } })">
                 <span class="num sn">#{{ s.i + 1 }}</span><span class="num st">{{ fmt(s.t).slice(3) }}</span>
                 <span class="mb" :style="{ background: s.sat >= .3 ? 'var(--pos)' : s.sat <= -.3 ? 'var(--neg)' : 'var(--border-strong)' }"></span>
@@ -146,6 +156,7 @@ function activityOf(pid) {
           </TransitionGroup>
         </ol>
         <p v-else class="faint small">到达体验时刻后，这里会逐条出现步骤。</p>
+        <button v-if="history.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="historyOpen" @click="historyOpen = !historyOpen">{{ historyOpen ? '收起' : `显示全部 ${history.length} 步` }}</button>
         <EmotionCurve v-if="history.length" :pids="[focusId]" :up-to="clock.t" :active-step="idx + 1" :height="110" title="情绪曲线（截至当前时刻）" />
       </section>
 
@@ -153,7 +164,7 @@ function activityOf(pid) {
         <div class="panel-head"><h3>社区动态</h3><span class="aside faint">只显示说出的内容</span></div>
         <button v-if="pending.length" class="newpill" type="button" @click="reveal">有 {{ pending.length }} 条新动态</button>
         <ul v-if="feed.length" class="feed">
-          <li v-for="e in feed" :key="e.ref + e.t" :class="e.kind">
+          <li v-for="e in (feedOpen ? feed : feed.slice(0, 5))" :key="e.ref + e.t" :class="e.kind">
             <button type="button" @click="openFeed(e)">
               <component :is="kindIcon[e.kind]" class="fi" />
               <span class="fb">
@@ -167,6 +178,7 @@ function activityOf(pid) {
           <p class="faint small">到 {{ fmt(clock.t) }} 为止还没有人发言。</p>
           <button v-if="!clock.playing" class="btn btn-secondary sm" type="button" @click="play"><Play />播放回放</button>
         </div>
+        <button v-if="feed.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="feedOpen" @click="feedOpen = !feedOpen">{{ feedOpen ? '收起' : `显示全部 ${feed.length} 条` }}</button>
       </section>
     </div>
   </div>
@@ -216,5 +228,6 @@ function activityOf(pid) {
 .ft { font-size: var(--fs-sm); color: var(--text); }
 .ft.dim { color: var(--text-2); font-size: var(--fs-xs); }
 .empty-feed { display: grid; justify-items: start; gap: var(--sp-2); }
+@media (max-width: 1100px) { .lower { grid-template-columns: 1fr; } .idle { max-width: 100%; flex-wrap: wrap; white-space: normal; width: max-content; } }
 @media (max-width: 1279px) { .stage { grid-template-columns: 1fr; } }
 </style>

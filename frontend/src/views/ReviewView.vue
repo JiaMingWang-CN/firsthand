@@ -11,6 +11,7 @@ import FlowSteps from '../components/FlowSteps.vue'
 import ScoutPanel from '../components/ScoutPanel.vue'
 import { AlertTriangle, Check, RefreshCw, Play, Info, Loader, Users } from 'lucide-vue-next'
 import PageIntro from '../components/PageIntro.vue'
+import { useClamp } from '../lib/useClamp.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,13 +24,16 @@ const overrides = ref(false)
 const busy = ref(false)
 const actionError = ref('')
 const open = ref(null)
+const materialOpen = ref(false)
+const featuresOpen = ref(false)
+const rationaleEl = ref(null)
+const { expanded: rationaleOpen, truncated: rationaleTruncated } = useClamp(() => [rationaleEl.value], () => d.value?.cohort_rationale)
 let timer = 0
 
 async function load() {
   clearTimeout(timer)
   try {
     const data = await api.draft(draftId.value)
-    state.value = { status: 'ready', data, error: '' }
     if (BUSY.includes(data.status) || ['failed', 'incomplete'].includes(data.status) || data.generation_error) {
       const jobs = await api.jobs()  // 最新的在前：重新生成时显示最近一次
       const mine = jobs.find((j) => ['prepare', 'generate'].includes(j.kind) && j.draft === draftId.value)
@@ -44,6 +48,7 @@ async function load() {
     simJob.value = data.status === 'approved'
       ? ((await api.jobs().catch(() => [])) ?? []).find((j) => j.kind === 'simulate' && j.draft === draftId.value) ?? null
       : null
+    state.value = { status: 'ready', data, error: '' }
     if (BUSY.includes(data.status) || simJob.value?.state === 'running') timer = setTimeout(load, 3000)
   } catch (e) {
     state.value = { status: 'error', data: null, error: e.message }
@@ -63,6 +68,10 @@ const STATUS = {
 const status = computed(() => STATUS[d.value?.status] ?? ['', d.value?.status])
 const BUSY = ['analyzing', 'generating']
 const canDecide = computed(() => d.value?.valid && ['pending', 'stale', 'rejected'].includes(d.value.status))
+// 顶部摘要和底部审核区共用同一组禁用条件与操作。
+const approveDisabled = computed(() => busy.value || !!d.value?.blocked || (d.value?.issues.length > 0 && !overrides.value))
+const rejectDisabled = computed(() => busy.value || d.value?.status === 'rejected')
+const features = computed(() => d.value?.product?.features ?? [])
 const LEVEL = { complete: ['pos', '资料完整'], partial: ['confused', '资料不全'], limited: ['neg', '参考性有限'] }
 
 // 流程条：这份草稿走到了哪一步、已完成什么、接下来做什么（next 决定流程条右侧的按钮）
@@ -79,7 +88,7 @@ const flow = computed(() => {
   if (!v.valid) return { at: 4, state: 'failed', say: '草稿未通过校验，不能批准。修改运行目录里的 draft.json 后点“重新加载”。' }
   if (v.status !== 'approved') {
     return { at: 4, state: 'active', next: 'approve', say: v.blocked ? '这份草稿现在不能批准，原因见下方。' : {
-      pending: '人物已生成。下一步：核对下方的人物与运行配置，没问题就在页面底部点“批准”。',
+      pending: '人物已生成。下一步：核对下方的人物与运行配置，没问题就点“批准”。',
       stale: '批准后草稿被修改过，审批已失效。下一步：重新核对，再次批准。',
       rejected: '这份草稿已被拒绝。可以重新核对后批准，或新建一次运行。' }[v.status] }
   }
@@ -89,11 +98,15 @@ const flow = computed(() => {
     return { at: reporting ? 6 : 5, state: 'running', next: 'job', say: reporting ? '体验与讨论已结束，正在生成报告。'
       : `人物正在按作息体验产品、在社区讨论（完成体验 ${s.progress?.personas_done ?? 0}/${s.progress?.personas ?? '—'} 人）。完成后自动生成报告。` }
   }
-  if (s?.state === 'failed') return { at: reporting ? 6 : 5, state: 'failed', next: 'job', say: '上次模拟没有完成。查看任务日志找原因，可以在页面底部点“开始模拟”重试。' }
+  if (s?.state === 'failed') return { at: reporting ? 6 : 5, state: 'failed', next: 'job', say: '上次模拟没有完成。查看任务日志找原因，可以点“重新开始模拟”重试。' }
   const run = s?.simulation ?? v.simulations[0]
   if (run) return { at: 6, state: 'done', next: 'report', run, say: '体验、讨论与报告都已完成，可以查看报告、回放和采访人物。' }
   return { at: 5, state: 'active', next: 'simulate', say: '已批准。下一步：开始模拟——人物按作息用真实浏览器体验产品、在社区讨论，最后生成报告。' }
 })
+// 已批准后只在尚未模拟或上次失败时提供入口，顶部与底部共用。
+const canSimulate = computed(() => d.value?.valid && d.value.status === 'approved' &&
+  (flow.value?.next === 'simulate' || (flow.value?.next === 'job' && flow.value.state === 'failed')))
+const summaryTitle = computed(() => canDecide.value ? '你要批准的是' : flow.value?.state === 'failed' ? '已批准 · 上次模拟没有完成' : '已批准')
 const toActions = () => actionsEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'center' })
 
 // —— 人数与天数：主 Agent 推荐，用户可改；人物生成后人数固定（换人数需新建运行），天数仍可改 ——
@@ -218,6 +231,9 @@ async function simulate() {
 watch(draftId, () => {
   state.value = { status: 'loading', data: null, error: '' }
   overrides.value = false
+  materialOpen.value = false
+  featuresOpen.value = false
+  rationaleOpen.value = false
   size.value = { count: null, days: null, touched: false }
   load()
 }, { immediate: true })
@@ -255,15 +271,34 @@ onBeforeUnmount(() => clearTimeout(timer))
     <div v-else-if="state.status === 'error'" class="panel" role="alert"><p>{{ state.error }}</p></div>
 
     <template v-else>
+      <section v-if="canDecide || canSimulate" class="panel approval-summary block" :aria-label="summaryTitle">
+        <div class="summary-copy">
+          <b>{{ summaryTitle }}</b>
+          <p>{{ d.manual.name }} · {{ d.personas.length }} 人 · {{ d.run_config.duration_days }} 天 · {{ d.capability.model }} · {{ d.issues.length ? '需确认 ' + d.issues.length + ' 项分布变更' : '无需额外确认' }}</p>
+          <button v-if="canDecide && d.issues.length" class="btn btn-ghost sm" type="button" @click="toActions">前往勾选分布变更</button>
+          <p v-if="actionError" class="neg" role="alert">{{ actionError }}</p>
+        </div>
+        <div class="row summary-buttons">
+          <template v-if="canDecide">
+            <button class="btn btn-danger" type="button" :disabled="rejectDisabled" @click="decide('reject')">拒绝</button>
+            <button class="btn btn-primary" type="button" :disabled="approveDisabled" @click="decide('approve')"><Check />批准</button>
+          </template>
+          <button v-else class="btn btn-primary" type="button" :disabled="busy" @click="simulate"><Play />{{ flow.state === 'failed' ? '重新开始模拟' : '开始模拟' }}</button>
+        </div>
+      </section>
       <!-- 纯文本模型：确认后一直显示 -->
       <div v-if="d.text_only && d.status !== 'text_only'" class="warn block" role="status"><AlertTriangle /><div><b>{{ TEXT_ONLY_NOTE }}。</b></div></div>
 
       <!-- 资料充分程度：分析后一直显示 -->
       <div v-if="d.material && d.material.level !== 'complete'" class="warn block material" role="status">
-        <AlertTriangle /><div><b>{{ d.material.summary }}</b>
-          <ul><li v-for="g in d.material.gaps" :key="g.item">缺少 {{ g.item }}：{{ g.effect }}</li></ul>
-          <span v-if="d.site && d.site.status !== 'ok'" class="faint">首页没有读取成功（{{ d.site.reason }}），AI 只能依据你填写的内容。</span>
-          <span v-else-if="d.site?.note" class="faint">{{ d.site.note }}。</span>
+        <AlertTriangle /><div>
+          <button type="button" class="material-toggle" :aria-expanded="materialOpen" @click="materialOpen = !materialOpen">{{ d.material.level === 'limited' ? '资料很少，参考性有限' : '资料不全，参考性有限' }} · 缺少 {{ d.material.gaps.length }} 项 · {{ materialOpen ? '收起' : '查看' }}</button>
+          <template v-if="materialOpen">
+            <p>{{ d.material.summary }}</p>
+            <ul><li v-for="g in d.material.gaps" :key="g.item">缺少 {{ g.item }}：{{ g.effect }}</li></ul>
+            <span v-if="d.site && d.site.status !== 'ok'" class="faint">首页没有读取成功（{{ d.site.reason }}），AI 只能依据你填写的内容。</span>
+            <span v-else-if="d.site?.note" class="faint">{{ d.site.note }}。</span>
+          </template>
         </div>
       </div>
 
@@ -276,7 +311,8 @@ onBeforeUnmount(() => clearTimeout(timer))
           <template v-if="d.product">
             <p>{{ d.product.positioning }}</p>
             <p class="faint">目标用户：{{ d.product.target_users }}</p>
-            <ul class="feats"><li v-for="f in d.product.features" :key="f">{{ f }}</li></ul>
+            <ul class="feats"><li v-for="f in (featuresOpen ? features : features.slice(0, 5))" :key="f">{{ f }}</li></ul>
+            <button v-if="features.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="featuresOpen" @click="featuresOpen = !featuresOpen">{{ featuresOpen ? '收起功能' : '显示全部 ' + features.length + ' 项功能' }}</button>
             <p v-if="d.product.assumptions?.length" class="faint">假设与推断：{{ d.product.assumptions.join('；') }}</p>
           </template>
         </section>
@@ -335,7 +371,8 @@ onBeforeUnmount(() => clearTimeout(timer))
             <div class="panel-head"><h3>产品模型</h3><span class="aside faint">{{ d.manual.url }}</span></div>
             <p>{{ d.product.positioning }}</p>
             <p class="faint">目标用户：{{ d.product.target_users }}</p>
-            <ul class="feats"><li v-for="f in d.product.features" :key="f">{{ f }}</li></ul>
+            <ul class="feats"><li v-for="f in (featuresOpen ? features : features.slice(0, 5))" :key="f">{{ f }}</li></ul>
+            <button v-if="features.length > 5" class="btn btn-ghost sm" type="button" :aria-expanded="featuresOpen" @click="featuresOpen = !featuresOpen">{{ featuresOpen ? '收起功能' : '显示全部 ' + features.length + ' 项功能' }}</button>
             <p class="faint">关键流程：{{ d.manual.flows.join('、') }}</p>
           </section>
           <section class="panel">
@@ -351,7 +388,8 @@ onBeforeUnmount(() => clearTimeout(timer))
               <dt>浏览并发上限</dt><dd>{{ d.run_config.max_concurrency }}（另受模型、浏览器与能力探测建议值限制）</dd>
             </dl>
             <div class="label">主 Agent 的分布方案</div>
-            <p class="rationale">{{ d.cohort_rationale }}</p>
+            <p ref="rationaleEl" class="rationale" :class="{ clamped: !rationaleOpen }">{{ d.cohort_rationale }}</p>
+            <button v-if="rationaleTruncated" class="btn btn-ghost sm" type="button" :aria-expanded="rationaleOpen" @click="rationaleOpen = !rationaleOpen">{{ rationaleOpen ? '收起方案' : '展开方案' }}</button>
             <ul class="dist"><li v-for="line in d.distribution" :key="line">{{ line.replace(/^- /, '') }}</li></ul>
           </section>
         </div>
@@ -361,7 +399,7 @@ onBeforeUnmount(() => clearTimeout(timer))
           <div v-if="samplingNote" class="note pad-note"><Info />{{ samplingNote }}</div>
           <div class="table-wrap">
             <table class="data">
-              <thead><tr><th>ID</th><th>姓名</th><th>年龄/性别</th><th>职业</th><th>设备/技术/耐心</th><th>动机</th><th>参与</th><th>体验日</th><th>本地体验时间</th><th>时间片</th><th>任务</th><th>温度 / top_p</th></tr></thead>
+              <thead><tr><th>ID</th><th>姓名</th><th>年龄/性别</th><th>职业</th><th>设备/技术/耐心</th><th>动机</th><th>参与</th><th>体验日</th><th>本地体验时间</th><th>时间片</th><th>任务</th></tr></thead>
               <tbody>
                 <template v-for="p in people" :key="p.persona_id">
                   <tr class="click" :aria-expanded="open === p.persona_id" @click="open = open === p.persona_id ? null : p.persona_id">
@@ -370,14 +408,14 @@ onBeforeUnmount(() => clearTimeout(timer))
                     <td>{{ p.browsing_profile.motivation }}</td><td>{{ label.participation[p.participation] }}</td>
                     <td class="num">第 {{ p.schedule.browse_day ?? 1 }} 天</td><td class="num">{{ p.row.local_time }}</td><td class="num">{{ p.row.slice_index }}</td>
                     <td>{{ p.browsing_profile.assignment.flow ?? '自由探索' }}</td>
-                    <td class="num">{{ p.sampling ? `${p.sampling.temperature} / ${p.sampling.top_p}` : '默认' }}</td>
                   </tr>
                   <tr v-if="open === p.persona_id" class="detail">
-                    <td colspan="12">
+                    <td colspan="11">
                       <p><b>{{ p.city }} · {{ p.timezone }}</b> · {{ p.bio }}</p>
                       <p>{{ p.persona }}</p>
                       <p class="faint">作息 {{ p.schedule.wake }}–{{ p.schedule.sleep }} · 体验时状态：{{ p.schedule.state_at_browse }} · 技术工具：{{ p.browsing_profile.tools.join('、') || '无' }} · 步数上限 {{ p.browsing_profile.max_steps }}</p>
                       <p class="faint">坦率程度 {{ p.disclosure.candor }} · 隐瞒倾向 {{ p.disclosure.withhold_tendency }}：{{ p.disclosure.withhold_reasons.join('；') }}</p>
+                      <div class="label advanced">高级</div>
                       <div class="sampling" @click.stop>
                         <template v-if="editing[p.persona_id]">
                           <label>温度 temperature<input v-model.number="editing[p.persona_id].temperature" class="input sm num" type="number" step="0.01" min="0" max="2" /></label>
@@ -406,10 +444,10 @@ onBeforeUnmount(() => clearTimeout(timer))
           <div v-if="actionError" class="warn" role="alert"><AlertTriangle /><div>{{ actionError }}</div></div>
           <div class="row end">
             <template v-if="canDecide">
-              <button class="btn btn-danger" type="button" :disabled="busy || d.status === 'rejected'" @click="decide('reject')">拒绝</button>
-              <button class="btn btn-primary" type="button" :disabled="busy || !!d.blocked || (d.issues.length > 0 && !overrides)" @click="decide('approve')"><Check />批准</button>
+              <button class="btn btn-danger" type="button" :disabled="rejectDisabled" @click="decide('reject')">拒绝</button>
+              <button class="btn btn-primary" type="button" :disabled="approveDisabled" @click="decide('approve')"><Check />批准</button>
             </template>
-            <button v-else-if="d.status === 'approved'" class="btn btn-primary" type="button" :disabled="busy" @click="simulate"><Play />开始模拟</button>
+            <button v-else-if="canSimulate" class="btn btn-primary" type="button" :disabled="busy" @click="simulate"><Play />{{ flow.state === 'failed' ? '重新开始模拟' : '开始模拟' }}</button>
           </div>
           <p v-if="d.simulations.length" class="faint sims">由这份草稿发起的模拟：
             <RouterLink v-for="s in d.simulations" :key="s" class="num" :to="{ name: 'report', params: { runId: s } }">{{ s }}</RouterLink>
@@ -421,6 +459,14 @@ onBeforeUnmount(() => clearTimeout(timer))
 </template>
 
 <style scoped>
+.approval-summary { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; }
+.summary-copy { min-width: 0; flex: 1; }
+.summary-copy p { margin: var(--sp-1) 0 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.summary-buttons { flex-shrink: 0; }
+.material-toggle { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.advanced { margin-top: var(--sp-3); }
+@media (max-width: 1100px) { .summary-copy { flex-basis: 100%; } .top { grid-template-columns: 1fr; } }
 .block { margin-bottom: var(--sp-4); }
 .top { align-items: start; margin-bottom: var(--sp-4); }
 .feats { margin: var(--sp-2) 0; padding-left: var(--sp-5); font-size: var(--fs-sm); }
