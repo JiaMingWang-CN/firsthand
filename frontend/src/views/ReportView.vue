@@ -43,7 +43,11 @@ const silence = computed(() => personas.map((p) => {
 }).filter((s) => s.n).sort((a, b) => b.n - a.n))
 const maxSilence = computed(() => Math.max(1, ...silence.value.map((s) => s.n)))
 const privateVoices = computed(() => personas.map((p) => ({ pid: p.id, s: surveys[p.id] })).filter((x) => x.s?.hasExperience)
-  .sort((a, b) => Number(b.s.unspoken !== '没有。') - Number(a.s.unspoken !== '没有。')).slice(0, 6))
+  .sort((a, b) => Number(b.s.unspoken !== '没有。') - Number(a.s.unspoken !== '没有。')))
+
+// 第 04 节各子块独立展开，不裁掉完整数据。
+const voiceExpanded = ref({ public: false, withheld: false, private: false, silence: false, consistency: false })
+const reviewExpanded = ref({})
 
 // —— 舆论动态 ——
 const beforeReaders = computed(() => new Set(reads.filter((r) => r.before).map((r) => r.pid)).size)
@@ -196,48 +200,51 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
           <p class="lead">社区里说出的、体验了但没说的、私下问卷，是三种不同的信息。<template v-if="alsoPublic">有 {{ alsoPublic }} 条未说出的体验本人在别处公开过。</template></p>
 
           <div class="grid g3 vcols">
-            <div>
+            <div class="public-block">
               <div class="vh"><span class="tag public">说出的</span><span class="faint num">{{ posts.length }} 帖 · {{ posts.reduce((s, p) => s + p.comments.length, 0) }} 评论</span></div>
               <div class="vstack">
-                <VoiceCard v-for="p in posts.slice(0, 8)" :key="p.id" kind="public" :pid="p.author" :t="p.t" action="发帖" :text="p.title" :evidence="p.evidence.slice(0, 1)" />
-                <p v-if="posts.length > 8" class="faint more">还有 {{ posts.length - 8 }} 帖，见「社区」页。</p>
+                <VoiceCard compact v-for="p in (voiceExpanded.public ? posts : posts.slice(0, 3))" :key="p.id" kind="public" :pid="p.author" :t="p.t" action="发帖" :text="p.title" :evidence="p.evidence.slice(0, 1)" />
+                <button v-if="posts.length > 3" type="button" class="btn btn-ghost sm block-toggle" :aria-expanded="voiceExpanded.public" @click="voiceExpanded.public = !voiceExpanded.public">{{ voiceExpanded.public ? '收起' : `显示全部 ${posts.length} 条` }}</button>
               </div>
             </div>
-            <div>
+            <div class="withheld-block">
               <div class="vh"><span class="tag withheld">未说出的</span><span class="faint num">{{ withheld.length }} 条</span></div>
               <div class="vstack">
-                <VoiceCard v-for="(w, i) in withheld.slice(0, 10)" :key="i" kind="withheld" :pid="w.pid" :t="w.t" :text="w.item" :reason="w.reason" :evidence="w.evidence.slice(0, 1)" />
-                <p v-if="withheld.length > 10" class="faint more">还有 {{ withheld.length - 10 }} 条，见各人物档案。</p>
+                <VoiceCard compact v-for="(w, i) in (voiceExpanded.withheld ? withheld : withheld.slice(0, 3))" :key="i" kind="withheld" :pid="w.pid" :t="w.t" :text="w.item" :reason="w.reason" :evidence="w.evidence.slice(0, 1)" />
+                <button v-if="withheld.length > 3" type="button" class="btn btn-ghost sm block-toggle" :aria-expanded="voiceExpanded.withheld" @click="voiceExpanded.withheld = !voiceExpanded.withheld">{{ voiceExpanded.withheld ? '收起' : `显示全部 ${withheld.length} 条` }}</button>
               </div>
             </div>
-            <div>
+            <div class="private-block">
               <div class="vh"><span class="tag private">私下 · 问卷</span><span class="faint num">{{ Object.keys(surveys).length }}/{{ personas.length }} 作答</span></div>
               <div class="vstack">
-                <VoiceCard v-for="x in privateVoices" :key="x.pid" kind="private" :pid="x.pid" :text="x.s.unspoken !== '没有。' ? x.s.unspoken : x.s.worst" :extra="x.s.nps == null ? undefined : `NPS ${x.s.nps}`" />
+                <VoiceCard compact v-for="x in (voiceExpanded.private ? privateVoices : privateVoices.slice(0, 3))" :key="x.pid" kind="private" :pid="x.pid" :text="x.s.unspoken !== '没有。' ? x.s.unspoken : x.s.worst" :extra="x.s.nps == null ? undefined : `NPS ${x.s.nps}`" />
+                <button v-if="privateVoices.length > 3" type="button" class="btn btn-ghost sm block-toggle" :aria-expanded="voiceExpanded.private" @click="voiceExpanded.private = !voiceExpanded.private">{{ voiceExpanded.private ? '收起' : `显示全部 ${privateVoices.length} 条` }}</button>
               </div>
             </div>
           </div>
 
           <h3 class="sub">各人物没有说出的体验</h3>
           <div class="panel tight" v-if="silence.length">
-            <div v-for="s in silence" :key="s.pid" class="trow" role="button" tabindex="0" @click="openDrawer({ type: 'persona', pid: s.pid, tab: 'unsaid' })" @keydown.enter="openDrawer({ type: 'persona', pid: s.pid, tab: 'unsaid' })">
+            <div v-for="s in (voiceExpanded.silence ? silence : silence.slice(0, 3))" :key="s.pid" class="trow" role="button" tabindex="0" @click="openDrawer({ type: 'persona', pid: s.pid, tab: 'unsaid' })" @keydown.enter="openDrawer({ type: 'persona', pid: s.pid, tab: 'unsaid' })">
               <span class="tk"><PersonaChip :pid="s.pid" /><span v-if="P[s.pid].participation === 'lurker'" class="tag withheld only">潜水者</span></span>
               <span class="barw"><i class="pri" :style="{ width: (s.n / maxSilence) * 100 + '%' }"></i></span>
               <span class="num tn">{{ s.n }}<span v-if="s.pains" class="faint"> · 痛点 {{ s.pains }}</span><span v-if="s.also" class="faint"> · 别处公开过 {{ s.also }}</span></span>
             </div>
           </div>
           <p v-else class="faint">没有未说出的体验记录。</p>
+          <button v-if="silence.length > 3" type="button" class="btn btn-ghost sm block-toggle silence-toggle" :aria-expanded="voiceExpanded.silence" @click="voiceExpanded.silence = !voiceExpanded.silence">{{ voiceExpanded.silence ? '收起' : `显示全部 ${silence.length} 条` }}</button>
 
           <h3 class="sub">需要复核的说法 · {{ inconsistencies.length }}</h3>
           <div class="incons">
-            <div v-for="x in inconsistencies" :key="x.pid" class="inc">
+            <div v-for="x in (voiceExpanded.consistency ? inconsistencies : inconsistencies.slice(0, 3))" :key="x.pid" class="inc">
               <div class="who"><PersonaChip :pid="x.pid" /></div>
-              <div class="voice public"><div class="who2 faint">公开</div>{{ x.public }}</div>
-              <div class="voice private"><div class="who2 kind">复核提示</div>{{ x.private }}</div>
-              <div class="evc"><button class="btn btn-ghost sm" type="button" @click="openDrawer({ type: 'persona', pid: x.pid, tab: 'unsaid' })">查看问卷与未说出的</button></div>
+              <div class="voice public"><div class="who2 faint">公开</div><div :class="{ clamped: !reviewExpanded[x.pid] }">{{ x.public }}</div></div>
+              <div class="voice private"><div class="who2 kind">复核提示</div><div :class="{ clamped: !reviewExpanded[x.pid] }">{{ x.private }}</div></div>
+              <div class="evc"><button class="btn btn-ghost sm review-toggle" type="button" :aria-expanded="!!reviewExpanded[x.pid]" @click="reviewExpanded[x.pid] = !reviewExpanded[x.pid]">{{ reviewExpanded[x.pid] ? '收起说法' : '展开说法' }}</button><button class="btn btn-ghost sm" type="button" @click="openDrawer({ type: 'persona', pid: x.pid, tab: 'unsaid' })">查看问卷与未说出的</button></div>
             </div>
             <p v-if="!inconsistencies.length" class="faint">问卷与公开发言之间没有被标记需要复核的地方。</p>
           </div>
+          <button v-if="inconsistencies.length > 3" type="button" class="btn btn-ghost sm block-toggle consistency-toggle" :aria-expanded="voiceExpanded.consistency" @click="voiceExpanded.consistency = !voiceExpanded.consistency">{{ voiceExpanded.consistency ? '收起' : `显示全部 ${inconsistencies.length} 条` }}</button>
         </section>
 
         <!-- 05 舆论动态 -->
@@ -376,7 +383,12 @@ summary:hover { color: var(--text); }
 .vcols { align-items: start; }
 .vh { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); font-size: var(--fs-xs); }
 .vstack { display: grid; gap: var(--sp-2); }
-.more { margin: 0; font-size: var(--fs-xs); }
+.block-toggle { justify-self: start; margin-top: var(--sp-2); }
+.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+#voices .lead { font-size: var(--fs-sm); margin-bottom: var(--sp-4); }
+#voices .sub { margin-top: var(--sp-4); }
+#voices .inc .voice { min-width: 0; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+#voices .evc { flex-direction: column; align-items: start; }
 .sub { font-size: var(--fs-lg); margin: var(--sp-6) 0 var(--sp-3); }
 .trow { display: grid; grid-template-columns: 200px 1fr minmax(24px, auto); gap: var(--sp-3); align-items: center; height: 32px; font-size: var(--fs-sm); cursor: pointer; }
 .tk { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
