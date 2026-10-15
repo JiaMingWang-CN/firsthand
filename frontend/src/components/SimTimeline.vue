@@ -15,9 +15,9 @@ const props = defineProps({
 })
 const emit = defineEmits(['update:modelValue', 'scrub-start'])
 const track = ref(null)
-// 缩放：真实会话只有几分钟，全天视图里体验条很窄；缩放后以播放头为中心显示一段窗口
-const ZOOMS = [{ id: 'day', label: '全天', len: Infinity }, { id: '2h', label: '2 小时', len: 120 }, { id: '30m', label: '30 分钟', len: 30 }]
-const zoom = ref('day')
+// 默认跟随播放头显示 24 小时；全程与更细的窗口仍可切换。
+const ZOOMS = [{ id: 'all', label: '全程', len: Infinity }, { id: 'day', label: '当天', len: 1440 }, { id: '2h', label: '2 小时', len: 120 }, { id: '30m', label: '30 分钟', len: 30 }]
+const zoom = ref(props.rows ? 'day' : 'all')
 const view = computed(() => {
   const len = Math.min(timeline.total, ZOOMS.find((z) => z.id === zoom.value).len)
   return { from: Math.max(0, Math.min(timeline.total - len, props.modelValue - len / 2)), len }
@@ -107,7 +107,7 @@ function openEvent(e) {
             <div class="rowlane" v-for="(pid, i) in pids" :key="pid" :style="{ top: `${22 + i * 30}px` }">
               <template v-if="showActivity">
                 <template v-for="h in P[pid].heat" :key="h.t">
-                  <i v-if="clip(h.t, h.t + 60)" class="heat" :style="{ ...clip(h.t, h.t + 60), opacity: h.v * 0.28 }"></i>
+                  <i v-if="clip(h.t, h.t + 60)" class="heat" :style="{ ...clip(h.t, h.t + 60), opacity: h.v * 0.08 }"></i>
                 </template>
               </template>
               <i v-if="clip(slotOf(pid), endOf(pid))" class="browse" :style="{ ...clip(slotOf(pid), endOf(pid)), background: P[pid].color }" :title="`体验 ${fmt(slotOf(pid))}–${fmt(endOf(pid))}`"></i>
@@ -164,7 +164,7 @@ function openEvent(e) {
 .mark:nth-child(odd) { bottom: 50px; }
 .rowlane { position: absolute; left: 0; right: 0; height: 30px; }
 .heat { position: absolute; top: 5px; height: 20px; background: var(--sim); display: block; }
-.browse { position: absolute; top: 9px; height: 12px; min-width: 6px; border-radius: 0; display: block; }
+.browse { position: absolute; top: 9px; height: 12px; min-width: 6px; border-radius: 0; display: block; opacity: .25; }
 .stepmark { position: absolute; top: 6px; width: 1px; height: 18px; background: var(--text); opacity: .55; display: block; pointer-events: none; }
 .lg-step { width: 1px; height: 12px; background: var(--text-2); display: inline-block; }
 .legend .sp { flex: 1; }
@@ -183,12 +183,12 @@ function openEvent(e) {
 .ph-label { position: absolute; top: -3px; left: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--sim); background: var(--sim-soft); padding: 0 5px; border-radius: 0; white-space: nowrap; line-height: 16px; }
 .legend { display: flex; flex-wrap: wrap; gap: var(--sp-4); margin-top: var(--sp-3); font-size: var(--fs-xs); color: var(--text-3); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
-.lg-browse { width: 18px; height: 8px; border-radius: 0; background: var(--text-2); display: inline-block; }
+.lg-browse { width: 18px; height: 8px; border-radius: 0; background: var(--text-2); opacity: .25; display: inline-block; }
 .lg { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--text-2); display: inline-block; }
 .lg.post { background: var(--text-2); }
 .lg.comment { background: linear-gradient(90deg, var(--text-2) 50%, transparent 50%); }
 .lg.react { background: radial-gradient(circle, var(--text-2) 2px, transparent 2.5px); }
-.lg-heat { width: 18px; height: 10px; background: var(--sim); opacity: .22; display: inline-block; }
+.lg-heat { width: 18px; height: 10px; background: var(--sim); opacity: .08; display: inline-block; }
 .lg-night { width: 18px; height: 10px; background: var(--surface-2); border: 1px solid var(--border); display: inline-block; }
 @media (max-width: 959px) { .labels { width: 28px; } .lrow span { display: none; } }
 </style>

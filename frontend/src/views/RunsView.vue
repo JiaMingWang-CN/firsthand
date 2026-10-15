@@ -5,6 +5,7 @@ import { api } from '../api/client.js'
 import { runList, loadRunList } from '../lib/live.js'
 import { TEXT_ONLY_NOTE } from '../lib/sim.js'
 import { Plus, ArrowUpDown } from 'lucide-vue-next'
+import PageIntro from '../components/PageIntro.vue'
 
 const router = useRouter()
 onMounted(loadRunList)
@@ -51,7 +52,7 @@ const jobText = (j) => (j.kind === 'simulate'
       <div>
         <div class="eyebrow">工作台</div>
         <h1 class="page-title">运行</h1>
-        <p class="page-sub">每次运行让模拟人物按各自作息真实使用产品，在社区里讨论，再私下填写离场问卷。结论只来自亲身体验，并附证据。这里列出后端已完成阶段 4 的运行；新建的运行在完成前显示在“进行中”。</p>
+        <PageIntro>每次运行让模拟人物按各自作息真实使用产品，在社区里讨论，再私下填写离场问卷。结论只来自亲身体验，并附证据。这里列出后端已完成阶段 4 的运行；新建的运行在完成前显示在“进行中”。</PageIntro>
       </div>
       <RouterLink to="/new" class="btn btn-primary"><Plus />新建运行</RouterLink>
     </header>

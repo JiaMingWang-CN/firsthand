@@ -12,6 +12,7 @@ import Recording from './Recording.vue'
 
 const props = defineProps({ ev: Object })
 const stepNo = ref(props.ev.step)
+const metaOpen = ref(false)
 // 翻到别的步骤时，录像改为定位该步骤操作前的截图
 const r = computed(() => resolveEvidence({ ...props.ev, step: stepNo.value, snapshot: stepNo.value === props.ev.step ? props.ev.snapshot : undefined }))
 const p = computed(() => r.value.persona)
@@ -44,7 +45,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 <template>
   <div class="evv">
-    <!-- 必须同时显示：人物、模拟时间、步骤、URL、截图、观察权限 -->
+    <!-- 人物、时间与证据始终可见，设备和观察权限按需展开 -->
     <div class="meta row">
       <PersonaChip :pid="p.id" />
       <SimTime :m="st.t" />
@@ -60,12 +61,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
     <div class="row tags">
       <span class="tag" :class="mood.cls"><span class="dot"></span>{{ mood.text }}</span>
-      <span class="tag">{{ label.device[p.device] }} · {{ p.device === 'mobile' ? '390×844' : '1440×900' }}</span>
-      <span class="tag">{{ p.timezone }}</span>
-      <span class="perm" :class="{ ok: canSeeTrace }">
-        <component :is="canSeeTrace ? Eye : EyeOff" />
-        {{ canSeeTrace ? `该人物可以通过 ${p.tools.join('、')} 查看轨迹` : '该人物看不到 Console 和 Network' }}
-      </span>
+      <button type="button" class="btn btn-ghost sm meta-toggle" :aria-expanded="metaOpen" @click="metaOpen = !metaOpen">{{ metaOpen ? '收起信息 ▴' : '更多信息 ▾' }}</button>
+      <div v-if="metaOpen" class="row extra-meta">
+        <span class="tag">{{ label.device[p.device] }} · {{ p.device === 'mobile' ? '390×844' : '1440×900' }}</span>
+        <span class="tag">{{ p.timezone }}</span>
+        <span class="perm" :class="{ ok: canSeeTrace }">
+          <component :is="canSeeTrace ? Eye : EyeOff" />
+          {{ canSeeTrace ? `该人物可以通过 ${p.tools.join('、')} 查看轨迹` : '该人物看不到 Console 和 Network' }}
+        </span>
+      </div>
     </div>
 
     <div class="think" v-if="st.think">
@@ -134,8 +138,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .shot { margin-bottom: var(--sp-3); }
 .shot.m, :deep(.shot.m) { max-width: 260px; margin-left: auto; margin-right: auto; }
 .tags { gap: 6px; margin-bottom: var(--sp-4); }
+.extra-meta { flex-basis: 100%; min-width: 0; gap: 6px; overflow-wrap: anywhere; }
 .perm { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); color: var(--text-2); background: var(--surface-2); border-radius: var(--r-sm); padding: 2px 8px; }
-.perm svg { width: 14px; height: 14px; stroke-width: 1.5; }
+.perm svg { width: 14px; height: 14px; flex: none; stroke-width: 1.5; }
 .think { border-left: 2px solid var(--border-strong); padding-left: var(--sp-3); margin-bottom: var(--sp-4); }
 .think p { margin: 2px 0 0; color: var(--text-2); font-size: var(--fs-sm); }
 .blk { border-top: 1px solid var(--border); padding: var(--sp-4) 0; }
