@@ -76,7 +76,7 @@ function onKey(e) {
   if (!list.length) return
   if (e.key === 'j' || e.key === 'J') active.value = Math.min(list.length - 1, active.value + 1)
   else if (e.key === 'k' || e.key === 'K') active.value = Math.max(0, active.value - 1)
-  else if (e.key === 'Enter' && active.value >= 0) return openDrawer({ type: 'finding', id: list[active.value].id })
+  else if (e.key === 'Enter' && !e.target.closest('button, a, summary, select, [role="button"]') && active.value >= 0) return openDrawer({ type: 'finding', id: list[active.value].id })
   else return
   document.getElementById(list[active.value].id)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
 }
@@ -85,7 +85,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
 const toc = [
   ['ov', '总览'], ['issues', '问题清单'], ['highlights', '亮点'], ['voices', '公开声音与沉默信号'],
-  ['dynamics', '舆论动态'], ['timeofday', '分时段体验差异'], ['scout', '说明书与实际不一致'],
+  ['dynamics', '舆论动态'], ['timeofday', '分时段体验差异'], ['scout', '说明书与实际不一致'], ['about', '关于这份报告'],
 ]
 const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
 const sx = (m) => 36 + (m / 1440) * 424
@@ -117,19 +117,17 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
             问题清单 <b class="num">{{ issues.length }}</b> 条<template v-if="issues.length">，其中 <b class="num">{{ topSev }}</b> 条为 S1/S2</template>；
             另有 <b class="num">{{ withheld.length }}</b> 条体验没有在社区说出，其中 <b class="num">{{ unsaidLurkers }}</b> 条来自潜水者。
           </p>
-          <p v-if="outcomeSources" class="faint src-note">任务成败的判定来源：{{ outcomeSources }}。</p>
-          <div class="grid g4 kpis">
+          <div class="grid g3 kpis">
             <div class="panel tight kpi">
               <div class="k">体验完成</div>
               <div class="v big">{{ done.length }}<small>/{{ personas.length }}</small></div>
               <DotMatrix :x="done.length" :y="personas.length" :show-text="false" />
-              <div class="d">自由探索 {{ explorers.length }} 人 · 有任务 {{ personas.length - explorers.length }} 人</div>
+              <div class="d">自由探索 {{ explorers.length }} 人</div>
             </div>
             <div class="panel tight kpi">
               <div class="k">推荐意愿 NPS</div>
               <div class="v big">{{ nps.score ?? '—' }}</div>
-              <div class="d num">推荐 {{ nps.promoters }} · 被动 {{ nps.passives }} · 贬损 {{ nps.detractors }}（共 {{ scored }}）</div>
-              <div class="d faint">样本仅 {{ personas.length }} 人，仅作方向参考</div>
+              <div class="d num" :title="`样本仅 ${scored} 人，仅作方向参考`">推荐 {{ nps.promoters }} · 被动 {{ nps.passives }} · 贬损 {{ nps.detractors }}</div>
             </div>
             <div class="panel tight kpi">
               <div class="k">问题</div>
@@ -137,12 +135,6 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
                 <span v-for="s in [1, 2, 3, 4]" :key="s" class="sv"><SevTag :sev="s" /><b class="num">{{ issueCount(s) }}</b></span>
               </div>
               <div class="d">亮点 {{ highlights.length }} 条</div>
-            </div>
-            <div class="panel tight kpi">
-              <div class="k">未说出的体验</div>
-              <div class="v big">{{ withheld.length }}<small> 条</small></div>
-              <div class="d">发言者 {{ unsaidSpeakers }} 条 · 潜水者 {{ unsaidLurkers }} 条</div>
-              <div class="d faint num">{{ report?.silence ? `来自 ${report.silence.length} 次表达决定（同一体验可能被多次隐瞒）` : '无报告，按表达过滤记录推出' }}</div>
             </div>
           </div>
 
@@ -163,17 +155,10 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
               </table>
             </div>
           </div>
-          <div class="panel tight"><NpsChart /></div>
-          </div>
-          <div class="note cov" v-if="coverage.length || run.limitations?.length">
-            <Info />
-            <div>
-              <b>覆盖说明与限制</b>
-              <ul class="covl">
-                <li v-for="(c, i) in coverage" :key="'c' + i">{{ c }}</li>
-                <li v-for="(l, i) in run.limitations" :key="'l' + i" class="faint">{{ l }}</li>
-              </ul>
-            </div>
+          <details class="panel tight nps-distribution">
+            <summary>查看推荐意愿分布</summary>
+            <NpsChart />
+          </details>
           </div>
         </section>
 
@@ -181,7 +166,7 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
         <section id="issues" class="section">
           <div class="section-head">
             <span class="n">02</span><h2>问题清单</h2>
-            <span class="aside">按「影响人数 × 严重度 × 证据强度」排序，不按点赞数 · <kbd>J</kbd> <kbd>K</kbd> 切换 <kbd>Enter</kbd> 打开</span>
+            <span class="aside" title="按「影响人数 × 严重度 × 证据强度」排序，不按点赞数 · J K 切换 Enter 打开">按影响 × 严重度 × 证据排序</span>
           </div>
           <div class="seg filt" role="group" aria-label="按严重度筛选">
             <button type="button" :aria-pressed="sevFilter === 'all'" @click="sevFilter = 'all'">全部 {{ issues.length }}</button>
@@ -207,7 +192,8 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
         <!-- 04 公开声音与沉默信号 -->
         <section id="voices" class="section">
           <div class="section-head"><span class="n">04</span><h2>公开声音与沉默信号</h2></div>
-          <p class="lead">社区里说出的、体验了但没说的、私下问卷，是三种不同的信息。{{ withheld.length }} 条体验没有在社区说出<template v-if="alsoPublic">，其中 {{ alsoPublic }} 条本人在别处公开过</template>。</p>
+          <p class="silence-summary" :title="report?.silence ? `来自 ${report.silence.length} 次表达决定（同一体验可能被多次隐瞒）` : '无报告，按表达过滤记录推出'">{{ withheld.length }} 条体验没有在社区说出 · 发言者 {{ unsaidSpeakers }} · 潜水者 {{ unsaidLurkers }}</p>
+          <p class="lead">社区里说出的、体验了但没说的、私下问卷，是三种不同的信息。<template v-if="alsoPublic">有 {{ alsoPublic }} 条未说出的体验本人在别处公开过。</template></p>
 
           <div class="grid g3 vcols">
             <div>
@@ -257,14 +243,13 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
         <!-- 05 舆论动态 -->
         <section id="dynamics" class="section">
           <div class="section-head"><span class="n">05</span><h2>舆论动态</h2></div>
-          <p class="lead">{{ beforeReaders }} 名人物在自己体验之前就读到了帖子，从而形成预期；{{ changed }} 名人物在问卷里自述自己的观点被讨论改变。这是自述，不是因果结论；帖子按触达量而不是点赞排序。</p>
+          <p class="lead">{{ beforeReaders }} 名人物在自己体验之前就读到了帖子，从而形成预期；{{ changed }} 名人物在问卷里自述自己的观点被讨论改变。帖子按触达量而不是点赞排序。</p>
           <div class="panel"><InfluenceGraph /></div>
         </section>
 
         <!-- 06 分时段 -->
         <section id="timeofday" class="section">
           <div class="section-head"><span class="n">06</span><h2>分时段体验差异</h2></div>
-          <p class="lead">按人物本地时刻的体验开始时间分段。样本很小，且时段与人设混杂，只能作为线索。</p>
           <div class="grid g2">
             <div class="panel">
               <div class="label">各人物体验时刻（本地）与平均满意度</div>
@@ -322,6 +307,28 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
           <div class="note"><Info /><div>{{ report?.scout?.note ?? 'Scout 未执行，没有说明书与实际产品不一致的记录。' }}
             <template v-if="report?.scout?.unverified?.length"> 未核对：{{ report.scout.unverified.map((u) => `${u.area}（${u.reason}）`).join('；') }}。</template></div></div>
         </section>
+
+        <!-- 方法说明集中在文末，按需展开 -->
+        <details id="about" class="section panel about">
+          <summary>关于这份报告</summary>
+          <p v-if="outcomeSources" class="faint src-note">任务成败的判定来源：{{ outcomeSources }}。</p>
+          <div class="note cov" v-if="coverage.length || run.limitations?.length">
+            <Info />
+            <div>
+              <b>覆盖说明与限制</b>
+              <ul class="covl">
+                <li v-for="(c, i) in coverage" :key="'c' + i">{{ c }}</li>
+                <li v-for="(l, i) in run.limitations" :key="'l' + i" class="faint">{{ l }}</li>
+              </ul>
+            </div>
+          </div>
+          <p class="faint">舆论动态中的观点变化来自人物自述，不是因果结论。</p>
+          <p class="faint">分时段体验按人物本地时刻的体验开始时间分段。样本很小，且时段与人设混杂，只能作为线索。</p>
+          <dl class="run-meta">
+            <template v-if="run.startedAt || run.endedAt"><dt>起止时间</dt><dd>{{ run.startedAt ? new Date(run.startedAt).toLocaleString('zh-CN', { hour12: false }) : '—' }} → {{ run.endedAt ? new Date(run.endedAt).toLocaleString('zh-CN', { hour12: false }) : '—' }}</dd></template>
+            <template v-if="run.model"><dt>模型</dt><dd>{{ run.model }}</dd></template>
+          </dl>
+        </details>
       </div>
 
       <aside class="toc" aria-label="报告目录">
@@ -345,17 +352,26 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
 .toc a:hover { color: var(--text); }
 .toc .num { color: var(--text-3); font-size: var(--fs-xs); padding-top: 2px; }
 .conclusion { font-size: var(--fs-lg); line-height: 1.7; margin: 0 0 var(--sp-3); max-width: 860px; }
-.src-note { font-size: var(--fs-xs); margin: 0 0 var(--sp-5); }
+.src-note { font-size: var(--fs-xs); margin: var(--sp-3) 0; }
 .kpis { margin-bottom: var(--sp-4); }
 .sevs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px var(--sp-3); margin: var(--sp-2) 0; }
 .sv { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .sv b { font-size: var(--fs-lg); }
-.ovgrid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: var(--sp-4); margin-bottom: var(--sp-3); align-items: start; }
-@media (max-width: 1279px) { .ovgrid { grid-template-columns: 1fr; } }
+.ovgrid { display: grid; gap: var(--sp-3); }
+summary { cursor: pointer; color: var(--text-2); font-size: var(--fs-sm); }
+summary:hover { color: var(--text); }
+.nps-distribution[open] summary { margin-bottom: var(--sp-3); }
+.about { scroll-margin-top: 80px; padding-top: var(--sp-3); border-top: 1px solid var(--ink); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.about summary { font-weight: 600; }
+.about .cov { margin-top: var(--sp-3); }
+.run-meta { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-2) var(--sp-3); }
+.run-meta dt { color: var(--text-3); }
+.run-meta dd { margin: 0; }
+.silence-summary { margin: 0 0 var(--sp-3); font-size: var(--fs-sm); color: var(--text-2); }
 .cov { font-size: var(--fs-xs); }
 .covl { margin: var(--sp-1) 0 0; padding-left: 1.2em; line-height: 1.7; }
 .flows .row { flex-wrap: nowrap; }
-.filt { margin-bottom: var(--sp-4); }
+.filt { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; margin-bottom: var(--sp-4); }
 .flist { display: grid; gap: var(--sp-3); }
 .vcols { align-items: start; }
 .vh { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-3); font-size: var(--fs-xs); }
@@ -385,5 +401,10 @@ const sy = (v) => 20 + ((1 - v) / 2) * 160
 @media (max-width: 959px) {
   .inc { grid-template-columns: 1fr; }
   .trow { grid-template-columns: 130px 1fr auto; }
+}
+@media (max-width: 640px) {
+  .trow { grid-template-columns: 1fr; height: auto; gap: var(--sp-1); padding: var(--sp-2) 0; }
+  .tk { flex-wrap: wrap; white-space: normal; }
+  .tn { text-align: left; white-space: normal; }
 }
 </style>

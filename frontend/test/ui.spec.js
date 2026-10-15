@@ -197,6 +197,7 @@ test('问题卡片把证据按（人物，步骤）成组，每段仍能打开�
   const w = await open(`/runs/${RUN}/report`)
   const issue = data.findings.find((f) => f.kind === 'issue' && f.evidence.some((e) => e.kind === 'video'))
   const card = w.find(`article[id="${issue.id}"]`)
+  await card.get('.toggle').trigger('click')
   const keys = [...new Set(issue.evidence.map((e) => `${e.pid}#${e.step}`))]
   const groups = card.findAll('.evg')
   expect(groups).toHaveLength(keys.length)

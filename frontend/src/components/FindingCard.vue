@@ -11,7 +11,7 @@ const props = defineProps({ f: Object, rank: Number, active: Boolean })
 const inDrawer = inject('inDrawer', false)
 const hl = computed(() => props.f.kind === 'highlight')
 const noEv = computed(() => props.f.evidence.length === 0)
-const open = ref(!noEv.value)
+const open = ref(inDrawer && !noEv.value)
 const shown = computed(() => props.f.affected.slice(0, 3))
 const color = computed(() => (hl.value ? 'var(--pos)' : `var(--sev-${props.f.sev})`))
 // 严重度刻度：S1 满格（4），S4 一格
@@ -41,7 +41,7 @@ function detail() { openDrawer({ type: 'finding', id: props.f.id }, { fromDrawer
 </script>
 
 <template>
-  <article class="finding" :class="{ active, noev: noEv, hl }" :style="{ '--fc': color }" :id="f.id">
+  <article class="finding" :class="{ active, noev: noEv, hl, compact: !inDrawer }" :style="{ '--fc': color }" :id="f.id">
     <div class="rail" aria-hidden="true">
       <span v-if="rank" class="rank num">{{ String(rank).padStart(2, '0') }}</span>
       <span v-if="hl" class="hlmark"><Check /></span>
@@ -57,13 +57,16 @@ function detail() { openDrawer({ type: 'finding', id: props.f.id }, { fromDrawer
         <span class="fid num">{{ f.id }}</span>
       </div>
       <h4><button type="button" class="title" @click="detail">{{ f.title }}</button></h4>
-      <button v-if="noEv && !open" type="button" class="btn btn-ghost sm" @click="open = true">展开无证据的记录</button>
+      <div v-if="!inDrawer || noEv" class="brief">
+        <span v-if="!inDrawer" class="impact num">影响 {{ f.affected.length }}/{{ f.denominator }} 人</span>
+        <button type="button" class="btn btn-ghost sm toggle" :aria-expanded="open" @click="open = !open">{{ open ? '收起 ▴' : '展开详情 ▾' }}</button>
+      </div>
 
       <template v-if="open">
         <p class="why">{{ f.summary }}</p>
 
         <div class="facts">
-          <div class="fact impact">
+          <div v-if="inDrawer" class="fact">
             <span class="k">影响</span>
             <span class="bar" :aria-label="`${f.affected.length}/${f.denominator}`">
               <i v-for="i in f.denominator" :key="i" :class="{ on: i <= f.affected.length }"></i>
@@ -115,13 +118,20 @@ function detail() { openDrawer({ type: 'finding', id: props.f.id }, { fromDrawer
 .hlmark svg { width: 13px; height: 13px; stroke-width: 2.5; }
 
 .body { padding: 18px 8px 18px 14px; min-width: 0; }
+.compact .rail { padding-top: 16px; }
+.compact .body { padding-top: 12px; padding-bottom: 12px; }
+.brief { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px var(--sp-2); }
+.impact { font-size: var(--fs-xs); color: var(--text-2); }
+.toggle { margin-left: auto; }
 .head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .sp { flex: 1; }
 .fid { font: 11px var(--font-mono); color: var(--text-3); line-height: 20px; }
 h4 { margin: 8px 0 6px; font-size: 16px; line-height: 1.5; }
-.title { background: none; border: none; padding: 0; text-align: left; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; }
+.title { background: none; border: none; padding: 0; text-align: left; font: inherit; font-weight: 600; color: var(--text); cursor: pointer; overflow-wrap: anywhere; }
 .title:hover { text-decoration: underline; text-underline-offset: 3px; }
 .why { color: var(--text-2); font-size: var(--fs-sm); line-height: 1.7; margin: 0 0 16px; max-width: 780px; }
+
+.compact .why { margin-top: var(--sp-2); }
 
 .k { width: 30px; flex: none; font-size: 11px; color: var(--text-3); font-weight: 600; letter-spacing: .04em; }
 .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 28px; padding: 12px 0; border-top: 1px dashed var(--border); }
